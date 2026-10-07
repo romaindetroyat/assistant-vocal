@@ -104,7 +104,9 @@ npx wrangler secret put ANTHROPIC_API_KEY     # idem ASSISTANT_PASSWORD, SESSION
 npm run deploy
 ```
 
-Sur Cloudflare, la configuration MCP vient du secret `MCP_CONFIG_JSON` (pas de fichier). Les jetons des
+Sur Cloudflare, la configuration MCP vient de secrets (pas de fichier). Le plus simple : un secret `MCP_URL_<NOM>`
+par serveur (ex. `MCP_URL_ZAPIER` avec l'URL du serveur MCP Zapier), avec en option `MCP_TOKEN_<NOM>`,
+`MCP_DESC_<NOM>` et `MCP_TOOLS_<NOM>` (liste blanche séparée par des virgules). Sinon, `MCP_CONFIG_JSON`. Les jetons des
 serveurs MCP peuvent y être écrits directement (`authorization_token`) ou référencer d'autres secrets du
 Worker via `authorization_token_env`.
 

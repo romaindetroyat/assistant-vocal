@@ -29,10 +29,45 @@ export function analyserConfigMcp(texte, env = (typeof process !== 'undefined' ?
   return serveurs;
 }
 
-// Configuration fournie en variable d'environnement (Cloudflare) : MCP_CONFIG_JSON.
-export function serveursDepuisEnv() {
-  if (!config.mcpConfigJson) return null;
-  return analyserConfigMcp(config.mcpConfigJson);
+// Descriptions par défaut des serveurs connus (utilisées si MCP_DESC_<NOM> est absent).
+const DESCRIPTIONS = {
+  zapier: "Passerelle Zapier vers les applications de l'utilisateur : Gmail (lire, répondre, envoyer des e-mails), Google Agenda (rendez-vous, disponibilités), Google Drive (fichiers), Notion (pages, bases), Airtable (bases, enregistrements), Granola (notes de réunion), Typeform, Zoho Sheet. Pour les e-mails et l'agenda, c'est ici.",
+  agenda: "Agenda unifié : lister, créer, modifier des rendez-vous, trouver des créneaux.",
+  gmail: 'Boîte mail : rechercher, lire, répondre, envoyer des e-mails.',
+  matrix: "Messagerie Element/Matrix de l'équipe : lire et envoyer des messages.",
+  notion: 'Notion : rechercher et modifier des pages et bases.',
+};
+
+// Serveurs déclarés par variables d'environnement : MCP_URL_<NOM> (+ MCP_TOKEN_<NOM>, MCP_DESC_<NOM>, MCP_TOOLS_<NOM> séparés par des virgules).
+export function serveursDepuisVariables(env = (typeof process !== 'undefined' ? process.env : {})) {
+  const serveurs = [];
+  for (const [cle, url] of Object.entries(env)) {
+    const m = cle.match(/^MCP_URL_([A-Z0-9_]+)$/);
+    if (!m || !url) continue;
+    const nom = m[1].toLowerCase();
+    const outils = env[`MCP_TOOLS_${m[1]}`];
+    serveurs.push({
+      name: nom,
+      url,
+      description: env[`MCP_DESC_${m[1]}`] || DESCRIPTIONS[nom] || '',
+      authorization_token: env[`MCP_TOKEN_${m[1]}`] || undefined,
+      allowed_tools: outils ? outils.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
+    });
+  }
+  return serveurs.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Configuration fournie par l'environnement (Cloudflare) : MCP_CONFIG_JSON et/ou variables MCP_URL_<NOM>.
+export function serveursDepuisEnv(env = (typeof process !== 'undefined' ? process.env : {})) {
+  const parJson = config.mcpConfigJson ? analyserConfigMcp(config.mcpConfigJson, env) : [];
+  const parVariables = serveursDepuisVariables(env);
+  if (!parJson.length && !parVariables.length) return null;
+  const noms = new Set(parJson.map((s) => s.name));
+  for (const s of parVariables) {
+    if (!/^https:\/\//.test(s.url)) throw new Error(`MCP_URL_${s.name.toUpperCase()} doit commencer par https://`);
+    if (!noms.has(s.name)) { parJson.push(s); noms.add(s.name); }
+  }
+  return parJson;
 }
 
 // Paramètres à passer à client.beta.messages.stream(...)
