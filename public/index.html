@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Assistant</title>
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Assistant">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Connexion -->
+  <section id="ecran-login" class="ecran" hidden>
+    <form id="form-login" class="carte-login">
+      <img src="/icons/icon.svg" alt="" width="72" height="72">
+      <h1>Assistant</h1>
+      <label for="mot-de-passe">Mot de passe</label>
+      <input id="mot-de-passe" type="password" autocomplete="current-password" required autofocus>
+      <button type="submit" class="btn btn-primaire">Entrer</button>
+      <p id="login-erreur" class="erreur" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- Application -->
+  <section id="ecran-app" class="ecran app" hidden>
+    <header class="barre">
+      <button id="btn-menu" class="btn-icone" aria-label="Conversations" title="Conversations">☰</button>
+      <h1 id="titre-conv">Assistant</h1>
+      <button id="btn-voix" class="btn-icone" aria-pressed="false" aria-label="Lecture à voix haute" title="Lecture à voix haute">🔈</button>
+      <button id="btn-mains-libres" class="btn-icone" aria-pressed="false" aria-label="Mode conversation" title="Mode conversation : réécoute après chaque réponse">🔁</button>
+      <button id="btn-notifs" class="btn-icone" aria-label="Notifications" title="Activer les notifications">🔔</button>
+    </header>
+
+    <aside id="tiroir" class="tiroir" hidden>
+      <div class="tiroir-entete">
+        <button id="btn-nouvelle" class="btn btn-primaire">+ Nouvelle conversation</button>
+        <button id="btn-fermer-tiroir" class="btn-icone" aria-label="Fermer">✕</button>
+      </div>
+      <ul id="liste-conversations" class="liste-conv"></ul>
+      <div class="tiroir-pied">
+        <p id="info-serveurs" class="discret"></p>
+        <button id="btn-logout" class="btn btn-secondaire">Se déconnecter</button>
+      </div>
+    </aside>
+    <div id="voile" class="voile" hidden></div>
+
+    <main id="messages" class="messages" aria-live="polite"></main>
+
+    <footer class="composer">
+      <div id="pieces" class="pieces" hidden></div>
+      <div id="etat" class="etat" hidden></div>
+      <div class="ligne">
+        <label class="btn-icone" title="Photo ou image" aria-label="Joindre une image">
+          📎<input id="input-image" type="file" accept="image/*" multiple hidden>
+        </label>
+        <label class="btn-icone btn-camera" title="Prendre une photo" aria-label="Prendre une photo">
+          📷<input id="input-camera" type="file" accept="image/*" capture="environment" hidden>
+        </label>
+        <textarea id="saisie" rows="1" placeholder="Parlez, écrivez ou collez…" enterkeyhint="send"></textarea>
+        <button id="btn-vocal" class="btn-icone" aria-label="Enregistrer un vocal" title="Enregistrer un vocal (maintenir)">⏺</button>
+        <button id="btn-micro" class="btn-icone btn-micro" aria-pressed="false" aria-label="Dicter" title="Dicter">🎤</button>
+        <button id="btn-envoyer" class="btn-icone btn-envoyer" aria-label="Envoyer" title="Envoyer">➤</button>
+      </div>
+    </footer>
+  </section>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

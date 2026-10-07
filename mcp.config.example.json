@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "name": "agenda",
+      "url": "https://exemple.invalid/mcp/agenda",
+      "description": "Agenda unifié : lister, créer, modifier des rendez-vous, trouver des créneaux.",
+      "authorization_token_env": "MCP_AGENDA_TOKEN"
+    },
+    {
+      "name": "gmail",
+      "url": "https://exemple.invalid/mcp/gmail",
+      "description": "Boîte mail : rechercher, lire, répondre, envoyer des e-mails.",
+      "authorization_token_env": "MCP_GMAIL_TOKEN"
+    },
+    {
+      "name": "matrix",
+      "url": "https://exemple.invalid/mcp/matrix",
+      "description": "Messagerie Element/Matrix de l'équipe : lire et envoyer des messages.",
+      "authorization_token_env": "MCP_MATRIX_TOKEN"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "mode": "yolo",
+  "depth": "quick",
+  "parallelization": true,
+  "commit_docs": true,
+  "model_profile": "balanced",
+  "git": { "branching_strategy": "none" },
+  "language": "fr"
+}
