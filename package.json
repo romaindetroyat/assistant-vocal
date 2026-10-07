@@ -11,8 +11,8 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test \"test/**/*.test.js\"",
-    "deploy": "wrangler deploy",
-    "cf:dev": "wrangler dev",
+    "deploy": "node scripts/inline-assets.mjs && wrangler deploy",
+    "cf:dev": "node scripts/inline-assets.mjs && wrangler dev",
     "vapid": "node server/vapid.js"
   },
   "dependencies": {

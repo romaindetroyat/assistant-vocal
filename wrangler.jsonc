@@ -4,7 +4,6 @@
   "main": "server/worker.js",
   "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
   "kv_namespaces": [{ "binding": "DATA", "id": "86626561bfdf4aae803f9d00762e69fe" }],
   "triggers": { "crons": ["* * * * *"] },
   "vars": {

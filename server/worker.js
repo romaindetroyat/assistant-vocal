@@ -5,6 +5,7 @@ import { serveursDepuisEnv } from './mcp.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendKv } from './store-kv.js';
 import { livrerRappelsDus } from './scheduler.js';
+import { fichiersInline } from './assets-inline.js';
 
 function preparer(env) {
   // Les variables et secrets du Worker alimentent process.env (lu par config.js).
@@ -20,10 +21,20 @@ function serveurs() {
   return serveursCache;
 }
 
+// Fichiers statiques embarqués dans le bundle (évite l'étape d'envoi d'assets).
+const cacheBinaire = new Map();
+function servirInline(chemin) {
+  const f = fichiersInline[chemin];
+  if (!f) return new Response('Introuvable', { status: 404 });
+  if (!cacheBinaire.has(chemin)) cacheBinaire.set(chemin, Uint8Array.from(atob(f.base64), (ch) => ch.charCodeAt(0)));
+  const immuable = /\.(png|svg)$/.test(chemin);
+  return new Response(cacheBinaire.get(chemin), { headers: { 'Content-Type': f.type, 'Cache-Control': immuable ? 'public, max-age=86400' : 'public, max-age=300' } });
+}
+
 const app = creerApplication({
   client: () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
   serveurs,
-  fichier: (c, chemin) => c.env.ASSETS.fetch(new Request(new URL(chemin, c.req.url), { headers: c.req.raw.headers })),
+  fichier: (_c, chemin) => servirInline(chemin),
 });
 
 export default {

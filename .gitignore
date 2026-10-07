@@ -3,3 +3,4 @@ data/
 .env
 mcp.config.json
 .dev.vars
+server/assets-inline.js
