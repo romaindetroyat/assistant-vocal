@@ -11,7 +11,9 @@
     "USER_NAME": "Romain",
     "CLAUDE_MODEL": "claude-opus-5-5",
     "CLAUDE_EFFORT": "medium",
-    "VAPID_SUBJECT": "mailto:romaindetroyat@gmail.com"
+    "VAPID_SUBJECT": "mailto:romaindetroyat@gmail.com",
+    "MCP_URL_AGENDA": "https://agenda-hub-cyan.vercel.app/api/mcp",
+    "MCP_AUTH_AGENDA": "oauth"
   },
   "observability": { "enabled": true }
 }

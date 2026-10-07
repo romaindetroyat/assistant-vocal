@@ -8,6 +8,8 @@ import { executerTour } from './chat.js';
 import { pushDisponible } from './push.js';
 import { transcriptionDisponible, transcrire } from './transcribe.js';
 import * as store from './store.js';
+import { resoudreServeurs } from './mcp.js';
+import * as oauth from './oauth-mcp.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -28,10 +30,12 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   app.post('/api/logout', (c) => { retirerCookie(c); return c.json({ ok: true }); });
   app.use('/api/*', exigerSession);
 
-  app.get('/api/me', (c) => c.json({
+  const etatServeurs = () => Promise.all(lesServeurs().map(async (s) => ({ name: s.name, description: s.description, auth: s.auth || 'token', ...(s.auth === 'oauth' ? await oauth.etatConnexion(s.name) : { connecte: true }) })));
+
+  app.get('/api/me', async (c) => c.json({
     assistantName: config.assistantName,
     model: config.model,
-    serveurs: lesServeurs().map((s) => ({ name: s.name, description: s.description })),
+    serveurs: await etatServeurs(),
     push: pushDisponible(),
     vapidPublicKey: config.vapid.publicKey || null,
     transcription: transcriptionDisponible(),
@@ -53,7 +57,8 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     return streamSSE(c, async (flux) => {
       await flux.writeSSE({ event: 'start', data: JSON.stringify({ conversationId: conversation.id }) });
       try {
-        for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: corps.content, serveurs: lesServeurs() })) {
+        const { prets, nonConnectes } = await resoudreServeurs(lesServeurs(), (nom) => oauth.jetonPour(nom));
+        for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: corps.content, serveurs: prets, nonConnectes })) {
           await flux.writeSSE({ event: ev.type, data: JSON.stringify(ev) });
         }
       } catch (e) {
@@ -74,6 +79,33 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     catch (e) { return c.json({ erreur: e.message }, e.status || 500); }
   });
 
+  // --- Connexion OAuth aux serveurs MCP ---
+  const serveurOauth = (nom) => lesServeurs().find((s) => s.name === nom && s.auth === 'oauth');
+  app.get('/api/mcp', async (c) => c.json(await etatServeurs()));
+  app.post('/api/mcp/:nom/connect', async (c) => {
+    const s = serveurOauth(c.req.param('nom'));
+    if (!s) return c.json({ erreur: 'Serveur inconnu ou sans OAuth' }, 404);
+    try {
+      const redirectUri = new URL('/oauth/callback', c.req.url).toString();
+      return c.json(await oauth.demarrerConnexion({ nom: s.name, urlMcp: s.url, redirectUri, nomClient: config.assistantName }));
+    } catch (e) { return c.json({ erreur: e.message }, 502); }
+  });
+  app.post('/api/mcp/:nom/finish', async (c) => {
+    const s = serveurOauth(c.req.param('nom'));
+    if (!s) return c.json({ erreur: 'Serveur inconnu ou sans OAuth' }, 404);
+    const corps = await c.req.json().catch(() => ({}));
+    const params = corps.code && corps.state ? { code: corps.code, state: corps.state } : oauth.extraireCodeEtState(corps.url || '');
+    if (!params) return c.json({ erreur: "Adresse de retour sans code ni state" }, 400);
+    try { await oauth.terminerConnexion({ nom: s.name, ...params }); return c.json({ ok: true }); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.delete('/api/mcp/:nom', async (c) => {
+    const s = serveurOauth(c.req.param('nom'));
+    if (!s) return c.json({ erreur: 'Serveur inconnu ou sans OAuth' }, 404);
+    await oauth.deconnecter(s.name);
+    return c.json({ ok: true });
+  });
+
   app.get('/api/push/key', (c) => c.json({ key: config.vapid.publicKey || null }));
   app.post('/api/push/subscribe', async (c) => {
     const abo = await c.req.json().catch(() => null);
@@ -84,6 +116,18 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     const { endpoint } = await c.req.json().catch(() => ({}));
     if (endpoint) await store.retirerAbonnement(endpoint);
     return c.json({ ok: true });
+  });
+
+  // Retour OAuth automatique (quand le serveur MCP autorise l'adresse du Worker). Le state identifie le serveur.
+  app.get('/oauth/callback', async (c) => {
+    if (!estConnecte(c)) return c.redirect('/login');
+    const code = c.req.query('code'); const state = c.req.query('state');
+    if (!code || !state) return c.text(`Retour OAuth incomplet : ${c.req.query('error_description') || c.req.query('error') || 'code manquant'}`, 400);
+    for (const s of lesServeurs().filter((x) => x.auth === 'oauth')) {
+      try { await oauth.terminerConnexion({ nom: s.name, code, state }); return c.redirect(`/app?connecte=${encodeURIComponent(s.name)}`); }
+      catch (e) { if (!/attente|state/.test(e.message)) return c.text(`Connexion refusée : ${e.message}`, 400); }
+    }
+    return c.text('Aucune connexion en attente ne correspond.', 400);
   });
 
   // Fichiers statiques (PWA)

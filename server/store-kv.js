@@ -29,5 +29,8 @@ export function creerBackendKv(kv) {
     async retirerAbonnement(endpoint) { await ecrire('push-subs', (await lire('push-subs', [])).filter((a) => a.endpoint !== endpoint)); },
     listerRappels: () => lire('reminders', []),
     sauverRappels: (r) => ecrire('reminders', r),
+    lireValeur: (cle) => lire(`val:${cle}`, null),
+    ecrireValeur: (cle, v) => ecrire(`val:${cle}`, v),
+    supprimerValeur: (cle) => kv.delete(`val:${cle}`),
   };
 }

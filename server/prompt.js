@@ -1,13 +1,13 @@
 // Prompt système : identité, contexte temporel, carte des outils.
 import { config } from './config.js';
 
-export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false } = {}) {
+export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false, nonConnectes = [] } = {}) {
   const maintenant = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' });
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
 
-  const carte = serveurs.length
-    ? serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}`).join('\n')
-    : '- (aucun serveur MCP configuré : dis-le si on te demande une action qui en nécessiterait un)';
+  const lignes = serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}`);
+  for (const s of nonConnectes) lignes.push(`- ${s.name} : NON CONNECTÉ (${s.description || ''}) — si l'utilisateur en a besoin, dis-lui de le connecter dans le menu ☰ de l'application.`);
+  const carte = lignes.length ? lignes.join('\n') : '- (aucun serveur MCP configuré : dis-le si on te demande une action qui en nécessiterait un)';
 
   return `Tu es ${config.assistantName}, l'assistant personnel vocal de ton utilisateur.${prenom}
 Tu es joint depuis un téléphone ou un ordinateur, le plus souvent à la voix.

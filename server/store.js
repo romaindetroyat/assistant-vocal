@@ -26,6 +26,9 @@ export const ajouterAbonnement = (abo) => b().ajouterAbonnement(abo);
 export const retirerAbonnement = (endpoint) => b().retirerAbonnement(endpoint);
 export const listerRappels = () => b().listerRappels();
 export const sauverRappels = (rappels) => b().sauverRappels(rappels);
+export const lireValeur = (cle) => b().lireValeur(cle);
+export const ecrireValeur = (cle, valeur) => b().ecrireValeur(cle, valeur);
+export const supprimerValeur = (cle) => b().supprimerValeur(cle);
 
 export async function ajouterRappel({ quand, titre, corps }) {
   const rappels = await listerRappels();

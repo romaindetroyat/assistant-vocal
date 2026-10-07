@@ -19,6 +19,10 @@ export function creerBackendFs(dataDir) {
   const dossierConv = path.join(dossier, 'conversations');
   const fichierAbos = path.join(dossier, 'push-subscriptions.json');
   const fichierRappels = path.join(dossier, 'reminders.json');
+  const fichierValeur = (cle) => {
+    if (!/^[a-z0-9:_-]{1,80}$/.test(cle)) throw new Error('Clé invalide');
+    return path.join(dossier, 'valeurs', `${cle.replace(/:/g, '__')}.json`);
+  };
   const chemin = (id) => {
     if (!ID_CONVERSATION.test(id)) throw new Error('Identifiant de conversation invalide');
     return path.join(dossierConv, `${id}.json`);
@@ -43,5 +47,8 @@ export function creerBackendFs(dataDir) {
     async retirerAbonnement(endpoint) { await ecrireJson(fichierAbos, (await lireJson(fichierAbos, [])).filter((a) => a.endpoint !== endpoint)); },
     listerRappels: () => lireJson(fichierRappels, []),
     sauverRappels: (r) => ecrireJson(fichierRappels, r),
+    lireValeur: (cle) => lireJson(fichierValeur(cle), null),
+    ecrireValeur: (cle, v) => ecrireJson(fichierValeur(cle), v),
+    supprimerValeur: (cle) => fs.rm(fichierValeur(cle), { force: true }),
   };
 }

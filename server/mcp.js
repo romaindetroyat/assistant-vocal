@@ -24,15 +24,15 @@ export function analyserConfigMcp(texte, env = (typeof process !== 'undefined' ?
     } else if (s.authorization_token) {
       jeton = s.authorization_token;
     }
-    serveurs.push({ name: s.name, url: s.url, description: s.description || '', authorization_token: jeton || undefined, allowed_tools: Array.isArray(s.allowed_tools) ? s.allowed_tools : undefined });
+    serveurs.push({ name: s.name, url: s.url, description: s.description || '', authorization_token: jeton || undefined, allowed_tools: Array.isArray(s.allowed_tools) ? s.allowed_tools : undefined, auth: s.auth === 'oauth' ? 'oauth' : 'token' });
   }
   return serveurs;
 }
 
 // Descriptions par défaut des serveurs connus (utilisées si MCP_DESC_<NOM> est absent).
 const DESCRIPTIONS = {
+  agenda: "Agenda Hub : agenda unifié (Perso, Altapyx, TakeOff, Famille) — lister, créer, modifier des rendez-vous, trouver des créneaux, répondre aux invitations. Toujours lister les agendas avant de créer.",
   zapier: "Passerelle Zapier vers les applications de l'utilisateur : Gmail (lire, répondre, envoyer des e-mails), Google Agenda (rendez-vous, disponibilités), Google Drive (fichiers), Notion (pages, bases), Airtable (bases, enregistrements), Granola (notes de réunion), Typeform, Zoho Sheet. Pour les e-mails et l'agenda, c'est ici.",
-  agenda: "Agenda unifié : lister, créer, modifier des rendez-vous, trouver des créneaux.",
   gmail: 'Boîte mail : rechercher, lire, répondre, envoyer des e-mails.',
   matrix: "Messagerie Element/Matrix de l'équipe : lire et envoyer des messages.",
   notion: 'Notion : rechercher et modifier des pages et bases.',
@@ -52,6 +52,7 @@ export function serveursDepuisVariables(env = (typeof process !== 'undefined' ? 
       description: env[`MCP_DESC_${m[1]}`] || DESCRIPTIONS[nom] || '',
       authorization_token: env[`MCP_TOKEN_${m[1]}`] || undefined,
       allowed_tools: outils ? outils.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
+      auth: (env[`MCP_AUTH_${m[1]}`] || '').toLowerCase() === 'oauth' ? 'oauth' : 'token',
     });
   }
   return serveurs.sort((a, b) => a.name.localeCompare(b.name));
@@ -79,4 +80,15 @@ export function parametresMcp(serveurs) {
     return toolset;
   });
   return { mcp_servers, tools };
+}
+
+// Résout les serveurs utilisables pour une requête : jetons OAuth injectés, serveurs OAuth non connectés écartés.
+export async function resoudreServeurs(serveurs, jetonPour) {
+  const prets = []; const nonConnectes = [];
+  for (const s of serveurs) {
+    if (s.auth !== 'oauth') { prets.push(s); continue; }
+    const jeton = await jetonPour(s.name);
+    if (jeton) prets.push({ ...s, authorization_token: jeton }); else nonConnectes.push(s);
+  }
+  return { prets, nonConnectes };
 }

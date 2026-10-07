@@ -29,13 +29,13 @@ function nettoyerPourHistorique(contenu) {
  *   {type:'done', text} · {type:'error', message}
  * `conversation.messages` est enrichi en place (message utilisateur, réponses, résultats d'outils).
  */
-export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, outilsLocaux = definitionsOutilsLocaux }) {
+export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = definitionsOutilsLocaux }) {
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
   const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);
   const rappelsActifs = (await listerRappels()).filter((r) => !r.livreLe).length;
   const system = [
-    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible() }) },
+    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes }) },
   ];
   const tools = [
     ...outilsLocaux,

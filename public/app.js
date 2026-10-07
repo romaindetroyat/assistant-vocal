@@ -3,7 +3,7 @@ const $ = (s) => document.querySelector(s);
 const ui = {
   login: $('#ecran-login'), app: $('#ecran-app'), formLogin: $('#form-login'), motDePasse: $('#mot-de-passe'), loginErreur: $('#login-erreur'),
   messages: $('#messages'), saisie: $('#saisie'), pieces: $('#pieces'), etat: $('#etat'), titre: $('#titre-conv'),
-  tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'), infoServeurs: $('#info-serveurs'),
+  tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'), listeOutils: $('#liste-outils'),
   btnMicro: $('#btn-micro'), btnVocal: $('#btn-vocal'), btnEnvoyer: $('#btn-envoyer'), btnVoix: $('#btn-voix'),
   btnMainsLibres: $('#btn-mains-libres'), btnNotifs: $('#btn-notifs'),
 };
@@ -61,9 +61,9 @@ async function demarrer() {
   try { etat.moi = await api('/api/me'); } catch { return; }
   ui.login.hidden = true; ui.app.hidden = false;
   document.title = etat.moi.assistantName;
-  ui.infoServeurs.textContent = etat.moi.serveurs.length
-    ? `Outils : ${etat.moi.serveurs.map((s) => s.name).join(', ')}`
-    : 'Aucun serveur MCP configuré (mcp.config.json)';
+  afficherOutils(etat.moi.serveurs);
+  const connecte = new URLSearchParams(location.search).get('connecte');
+  if (connecte) { history.replaceState(null, '', '/app'); setEtat(`${connecte} connecté ✓`); }
   ui.btnVoix.setAttribute('aria-pressed', String(etat.voix));
   ui.btnMainsLibres.setAttribute('aria-pressed', String(etat.mainsLibres));
   ui.btnNotifs.hidden = !etat.moi.push;
@@ -76,6 +76,41 @@ async function demarrer() {
   const existe = dernier && [...ui.liste.querySelectorAll('li')].some((li) => li.dataset.id === dernier);
   await ouvrirConversation(existe ? dernier : null);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(verifierAbonnementPush).catch(() => {});
+}
+
+// ---------- Outils (serveurs MCP) ----------
+function afficherOutils(serveurs) {
+  ui.listeOutils.innerHTML = '';
+  if (!serveurs.length) { const li = document.createElement('li'); li.className = 'discret'; li.textContent = 'Aucun serveur MCP configuré'; ui.listeOutils.append(li); return; }
+  for (const s of serveurs) {
+    const li = document.createElement('li');
+    const point = document.createElement('span'); point.className = `point${s.connecte ? '' : ' off'}`;
+    const nom = document.createElement('span'); nom.className = 'nom'; nom.textContent = s.name; nom.title = s.description || '';
+    li.append(point, nom);
+    if (s.auth === 'oauth') {
+      const b = document.createElement('button'); b.className = 'btn btn-secondaire';
+      b.textContent = s.connecte ? 'Déconnecter' : 'Connecter';
+      b.onclick = () => (s.connecte ? deconnecterOutil(s.name) : connecterOutil(s.name));
+      li.append(b);
+    }
+    ui.listeOutils.append(li);
+  }
+}
+async function rafraichirOutils() { try { afficherOutils(await api('/api/mcp')); } catch { /* ignoré */ } }
+async function connecterOutil(nom) {
+  try {
+    const { url, manuel } = await api(`/api/mcp/${nom}/connect`, { method: 'POST' });
+    if (!manuel) { location.href = url; return; }
+    window.open(url, '_blank');
+    const colle = prompt(`Autorisez ${nom} dans l'onglet qui vient de s'ouvrir. À la fin, le navigateur affiche une page "localhost" introuvable : copiez son adresse complète et collez-la ici.`);
+    if (!colle) return;
+    await api(`/api/mcp/${nom}/finish`, { method: 'POST', body: JSON.stringify({ url: colle }) });
+    setEtat(`${nom} connecté ✓`); await rafraichirOutils();
+  } catch (e) { setEtat(`Connexion ${nom} : ${e.message}`); }
+}
+async function deconnecterOutil(nom) {
+  if (!confirm(`Déconnecter ${nom} ?`)) return;
+  await api(`/api/mcp/${nom}`, { method: 'DELETE' }); await rafraichirOutils();
 }
 
 // ---------- Conversations ----------
