@@ -2,7 +2,7 @@ import './_env.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { executerTour } from '../server/chat.js';
-import { creerApplication } from '../server/index.js';
+import { creerApplicationNode as creerApplication } from '../server/index.js';
 import { creerJeton } from '../server/auth.js';
 import * as store from '../server/store.js';
 

@@ -47,3 +47,8 @@ on ne peut pas tester la voix sans l'orchestration, ni l'orchestration sans un s
 | 2 | Complete | Connecteur MCP, prompt système, streaming SSE, historique partagé |
 | 3 | Complete | Dictée, images, vocaux transcrits |
 | 4 | Complete | Voix, push, rappels programmés |
+| 5 | Complete | Hébergement Cloudflare Workers (KV, assets, cron, déploiement CI) |
+
+### Phase 5 — Hébergement Cloudflare Workers
+**Goal**: Même code déployable sur Cloudflare (HTTPS, PWA installable immédiatement).
+**Success criteria**: `wrangler dev` sert l'app complète ; push sur `main` déploie via GitHub Actions.

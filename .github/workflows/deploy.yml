@@ -1,0 +1,43 @@
+name: Déployer sur Cloudflare
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Déployer le Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Pousser les secrets du Worker (ceux définis dans GitHub)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASSISTANT_PASSWORD: ${{ secrets.ASSISTANT_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          MCP_CONFIG_JSON: ${{ secrets.MCP_CONFIG_JSON }}
+          TRANSCRIBE_URL: ${{ secrets.TRANSCRIBE_URL }}
+          TRANSCRIBE_API_KEY: ${{ secrets.TRANSCRIBE_API_KEY }}
+          TRANSCRIBE_MODEL: ${{ secrets.TRANSCRIBE_MODEL }}
+        run: |
+          node -e '
+            const noms = ["ANTHROPIC_API_KEY","ASSISTANT_PASSWORD","SESSION_SECRET","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","MCP_CONFIG_JSON","TRANSCRIBE_URL","TRANSCRIBE_API_KEY","TRANSCRIBE_MODEL"];
+            const secrets = Object.fromEntries(noms.filter((n) => process.env[n]).map((n) => [n, process.env[n]]));
+            require("fs").writeFileSync("secrets.json", JSON.stringify(secrets));
+            console.log("Secrets poussés :", Object.keys(secrets).join(", ") || "(aucun)");
+          '
+          npx wrangler secret bulk secrets.json
+          rm -f secrets.json

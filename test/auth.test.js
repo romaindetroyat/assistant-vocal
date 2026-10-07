@@ -1,7 +1,7 @@
 import './_env.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { creerApplication } from '../server/index.js';
+import { creerApplicationNode as creerApplication } from '../server/index.js';
 import { creerJeton, jetonValide } from '../server/auth.js';
 
 const app = creerApplication({ client: {}, serveurs: [] });

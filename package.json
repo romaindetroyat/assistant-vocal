@@ -4,17 +4,24 @@
   "private": true,
   "description": "Assistant personnel vocal en PWA, connecté à des serveurs MCP via l'API Claude",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test \"test/**/*.test.js\"",
+    "deploy": "wrangler deploy",
+    "cf:dev": "wrangler dev",
     "vapid": "node server/vapid.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.0",
+    "@block65/webcrypto-web-push": "^2.0.0",
     "@hono/node-server": "^2.1.3",
-    "hono": "^4.13.13",
-    "web-push": "^3.6.7"
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "wrangler": "^4.148.0"
   }
 }

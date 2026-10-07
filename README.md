@@ -17,8 +17,8 @@ navigateur (PWA)  ──SSE──▶  serveur Node (Hono)  ──▶  API Claude
 ```
 
 - **Le navigateur** fait la dictée (Web Speech API) et la lecture à voix haute (speechSynthesis) : gratuit, immédiat.
-- **Le serveur** garde l'historique (partagé entre appareils), protège l'accès par mot de passe, exécute les outils
-  locaux (`notify_me`, `schedule_reminder`…) et envoie les notifications push.
+- **Le serveur** (Node, ou Cloudflare Workers) garde l'historique (partagé entre appareils), protège l'accès par
+  mot de passe, exécute les outils locaux (`notify_me`, `schedule_reminder`…) et envoie les notifications push.
 - **L'API Claude** appelle elle-même les serveurs MCP distants (`mcp_servers` + `mcp_toolset`) : aucun client MCP
   à écrire, les jetons restent côté serveur.
 
@@ -73,7 +73,39 @@ OAuth de claude.ai ne sont pas réutilisables : chaque serveur doit fournir sa p
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notifications push (`npm run vapid`) |
 | `TRANSCRIBE_URL`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_MODEL` | Service de transcription des vocaux enregistrés (API multipart compatible `/v1/audio/transcriptions`) |
 | `ASSISTANT_NAME`, `USER_NAME` | Nom de l'assistant et prénom de l'utilisateur dans le prompt |
-| `PORT`, `DATA_DIR`, `MCP_CONFIG` | Port, dossier des données, chemin du fichier MCP |
+| `PORT`, `DATA_DIR`, `MCP_CONFIG` | Port, dossier des données, chemin du fichier MCP (Node) |
+| `MCP_CONFIG_JSON` | Configuration MCP en JSON inline (prioritaire sur le fichier ; seule option sur Cloudflare) |
+
+## Déploiement sur Cloudflare Workers
+
+L'application tourne aussi sur Cloudflare Workers (`wrangler.jsonc`) : données dans KV, fichiers statiques en
+assets, rappels livrés par un cron chaque minute, notifications push via WebCrypto.
+
+**Déploiement automatique à chaque push sur `main`** (`.github/workflows/deploy.yml`) dès que ces secrets
+GitHub existent (Settings → Secrets and variables → Actions) :
+
+| Secret GitHub | Rôle |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Jeton API Cloudflare avec le modèle « Edit Cloudflare Workers » |
+| `CLOUDFLARE_ACCOUNT_ID` | Identifiant du compte (Dashboard → Workers & Pages, colonne de droite) |
+| `ANTHROPIC_API_KEY`, `ASSISTANT_PASSWORD`, `SESSION_SECRET` | Copiés comme secrets du Worker (obligatoires) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Notifications push (`npm run vapid`) |
+| `MCP_CONFIG_JSON` | Contenu de `mcp.config.json` sur une ligne (les jetons peuvent être inclus en `authorization_token`) |
+| `TRANSCRIBE_URL`, `TRANSCRIBE_API_KEY`, `TRANSCRIBE_MODEL` | Transcription des vocaux (optionnel) |
+
+Le Worker est ensuite joignable sur `https://assistant-vocal.<votre-sous-domaine>.workers.dev`.
+
+**Déploiement manuel** depuis un poste connecté à Cloudflare :
+
+```bash
+npx wrangler login
+npx wrangler secret put ANTHROPIC_API_KEY     # idem ASSISTANT_PASSWORD, SESSION_SECRET, VAPID_*, MCP_CONFIG_JSON
+npm run deploy
+```
+
+Sur Cloudflare, la configuration MCP vient du secret `MCP_CONFIG_JSON` (pas de fichier). Les jetons des
+serveurs MCP peuvent y être écrits directement (`authorization_token`) ou référencer d'autres secrets du
+Worker via `authorization_token_env`.
 
 ## Tests
 
@@ -82,4 +114,5 @@ npm test
 ```
 
 Les tests couvrent l'authentification, l'analyse de la configuration MCP, la boucle de conversation
-(outils locaux, blocs MCP rejoués, fallback filtré) et le flux SSE, avec un client Anthropic simulé.
+(outils locaux, blocs MCP rejoués, fallback filtré), le flux SSE, le backend KV et le chiffrement des
+notifications push, avec un client Anthropic simulé.

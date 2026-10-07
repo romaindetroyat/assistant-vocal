@@ -7,3 +7,6 @@ process.env.SESSION_SECRET = 'cle-de-test';
 process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'assistant-test-'));
 process.env.MCP_CONFIG = path.join(process.env.DATA_DIR, 'absent.json');
+import { utiliserBackend } from '../server/store.js';
+import { creerBackendFs } from '../server/store-fs.js';
+utiliserBackend(creerBackendFs(process.env.DATA_DIR));

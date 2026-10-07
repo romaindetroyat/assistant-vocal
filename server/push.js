@@ -1,5 +1,5 @@
-// Notifications Web Push (VAPID).
-import webpush from 'web-push';
+// Notifications Web Push (VAPID, RFC 8291/8292) via WebCrypto : fonctionne sur Node et Cloudflare Workers.
+import { buildPushPayload } from '@block65/webcrypto-web-push';
 import { config } from './config.js';
 import { listerAbonnements, retirerAbonnement } from './store.js';
 
@@ -7,27 +7,21 @@ export function pushDisponible() {
   return Boolean(config.vapid.publicKey && config.vapid.privateKey);
 }
 
-let initialise = false;
-function initialiser() {
-  if (initialise || !pushDisponible()) return;
-  webpush.setVapidDetails(config.vapid.subject, config.vapid.publicKey, config.vapid.privateKey);
-  initialise = true;
-}
-
 // Envoie une notification à tous les appareils abonnés. Retourne le nombre de livraisons réussies.
-export async function envoyerNotification({ titre, corps, url = '/', tag }) {
+export async function envoyerNotification({ titre, corps, url = '/app', tag }, fetchImpl = fetch) {
   if (!pushDisponible()) throw new Error('Notifications push non configurées (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY)');
-  initialiser();
   const abonnements = await listerAbonnements();
-  const charge = JSON.stringify({ titre, corps, url, tag: tag || `assistant-${Date.now()}` });
+  const message = { data: JSON.stringify({ titre, corps, url, tag: tag || `assistant-${Date.now()}` }), options: { ttl: 3600 } };
   let reussites = 0;
   for (const abo of abonnements) {
     try {
-      await webpush.sendNotification({ endpoint: abo.endpoint, keys: abo.keys }, charge, { TTL: 3600 });
-      reussites++;
+      const charge = await buildPushPayload(message, { endpoint: abo.endpoint, expirationTime: null, keys: abo.keys }, config.vapid);
+      const r = await fetchImpl(abo.endpoint, charge);
+      if (r.status === 404 || r.status === 410) await retirerAbonnement(abo.endpoint);
+      else if (r.ok) reussites++;
+      else console.warn('[push] échec', r.status);
     } catch (e) {
-      if (e.statusCode === 404 || e.statusCode === 410) await retirerAbonnement(abo.endpoint);
-      else console.warn('[push] échec', e.statusCode || e.message);
+      console.warn('[push] échec', e.message);
     }
   }
   return reussites;
