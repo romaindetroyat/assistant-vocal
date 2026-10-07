@@ -29,7 +29,7 @@ export function chargerServeursMcp() {
   return analyserConfigMcp(fs.readFileSync(chemin, 'utf8'));
 }
 
-export function creerApplicationNode({ client = new Anthropic(), serveurs = chargerServeursMcp() } = {}) {
+export function creerApplicationNode({ client = new Anthropic({ defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }), serveurs = chargerServeursMcp() } = {}) {
   utiliserBackend(creerBackendFs(config.dataDir));
   return creerApplication({ client, serveurs, fichier: (c, chemin) => statique.fetch(new Request(new URL(chemin, c.req.url))) });
 }

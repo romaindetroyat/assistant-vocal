@@ -32,7 +32,7 @@ function servirInline(chemin) {
 }
 
 const app = creerApplication({
-  client: () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
+  client: () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }),
   serveurs,
   fichier: (_c, chemin) => servirInline(chemin),
 });
