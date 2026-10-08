@@ -267,13 +267,13 @@ document.addEventListener('drop', async (e) => { e.preventDefault(); for (const 
 // Écoute continue : le navigateur coupe après ~1 s de silence en mode phrase ; ici on gère nous-mêmes le
 // silence (SILENCE_MS), on relance quand le navigateur s'arrête seul, et on propose l'appui maintenu.
 const SILENCE_MS = Number(localStorage.getItem('silenceMs')) || 3000;
-const dictee = { actif: false, maintien: false, rec: null, final: '', base: '', minuteur: null, debutAppui: 0 };
+const dictee = { actif: false, maintien: false, rec: null, final: '', base: '', minuteur: null, debutAppui: 0, echecs: 0 };
 
 function demarrerDictee({ maintien = false } = {}) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR || dictee.actif) return;
   window.speechSynthesis?.cancel();
-  dictee.actif = true; dictee.maintien = maintien; dictee.final = '';
+  dictee.actif = true; dictee.maintien = maintien; dictee.final = ''; dictee.echecs = 0;
   dictee.base = ui.saisie.value ? `${ui.saisie.value.trim()} ` : '';
   ui.btnMicro.setAttribute('aria-pressed', 'true');
   setEtat(maintien ? 'Je vous écoute… relâchez pour envoyer' : 'Je vous écoute… (envoi après un silence)');
@@ -283,26 +283,33 @@ function demarrerDictee({ maintien = false } = {}) {
 function lancerReconnaissance() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
-  let finalSession = '';
+  // Mode « phrase » (le plus fiable partout) enchaîné automatiquement tant que l'écoute est active.
+  rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  let finalSession = ''; let aRecu = false; let erreur = null;
+  const debut = Date.now();
   rec.onresult = (e) => {
     let interim = '';
     finalSession = '';
     for (let i = 0; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) finalSession += t; else interim += t; }
-    ui.saisie.value = (dictee.base + dictee.final + finalSession + interim).replace(/\s+/g, ' '); redimensionnerSaisie();
+    aRecu = true;
+    ui.saisie.value = (dictee.base + dictee.final + finalSession + (finalSession ? ' ' : '') + interim).replace(/\s+/g, ' '); redimensionnerSaisie();
     armerSilence();
   };
-  rec.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { setEtat('Micro refusé par le navigateur'); arreterDictee({ envoyer: false }); }
-    // no-speech / aborted / network : onend suit et relance si besoin
-  };
+  rec.onerror = (e) => { erreur = e.error; };
   rec.onend = () => {
-    dictee.final += finalSession; finalSession = '';
+    dictee.final += finalSession ? `${finalSession} ` : ''; finalSession = '';
     dictee.rec = null;
-    if (dictee.actif) { try { lancerReconnaissance(); } catch { arreterDictee({ envoyer: true }); } } // le navigateur s'est arrêté seul : on relance
+    if (!dictee.actif) return;
+    if (erreur === 'not-allowed' || erreur === 'service-not-allowed') { setEtat('Micro refusé par le navigateur : autorisez-le dans les réglages du site'); arreterDictee({ envoyer: false }); return; }
+    if (erreur && erreur !== 'no-speech' && erreur !== 'aborted') { setEtat(`Dictée interrompue (${erreur})`); arreterDictee({ envoyer: true }); return; }
+    // Protection contre les boucles : une session qui meurt tout de suite sans rien entendre, plusieurs fois de suite → on arrête.
+    dictee.echecs = aRecu || Date.now() - debut > 1500 ? 0 : dictee.echecs + 1;
+    if (dictee.echecs >= 3) { setEtat("Le navigateur coupe le micro aussitôt : utilisez le bouton ⏺ (vocal) ou le clavier"); arreterDictee({ envoyer: false }); return; }
+    // Fin de phrase : on relance pour continuer d'écouter (appui maintenu ou silence pas encore atteint).
+    setTimeout(() => { if (dictee.actif && !dictee.rec) { try { lancerReconnaissance(); } catch { arreterDictee({ envoyer: true }); } } }, 150);
   };
   dictee.rec = rec;
-  try { rec.start(); } catch { dictee.actif = false; }
+  try { rec.start(); } catch (e) { setEtat(`Dictée impossible : ${e.message}`); dictee.actif = false; ui.btnMicro.setAttribute('aria-pressed', 'false'); }
 }
 
 function armerSilence() {
