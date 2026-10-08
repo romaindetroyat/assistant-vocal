@@ -11,6 +11,7 @@ import * as store from './store.js';
 import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
 import { voixDisponible, modeleVoix, creerJetonEphemere } from './voice.js';
+import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -99,7 +100,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     let texte = ''; let erreur = null;
     try {
       const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
-      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix })) {
+      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: `Réponse destinée à être lue à voix haute. ${consigneConcision((await lireReglages()).concision)} Pas de mise en forme.` })) {
         if (ev.type === 'tool_use') outils.push(ev.name);
         else if (ev.type === 'done') texte = ev.text;
         else if (ev.type === 'error') erreur = ev.message;
@@ -111,6 +112,13 @@ export function creerApplication({ client, serveurs = [], fichier }) {
       await store.sauverConversation(conversation);
     }
     return c.json({ text: texte || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, conversationId: conversation.id });
+  });
+
+  // --- Réglages ---
+  app.get('/api/reglages', async (c) => c.json({ ...(await lireReglages()), voixDisponibles: VOIX, concisions: Object.keys(CONCISIONS) }));
+  app.put('/api/reglages', async (c) => {
+    try { return c.json(await modifierReglages(await c.req.json().catch(() => ({})))); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
   });
 
   app.post('/api/transcribe', async (c) => {

@@ -57,3 +57,25 @@ test('les demandes vocales passent à Claude avec l\'effort rapide', async () =>
   await (await app.request('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ content: [{ type: 'text', text: 'Salut' }] }) })).text();
   assert.deepEqual(requetes[1].output_config, { effort: 'medium' });
 });
+
+test('réglages : voix et concision appliqués à la session vocale et à la consigne Claude', async () => {
+  const { modifierReglages } = await import('../server/reglages.js');
+  await modifierReglages({ voix: 'cedar', concision: 'tres_court' });
+  await assert.rejects(() => modifierReglages({ voix: 'robot' }), /inconnue/);
+  process.env.OPENAI_API_KEY = 'sk-test';
+  let corps;
+  await creerJetonEphemere(async (_u, init) => { corps = JSON.parse(init.body); return new Response(JSON.stringify({ value: 'ek' })); });
+  assert.equal(corps.session.audio.output.voice, 'cedar');
+  assert.match(corps.session.instructions, /dix à vingt mots/);
+  delete process.env.OPENAI_API_KEY;
+  const requetes = [];
+  const client = { beta: { messages: { stream(p) { requetes.push(p); const r = { stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }; return { async *[Symbol.asyncIterator]() {}, async finalMessage() { return r; } }; } } } };
+  const app = creerApplication({ client, serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  await app.request('/api/voice/ask', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ message: 'Salut' }) });
+  const dernier = requetes[0].messages.at(-1);
+  assert.equal(dernier.role, 'system');
+  assert.match(dernier.content, /dix à vingt mots/);
+  const r = await (await app.request('/api/reglages', { headers: { cookie } })).json();
+  assert.equal(r.voix, 'cedar');
+});

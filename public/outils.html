@@ -13,6 +13,7 @@
     .carte { background: var(--fond-2); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
     .carte h2 { margin: 0; font-size: 17px; }
     label { font-size: 14px; color: var(--texte-2); display: flex; flex-direction: column; gap: 4px; }
+    select { padding: 10px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--fond); color: var(--texte); font: inherit; }
     input { padding: 10px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--fond); color: var(--texte); font: inherit; }
     .outil { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--bordure); }
     .outil:first-of-type { border-top: 0; }
@@ -43,6 +44,21 @@
       <label>Jeton d'accès (seulement si le service vous en a donné un) <input id="jeton" autocomplete="off" placeholder="facultatif"></label>
       <button id="btn-ajouter" class="btn btn-primaire">Ajouter</button>
       <p id="etat"></p>
+    </section>
+
+    <section class="carte">
+      <h2>Réglages de la voix</h2>
+      <label>Voix de la conversation en direct
+        <select id="voix"></select>
+      </label>
+      <label>Longueur des réponses à la voix
+        <select id="concision">
+          <option value="tres_court">Très court (une phrase)</option>
+          <option value="court">Court (une à deux phrases)</option>
+          <option value="normal">Normal (l'essentiel)</option>
+        </select>
+      </label>
+      <p id="etat-reglages" class="discret">Appliqué au prochain appel 📞.</p>
     </section>
 
     <p><a href="/app">← Retour à l'assistant</a></p>
@@ -92,6 +108,16 @@
       } catch (e) { $('#etat').textContent = `Impossible d'ajouter : ${e.message}`; }
     });
     charger().catch((e) => { $('#liste').textContent = e.message; });
+
+    const NOMS_VOIX = { marin: 'Marin (féminine, naturelle)', cedar: 'Cedar (masculine, naturelle)', alloy: 'Alloy', ash: 'Ash', ballad: 'Ballad', coral: 'Coral', echo: 'Echo', sage: 'Sage', shimmer: 'Shimmer', verse: 'Verse' };
+    api('/api/reglages').then((r) => {
+      for (const v of r.voixDisponibles) { const o = document.createElement('option'); o.value = v; o.textContent = NOMS_VOIX[v] || v; $('#voix').append(o); }
+      $('#voix').value = r.voix; $('#concision').value = r.concision;
+    }).catch(() => {});
+    for (const id of ['#voix', '#concision']) $(id).addEventListener('change', async () => {
+      try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voix: $('#voix').value, concision: $('#concision').value }) }); $('#etat-reglages').textContent = 'Enregistré ✓ Appliqué au prochain appel 📞.'; }
+      catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }
+    });
   </script>
 </body>
 </html>

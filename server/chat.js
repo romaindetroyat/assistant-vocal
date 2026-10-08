@@ -29,7 +29,7 @@ function nettoyerPourHistorique(contenu) {
  *   {type:'done', text} · {type:'error', message}
  * `conversation.messages` est enrichi en place (message utilisateur, réponses, résultats d'outils).
  */
-export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = definitionsOutilsLocaux, effort = config.effort }) {
+export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = definitionsOutilsLocaux, effort = config.effort, consigne = null }) {
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
   const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);
@@ -55,7 +55,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
       system,
       tools,
       ...(mcp_servers.length ? { mcp_servers } : {}),
-      messages: conversation.messages,
+      messages: consigne && iteration === 0 ? [...conversation.messages, { role: 'system', content: consigne }] : conversation.messages,
     });
 
     let texteIteration = '';
