@@ -10,7 +10,7 @@ import { transcriptionDisponible, transcrire } from './transcribe.js';
 import * as store from './store.js';
 import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
-import { voixDisponible, modeleVoix, creerJetonEphemere } from './voice.js';
+import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './voice.js';
 import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
 
 /**
@@ -119,6 +119,16 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   app.put('/api/reglages', async (c) => {
     try { return c.json(await modifierReglages(await c.req.json().catch(() => ({})))); }
     catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+
+  app.get('/api/reglages/apercu/:voix', async (c) => {
+    const voix = c.req.param('voix');
+    if (!VOIX.includes(voix)) return c.json({ erreur: 'Voix inconnue' }, 404);
+    if (!voixDisponible()) return c.json({ erreur: 'OPENAI_API_KEY manquante' }, 501);
+    try {
+      const octets = await apercuVoix(voix, store);
+      return new Response(octets, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=86400' } });
+    } catch (e) { return c.json({ erreur: e.message }, 502); }
   });
 
   app.post('/api/transcribe', async (c) => {

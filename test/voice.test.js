@@ -79,3 +79,17 @@ test('réglages : voix et concision appliqués à la session vocale et à la con
   const r = await (await app.request('/api/reglages', { headers: { cookie } })).json();
   assert.equal(r.voix, 'cedar');
 });
+
+test('aperçu de voix : généré une fois puis servi depuis le cache', async () => {
+  const { apercuVoix } = await import('../server/voice.js');
+  const store = await import('../server/store.js');
+  process.env.OPENAI_API_KEY = 'sk-test';
+  let appels = 0;
+  const f = async (url, init) => { appels++; assert.equal(url, 'https://api.openai.com/v1/audio/speech'); assert.equal(JSON.parse(init.body).voice, 'cedar'); return new Response(new Uint8Array([73, 68, 51, 4]), { status: 200 }); };
+  const a = await apercuVoix('cedar', store, f);
+  const b = await apercuVoix('cedar', store, f);
+  assert.deepEqual([...a], [73, 68, 51, 4]);
+  assert.deepEqual([...b], [73, 68, 51, 4]);
+  assert.equal(appels, 1);
+  delete process.env.OPENAI_API_KEY;
+});

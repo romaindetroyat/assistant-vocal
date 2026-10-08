@@ -22,7 +22,7 @@
     .outil .desc { font-size: 13px; color: var(--texte-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .point { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: 0 0 auto; }
     .point.off { background: var(--erreur); }
-    .actions { display: flex; gap: 6px; }
+    .actions { display: flex; gap: 6px; align-items: center; }
     .btn-petit { padding: 6px 10px; font-size: 13px; }
     a { color: var(--accent); }
   </style>
@@ -51,6 +51,7 @@
       <label>Voix de la conversation en direct
         <select id="voix"></select>
       </label>
+      <div class="actions"><button id="btn-ecouter" class="btn btn-secondaire btn-petit">▶ Écouter cette voix</button><span id="etat-apercu" class="discret"></span></div>
       <label>Longueur des réponses à la voix
         <select id="concision">
           <option value="tres_court">Très court (une phrase)</option>
@@ -114,6 +115,17 @@
       for (const v of r.voixDisponibles) { const o = document.createElement('option'); o.value = v; o.textContent = NOMS_VOIX[v] || v; $('#voix').append(o); }
       $('#voix').value = r.voix; $('#concision').value = r.concision;
     }).catch(() => {});
+    let lecteur = null;
+    $('#btn-ecouter').addEventListener('click', async () => {
+      lecteur?.pause();
+      $('#etat-apercu').textContent = 'Chargement…';
+      lecteur = new Audio(`/api/reglages/apercu/${$('#voix').value}`);
+      lecteur.onplay = () => { $('#etat-apercu').textContent = 'Lecture…'; };
+      lecteur.onended = () => { $('#etat-apercu').textContent = ''; };
+      lecteur.onerror = () => { $('#etat-apercu').textContent = 'Aperçu indisponible pour cette voix'; };
+      try { await lecteur.play(); } catch (e) { $('#etat-apercu').textContent = `Lecture impossible : ${e.message}`; }
+    });
+    $('#voix').addEventListener('change', () => { lecteur?.pause(); $('#etat-apercu').textContent = ''; });
     for (const id of ['#voix', '#concision']) $(id).addEventListener('change', async () => {
       try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voix: $('#voix').value, concision: $('#concision').value }) }); $('#etat-reglages').textContent = 'Enregistré ✓ Appliqué au prochain appel 📞.'; }
       catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }

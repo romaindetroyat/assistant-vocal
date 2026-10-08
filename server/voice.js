@@ -54,3 +54,21 @@ export async function creerJetonEphemere(fetchImpl = fetch) {
   if (!r.ok || !json.value) throw new Error(json.error?.message || `OpenAI : HTTP ${r.status}`);
   return { value: json.value, expires_at: json.expires_at || null, model: modeleVoix() };
 }
+
+// Aperçu d'une voix : court extrait généré par l'API de synthèse vocale, mis en cache côté serveur.
+const TEXTE_APERCU = "Bonjour Romain, je suis votre assistant. Voici à quoi ressemble ma voix : dites-moi ce que vous souhaitez faire aujourd'hui.";
+export async function apercuVoix(voix, { lireValeur, ecrireValeur }, fetchImpl = fetch) {
+  const cle = `apercu-voix:${voix}`;
+  const cache = await lireValeur(cle);
+  if (cache?.base64) return Uint8Array.from(atob(cache.base64), (ch) => ch.charCodeAt(0));
+  const r = await fetchImpl('https://api.openai.com/v1/audio/speech', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env().OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: voix, input: TEXTE_APERCU, instructions: 'Parle en français, naturellement, chaleureusement.', response_format: 'mp3' }),
+  });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error?.message || `OpenAI : HTTP ${r.status}`); }
+  const octets = new Uint8Array(await r.arrayBuffer());
+  let binaire = ''; for (let i = 0; i < octets.length; i += 0x8000) binaire += String.fromCharCode.apply(null, octets.subarray(i, i + 0x8000));
+  await ecrireValeur(cle, { base64: btoa(binaire), creeLe: new Date().toISOString() });
+  return octets;
+}
