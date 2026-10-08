@@ -78,6 +78,41 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     });
   });
 
+  // --- Mode conversation (GPT-Realtime en voix, Claude en cerveau) ---
+  app.post('/api/voice/session', async (c) => {
+    if (!voixDisponible()) return c.json({ erreur: 'Mode conversation non configuré (OPENAI_API_KEY)' }, 501);
+    const corps = await c.req.json().catch(() => ({}));
+    const conversation = corps.conversationId ? await store.lireConversation(corps.conversationId).catch(() => null) : await store.creerConversation();
+    if (!conversation) return c.json({ erreur: 'Conversation introuvable' }, 404);
+    if (!corps.conversationId) { conversation.titre = 'Conversation vocale'; await store.sauverConversation(conversation); }
+    try { return c.json({ ...(await creerJetonEphemere()), conversationId: conversation.id }); }
+    catch (e) { return c.json({ erreur: e.message }, 502); }
+  });
+  // Délégation : la voix transmet la demande, Claude répond avec ses outils, l'historique est partagé avec le mode texte.
+  app.post('/api/voice/ask', async (c) => {
+    const corps = await c.req.json().catch(() => null);
+    const message = String(corps?.message || '').trim();
+    if (!message) return c.json({ erreur: 'message requis' }, 400);
+    const conversation = corps.conversationId ? await store.lireConversation(corps.conversationId).catch(() => null) : await store.creerConversation();
+    if (!conversation) return c.json({ erreur: 'Conversation introuvable' }, 404);
+    const outils = [];
+    let texte = ''; let erreur = null;
+    try {
+      const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
+      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes })) {
+        if (ev.type === 'tool_use') outils.push(ev.name);
+        else if (ev.type === 'done') texte = ev.text;
+        else if (ev.type === 'error') erreur = ev.message;
+      }
+    } catch (e) {
+      console.error('[voice/ask]', e);
+      erreur = e instanceof Anthropic.APIError ? `Erreur API (${e.status})` : e.message;
+    } finally {
+      await store.sauverConversation(conversation);
+    }
+    return c.json({ text: texte || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, conversationId: conversation.id });
+  });
+
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);
     const f = form?.get('file');
