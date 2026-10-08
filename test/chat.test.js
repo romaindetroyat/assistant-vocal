@@ -126,3 +126,20 @@ test("POST /api/mcp : ajout d'un serveur depuis l'application, détection OAuth,
   assert.equal(r.status, 200);
   assert.deepEqual(await (await app.request('/api/mcp', { headers: { cookie } })).json(), []);
 });
+
+test('catalogue : liste, ajout en un clic (mode oauth), déjà ajouté', async () => {
+  const app = creerApplication({ client: {}, serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  const liste = await (await app.request('/api/catalogue', { headers: { cookie } })).json();
+  assert.ok(liste.length > 20);
+  assert.equal(liste.find((e) => e.id === 'notion').ajoute, false);
+  let r = await app.request('/api/mcp/catalogue/notion', { method: 'POST', headers: { cookie } });
+  assert.equal(r.status, 201);
+  const mcp = await (await app.request('/api/mcp', { headers: { cookie } })).json();
+  const notion = mcp.find((s) => s.name === 'notion');
+  assert.equal(notion.auth, 'oauth'); assert.equal(notion.connecte, false); assert.equal(notion.source, 'app');
+  assert.equal((await (await app.request('/api/catalogue', { headers: { cookie } })).json()).find((e) => e.id === 'notion').ajoute, true);
+  r = await app.request('/api/mcp/catalogue/inconnu', { method: 'POST', headers: { cookie } });
+  assert.equal(r.status, 404);
+  await app.request('/api/mcp/notion/remove', { method: 'DELETE', headers: { cookie } });
+});

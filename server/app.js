@@ -12,6 +12,7 @@ import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur
 import * as oauth from './oauth-mcp.js';
 import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './voice.js';
 import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
+import { CATALOGUE, parId } from './catalogue.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -129,6 +130,21 @@ export function creerApplication({ client, serveurs = [], fichier }) {
       const octets = await apercuVoix(voix, store);
       return new Response(octets, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=86400' } });
     } catch (e) { return c.json({ erreur: e.message }, 502); }
+  });
+
+  // --- Catalogue de serveurs MCP (connexion en un clic) ---
+  app.get('/api/catalogue', async (c) => {
+    const presents = new Set((await lesServeurs()).map((s) => s.name));
+    return c.json(CATALOGUE.map(({ id, nom, categorie, description }) => ({ id, nom, categorie, description, ajoute: presents.has(id) })));
+  });
+  app.post('/api/mcp/catalogue/:id', async (c) => {
+    const entree = parId(c.req.param('id'));
+    if (!entree) return c.json({ erreur: 'Entrée de catalogue inconnue' }, 404);
+    try {
+      const presents = await lesServeurs();
+      if (!presents.some((s) => s.name === entree.id)) await ajouterServeur({ name: entree.id, url: entree.url, description: entree.description, auth: 'oauth' }, serveursEnv());
+      return c.json({ ok: true, name: entree.id }, 201);
+    } catch (e) { return c.json({ erreur: e.message }, 400); }
   });
 
   app.post('/api/transcribe', async (c) => {

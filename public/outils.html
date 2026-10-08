@@ -36,7 +36,14 @@
     </section>
 
     <section class="carte">
-      <h2>Ajouter un outil (serveur MCP)</h2>
+      <h2>Catalogue : connexion en un clic</h2>
+      <p class="discret">Choisissez un service, autorisez-le dans votre navigateur, c'est tout. Gmail, Google Agenda et Google Drive passent par Zapier.</p>
+      <input id="filtre" placeholder="Rechercher (Notion, agenda, design…)" autocomplete="off">
+      <div id="catalogue"></div>
+    </section>
+
+    <section class="carte">
+      <h2>Autre serveur MCP (avancé)</h2>
       <p class="discret">Collez l'adresse du serveur MCP. S'il demande une autorisation (OAuth), un bouton « Connecter » apparaîtra. S'il fournit un jeton, collez-le ci-dessous.</p>
       <label>Nom (court, ex. zapier, notion) <input id="nom" autocomplete="off" placeholder="zapier"></label>
       <label>Adresse du serveur MCP <input id="url" autocomplete="off" inputmode="url" placeholder="https://…"></label>
@@ -109,6 +116,30 @@
       } catch (e) { $('#etat').textContent = `Impossible d'ajouter : ${e.message}`; }
     });
     charger().catch((e) => { $('#liste').textContent = e.message; });
+
+    let catalogue = [];
+    function afficherCatalogue() {
+      const q = $('#filtre').value.trim().toLowerCase();
+      const el = $('#catalogue'); el.innerHTML = '';
+      for (const e of catalogue.filter((x) => !q || `${x.nom} ${x.categorie} ${x.description}`.toLowerCase().includes(q))) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const texte = document.createElement('div'); texte.className = 'texte';
+        texte.innerHTML = '<div class="nom"></div><div class="desc"></div>';
+        texte.querySelector('.nom').textContent = `${e.nom} · ${e.categorie}`;
+        texte.querySelector('.desc').textContent = e.description;
+        const b = document.createElement('button'); b.className = 'btn btn-petit ' + (e.ajoute ? 'btn-secondaire' : 'btn-primaire');
+        b.textContent = e.ajoute ? 'Déjà ajouté' : 'Connecter'; b.disabled = e.ajoute;
+        b.onclick = async () => {
+          b.disabled = true; b.textContent = 'Ajout…';
+          try { const r = await api(`/api/mcp/catalogue/${e.id}`, { method: 'POST' }); location.href = `/connect/${encodeURIComponent(r.name)}`; }
+          catch (err) { b.disabled = false; b.textContent = 'Connecter'; alert(`Impossible d'ajouter ${e.nom} : ${err.message}`); }
+        };
+        ligne.append(texte, b); el.append(ligne);
+      }
+      if (!el.children.length) el.innerHTML = '<p class="discret">Aucun service ne correspond.</p>';
+    }
+    api('/api/catalogue').then((liste) => { catalogue = liste; afficherCatalogue(); }).catch(() => {});
+    $('#filtre').addEventListener('input', afficherCatalogue);
 
     const NOMS_VOIX = { marin: 'Marin (féminine, naturelle)', cedar: 'Cedar (masculine, naturelle)', alloy: 'Alloy', ash: 'Ash', ballad: 'Ballad', coral: 'Coral', echo: 'Echo', sage: 'Sage', shimmer: 'Shimmer', verse: 'Verse' };
     api('/api/reglages').then((r) => {
