@@ -199,13 +199,12 @@ async function envoyer() {
     }
     if (!texteRecu) bulle.remove();
     if (etat.voix && texteFinal) await lire(texteFinal);
-    if (etat.mainsLibres && !etat.envoiEnCours) demarrerDictee();
   } catch (e) {
     bulle.remove(); const el = creerBulle('erreur'); el.textContent = e.message;
   } finally {
     etat.envoiEnCours = false; ui.btnEnvoyer.disabled = false; setEtat('');
     chargerListe().then(() => { const li = ui.liste.querySelector(`li[data-id="${etat.conversationId}"] button`); if (li) ui.titre.textContent = li.textContent; });
-    if (etat.mainsLibres && !ui.btnMicro.getAttribute('aria-pressed').includes('true')) demarrerDictee();
+    if (etat.mainsLibres && !dictee.actif) demarrerDictee();
   }
 }
 async function* lireSSE(body) {
@@ -265,28 +264,84 @@ document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', async (e) => { e.preventDefault(); for (const f of e.dataTransfer?.files || []) await ajouterImage(f); });
 
 // ---------- Dictée (Web Speech API) ----------
-function demarrerDictee() {
+// Écoute continue : le navigateur coupe après ~1 s de silence en mode phrase ; ici on gère nous-mêmes le
+// silence (SILENCE_MS), on relance quand le navigateur s'arrête seul, et on propose l'appui maintenu.
+const SILENCE_MS = Number(localStorage.getItem('silenceMs')) || 3000;
+const dictee = { actif: false, maintien: false, rec: null, final: '', base: '', minuteur: null, debutAppui: 0 };
+
+function demarrerDictee({ maintien = false } = {}) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR || etat.reconnaissance) return;
+  if (!SR || dictee.actif) return;
+  window.speechSynthesis?.cancel();
+  dictee.actif = true; dictee.maintien = maintien; dictee.final = '';
+  dictee.base = ui.saisie.value ? `${ui.saisie.value.trim()} ` : '';
+  ui.btnMicro.setAttribute('aria-pressed', 'true');
+  setEtat(maintien ? 'Je vous écoute… relâchez pour envoyer' : 'Je vous écoute… (envoi après un silence)');
+  lancerReconnaissance();
+}
+
+function lancerReconnaissance() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
-  const base = ui.saisie.value ? `${ui.saisie.value.trim()} ` : '';
-  let final = '';
+  rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+  let finalSession = '';
   rec.onresult = (e) => {
     let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) final += t; else interim += t; }
-    ui.saisie.value = base + final + interim; redimensionnerSaisie();
+    finalSession = '';
+    for (let i = 0; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) finalSession += t; else interim += t; }
+    ui.saisie.value = (dictee.base + dictee.final + finalSession + interim).replace(/\s+/g, ' '); redimensionnerSaisie();
+    armerSilence();
   };
-  rec.onerror = (e) => { if (e.error !== 'no-speech' && e.error !== 'aborted') setEtat(`Dictée : ${e.error}`); };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { setEtat('Micro refusé par le navigateur'); arreterDictee({ envoyer: false }); }
+    // no-speech / aborted / network : onend suit et relance si besoin
+  };
   rec.onend = () => {
-    etat.reconnaissance = null; ui.btnMicro.setAttribute('aria-pressed', 'false'); setEtat('');
-    if (final.trim()) envoyer(); else if (etat.mainsLibres && !etat.envoiEnCours) setTimeout(demarrerDictee, 300);
+    dictee.final += finalSession; finalSession = '';
+    dictee.rec = null;
+    if (dictee.actif) { try { lancerReconnaissance(); } catch { arreterDictee({ envoyer: true }); } } // le navigateur s'est arrêté seul : on relance
   };
-  etat.reconnaissance = rec; ui.btnMicro.setAttribute('aria-pressed', 'true'); setEtat('Je vous écoute…');
-  try { rec.start(); } catch { etat.reconnaissance = null; }
+  dictee.rec = rec;
+  try { rec.start(); } catch { dictee.actif = false; }
 }
-function arreterDictee() { etat.reconnaissance?.stop(); }
-ui.btnMicro.addEventListener('click', () => { window.speechSynthesis?.cancel(); etat.reconnaissance ? arreterDictee() : demarrerDictee(); });
+
+function armerSilence() {
+  clearTimeout(dictee.minuteur);
+  if (dictee.maintien) return; // en appui maintenu, c'est le relâchement qui envoie
+  dictee.minuteur = setTimeout(() => { if (dictee.actif && texteDicte().trim()) arreterDictee({ envoyer: true }); }, SILENCE_MS);
+}
+function texteDicte() { return ui.saisie.value; }
+
+function arreterDictee({ envoyer = false } = {}) {
+  clearTimeout(dictee.minuteur);
+  if (!dictee.actif) return;
+  dictee.actif = false;
+  const rec = dictee.rec; dictee.rec = null;
+  if (rec) { rec.onend = null; try { rec.stop(); } catch { /* ignoré */ } }
+  ui.btnMicro.setAttribute('aria-pressed', 'false'); setEtat('');
+  const texte = texteDicte().trim();
+  if (envoyer && texte) envoyer_();
+  else if (etat.mainsLibres && !etat.envoiEnCours && !texte) setTimeout(() => demarrerDictee(), 300);
+}
+function envoyer_() { envoyer(); }
+
+// Bouton micro : appui bref = écoute jusqu'au silence ; appui maintenu = écoute tant qu'on tient, envoi au relâchement.
+ui.btnMicro.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); ui.btnMicro.setPointerCapture?.(e.pointerId);
+  dictee.debutAppui = Date.now();
+  if (dictee.actif) { arreterDictee({ envoyer: true }); dictee.debutAppui = 0; return; }
+  demarrerDictee({ maintien: true });
+});
+function finAppui() {
+  if (!dictee.debutAppui) return;
+  const duree = Date.now() - dictee.debutAppui; dictee.debutAppui = 0;
+  if (!dictee.actif) return;
+  if (duree < 500) { dictee.maintien = false; setEtat('Je vous écoute… (envoi après un silence)'); armerSilence(); } // appui bref : on continue jusqu'au silence
+  else arreterDictee({ envoyer: true }); // appui maintenu : relâcher envoie
+}
+ui.btnMicro.addEventListener('pointerup', finAppui);
+ui.btnMicro.addEventListener('pointercancel', finAppui);
+ui.btnMicro.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ---------- Vocal enregistré (MediaRecorder → /api/transcribe) ----------
 async function demarrerEnregistrement() {
@@ -341,7 +396,7 @@ ui.btnVoix.addEventListener('click', () => {
 ui.btnMainsLibres.addEventListener('click', () => {
   etat.mainsLibres = !etat.mainsLibres; localStorage.setItem('mainsLibres', etat.mainsLibres ? '1' : '0');
   ui.btnMainsLibres.setAttribute('aria-pressed', String(etat.mainsLibres));
-  if (etat.mainsLibres) { etat.voix = true; localStorage.setItem('voix', '1'); ui.btnVoix.setAttribute('aria-pressed', 'true'); demarrerDictee(); } else arreterDictee();
+  if (etat.mainsLibres) { etat.voix = true; localStorage.setItem('voix', '1'); ui.btnVoix.setAttribute('aria-pressed', 'true'); demarrerDictee(); } else arreterDictee({ envoyer: false });
 });
 
 // ---------- Notifications push ----------

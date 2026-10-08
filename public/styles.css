@@ -68,6 +68,7 @@ button { font: inherit; color: inherit; }
   background: var(--fond); color: var(--texte); font: inherit; line-height: 1.35;
 }
 .btn-envoyer { color: var(--accent); }
+.btn-micro { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .btn-micro[aria-pressed="true"] { animation: pulse 1.2s infinite; }
 #btn-vocal.enregistre { background: var(--erreur); color: #fff; animation: pulse 1.2s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(124,156,255,0.25); } }
