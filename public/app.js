@@ -81,16 +81,15 @@ async function demarrer() {
 // ---------- Outils (serveurs MCP) ----------
 function afficherOutils(serveurs) {
   ui.listeOutils.innerHTML = '';
-  if (!serveurs.length) { const li = document.createElement('li'); li.className = 'discret'; li.textContent = 'Aucun serveur MCP configuré'; ui.listeOutils.append(li); return; }
+  if (!serveurs.length) { const li = document.createElement('li'); li.className = 'discret'; li.textContent = 'Aucun outil : ajoutez-en dans « Mes outils »'; ui.listeOutils.append(li); return; }
   for (const s of serveurs) {
     const li = document.createElement('li');
     const point = document.createElement('span'); point.className = `point${s.connecte ? '' : ' off'}`;
     const nom = document.createElement('span'); nom.className = 'nom'; nom.textContent = s.name; nom.title = s.description || '';
     li.append(point, nom);
-    if (s.auth === 'oauth') {
-      const b = document.createElement('button'); b.className = 'btn btn-secondaire';
-      b.textContent = s.connecte ? 'Déconnecter' : 'Connecter';
-      b.onclick = () => (s.connecte ? deconnecterOutil(s.name) : (location.href = `/connect/${encodeURIComponent(s.name)}`));
+    if (s.auth === 'oauth' && !s.connecte) {
+      const b = document.createElement('button'); b.className = 'btn btn-secondaire'; b.textContent = 'Connecter';
+      b.onclick = () => { location.href = `/connect/${encodeURIComponent(s.name)}`; };
       li.append(b);
     }
     ui.listeOutils.append(li);

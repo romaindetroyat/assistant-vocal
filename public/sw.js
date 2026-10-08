@@ -1,5 +1,5 @@
 // Service worker : app shell en cache, réseau pour l'API, notifications push.
-const CACHE = 'assistant-v2';
+const CACHE = 'assistant-v3';
 const SHELL = ['/app', '/login', '/styles.css', '/app.js', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {

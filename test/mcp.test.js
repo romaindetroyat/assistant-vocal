@@ -35,3 +35,16 @@ test('serveurs déclarés par variables MCP_URL_<NOM>', () => {
   assert.match(s[1].description, /Gmail/);
   assert.equal(s[1].authorization_token, undefined);
 });
+
+test("serveurs ajoutés depuis l'application : validation, doublons, retrait", async () => {
+  const { ajouterServeur, listerServeursAjoutes, retirerServeur } = await import('../server/mcp.js');
+  const s = await ajouterServeur({ name: ' Mon Zapier ', url: 'https://mcp.zapier.com/api/mcp/s/x/mcp', description: '' });
+  assert.equal(s.name, 'mon-zapier');
+  assert.match(s.description, /mon-zapier/);
+  await assert.rejects(() => ajouterServeur({ name: 'mon-zapier', url: 'https://x' }), /existe déjà/);
+  await assert.rejects(() => ajouterServeur({ name: 'agenda', url: 'https://x' }, [{ name: 'agenda' }]), /existe déjà/);
+  await assert.rejects(() => ajouterServeur({ name: 'a', url: 'http://x' }), /https/);
+  assert.equal((await listerServeursAjoutes()).length, 1);
+  assert.equal(await retirerServeur('mon-zapier'), true);
+  assert.equal(await retirerServeur('mon-zapier'), false);
+});

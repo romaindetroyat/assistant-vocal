@@ -8,7 +8,7 @@ import { executerTour } from './chat.js';
 import { pushDisponible } from './push.js';
 import { transcriptionDisponible, transcrire } from './transcribe.js';
 import * as store from './store.js';
-import { resoudreServeurs } from './mcp.js';
+import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
 
 /**
@@ -18,7 +18,12 @@ import * as oauth from './oauth-mcp.js';
  */
 export function creerApplication({ client, serveurs = [], fichier }) {
   const app = new Hono();
-  const lesServeurs = () => (typeof serveurs === 'function' ? serveurs() : serveurs);
+  const serveursEnv = () => (typeof serveurs === 'function' ? serveurs() : serveurs);
+  // Serveurs déclarés par l'environnement + serveurs ajoutés dans l'application.
+  const lesServeurs = async () => {
+    const env = serveursEnv(); const noms = new Set(env.map((s) => s.name));
+    return [...env, ...(await listerServeursAjoutes()).filter((s) => !noms.has(s.name)).map((s) => ({ ...s, source: 'app' }))];
+  };
   const leClient = () => (typeof client === 'function' ? client() : client);
 
   app.post('/api/login', async (c) => {
@@ -30,7 +35,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   app.post('/api/logout', (c) => { retirerCookie(c); return c.json({ ok: true }); });
   app.use('/api/*', exigerSession);
 
-  const etatServeurs = () => Promise.all(lesServeurs().map(async (s) => ({ name: s.name, description: s.description, auth: s.auth || 'token', ...(s.auth === 'oauth' ? await oauth.etatConnexion(s.name) : { connecte: true }) })));
+  const etatServeurs = async () => Promise.all((await lesServeurs()).map(async (s) => ({ name: s.name, description: s.description, auth: s.auth || 'token', source: s.source || 'env', ...(s.auth === 'oauth' ? await oauth.etatConnexion(s.name) : { connecte: true }) })));
 
   app.get('/api/me', async (c) => c.json({
     assistantName: config.assistantName,
@@ -57,7 +62,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     return streamSSE(c, async (flux) => {
       await flux.writeSSE({ event: 'start', data: JSON.stringify({ conversationId: conversation.id }) });
       try {
-        const { prets, nonConnectes } = await resoudreServeurs(lesServeurs(), (nom) => oauth.jetonPour(nom));
+        const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
         for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: corps.content, serveurs: prets, nonConnectes })) {
           await flux.writeSSE({ event: ev.type, data: JSON.stringify(ev) });
         }
@@ -80,10 +85,27 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   });
 
   // --- Connexion OAuth aux serveurs MCP ---
-  const serveurOauth = (nom) => lesServeurs().find((s) => s.name === nom && s.auth === 'oauth');
+  const serveurOauth = async (nom) => (await lesServeurs()).find((s) => s.name === nom && s.auth === 'oauth');
   app.get('/api/mcp', async (c) => c.json(await etatServeurs()));
+  // Ajout depuis l'application : le mode (jeton ou OAuth) est détecté automatiquement.
+  app.post('/api/mcp', async (c) => {
+    const corps = await c.req.json().catch(() => ({}));
+    try {
+      let auth = corps.authorization_token ? 'token' : 'token';
+      if (!corps.authorization_token) {
+        try { await oauth.decouvrir(String(corps.url || '').trim()); auth = 'oauth'; } catch { auth = 'token'; }
+      }
+      const serveur = await ajouterServeur({ ...corps, auth }, serveursEnv());
+      return c.json({ ok: true, name: serveur.name, auth: serveur.auth }, 201);
+    } catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.delete('/api/mcp/:nom/remove', async (c) => {
+    const nom = c.req.param('nom');
+    await oauth.deconnecter(nom).catch(() => {});
+    return (await retirerServeur(nom)) ? c.json({ ok: true }) : c.json({ erreur: 'Ce serveur vient de la configuration, pas de l\'application' }, 400);
+  });
   app.post('/api/mcp/:nom/connect', async (c) => {
-    const s = serveurOauth(c.req.param('nom'));
+    const s = await serveurOauth(c.req.param('nom'));
     if (!s) return c.json({ erreur: 'Serveur inconnu ou sans OAuth' }, 404);
     try {
       const redirectUri = new URL('/oauth/callback', c.req.url).toString();
@@ -91,7 +113,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     } catch (e) { return c.json({ erreur: e.message }, 502); }
   });
   app.post('/api/mcp/:nom/finish', async (c) => {
-    const s = serveurOauth(c.req.param('nom'));
+    const s = await serveurOauth(c.req.param('nom'));
     if (!s) return c.json({ erreur: 'Serveur inconnu ou sans OAuth' }, 404);
     const corps = await c.req.json().catch(() => ({}));
     const params = corps.code && corps.state ? { code: corps.code, state: corps.state } : oauth.extraireCodeEtState(corps.url || '');
@@ -100,7 +122,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
   app.delete('/api/mcp/:nom', async (c) => {
-    const s = serveurOauth(c.req.param('nom'));
+    const s = await serveurOauth(c.req.param('nom'));
     if (!s) return c.json({ erreur: 'Serveur inconnu ou sans OAuth' }, 404);
     await oauth.deconnecter(s.name);
     return c.json({ ok: true });
@@ -123,7 +145,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     if (!estConnecte(c)) return c.redirect('/login');
     const code = c.req.query('code'); const state = c.req.query('state');
     if (!code || !state) return c.text(`Retour OAuth incomplet : ${c.req.query('error_description') || c.req.query('error') || 'code manquant'}`, 400);
-    for (const s of lesServeurs().filter((x) => x.auth === 'oauth')) {
+    for (const s of (await lesServeurs()).filter((x) => x.auth === 'oauth')) {
       try { await oauth.terminerConnexion({ nom: s.name, code, state }); return c.redirect(`/app?connecte=${encodeURIComponent(s.name)}`); }
       catch (e) { if (!/attente|state/.test(e.message)) return c.text(`Connexion refusée : ${e.message}`, 400); }
     }
@@ -135,6 +157,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   app.get('/login', (c) => fichier(c, '/index.html'));
   app.get('/app', (c) => fichier(c, '/index.html'));
   app.get('/connect/:nom', (c) => (estConnecte(c) ? fichier(c, '/connect.html') : c.redirect('/login')));
+  app.get('/outils', (c) => (estConnecte(c) ? fichier(c, '/outils.html') : c.redirect('/login')));
   app.get('/sw.js', async (c) => { const r = await fichier(c, '/sw.js'); const h = new Headers(r.headers); h.set('Cache-Control', 'no-cache'); return new Response(r.body, { status: r.status, headers: h }); });
   app.get('/*', (c) => fichier(c, new URL(c.req.url).pathname));
 

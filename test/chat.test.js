@@ -109,3 +109,20 @@ test('POST /api/chat : flux SSE et conversation persistée', async () => {
   const liste = await (await app.request('/api/conversations', { headers: { cookie } })).json();
   assert.equal(liste[0].id, id);
 });
+
+test("POST /api/mcp : ajout d'un serveur depuis l'application, détection OAuth, retrait", async () => {
+  const app = creerApplication({ client: {}, serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  const h = { 'Content-Type': 'application/json', cookie };
+  // Serveur sans métadonnées OAuth joignables → mode jeton
+  let r = await app.request('/api/mcp', { method: 'POST', headers: h, body: JSON.stringify({ name: 'zap', url: 'https://mcp.invalid/x', authorization_token: 'abc' }) });
+  assert.equal(r.status, 201);
+  assert.equal((await r.json()).auth, 'token');
+  const liste = await (await app.request('/api/mcp', { headers: { cookie } })).json();
+  assert.deepEqual(liste.map((s) => [s.name, s.source, s.connecte]), [['zap', 'app', true]]);
+  r = await app.request('/api/mcp', { method: 'POST', headers: h, body: JSON.stringify({ name: 'zap', url: 'https://mcp.invalid/y' }) });
+  assert.equal(r.status, 400);
+  r = await app.request('/api/mcp/zap/remove', { method: 'DELETE', headers: { cookie } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await (await app.request('/api/mcp', { headers: { cookie } })).json(), []);
+});

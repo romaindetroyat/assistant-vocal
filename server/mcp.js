@@ -1,5 +1,6 @@
 // Analyse de la configuration MCP → paramètres `mcp_servers` et `mcp_toolset` de l'API Claude.
 import { config } from './config.js';
+import { lireValeur, ecrireValeur } from './store.js';
 
 const NOM_VALIDE = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -91,4 +92,25 @@ export async function resoudreServeurs(serveurs, jetonPour) {
     if (jeton) prets.push({ ...s, authorization_token: jeton }); else nonConnectes.push(s);
   }
   return { prets, nonConnectes };
+}
+
+// Serveurs ajoutés depuis l'application (stockés côté serveur).
+export const listerServeursAjoutes = async () => (await lireValeur('mcp-servers')) || [];
+export async function ajouterServeur({ name, url, description = '', authorization_token = '', auth }, existants = []) {
+  const nom = String(name || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  if (!nom) throw new Error('Nom invalide');
+  if (!/^https:\/\/\S+$/.test(String(url || '').trim())) throw new Error("L'adresse doit commencer par https://");
+  if (existants.some((s) => s.name === nom)) throw new Error(`Un serveur « ${nom} » existe déjà`);
+  const liste = await listerServeursAjoutes();
+  if (liste.some((s) => s.name === nom)) throw new Error(`Un serveur « ${nom} » existe déjà`);
+  const serveur = { name: nom, url: String(url).trim(), description: String(description || '').trim() || DESCRIPTIONS[nom] || `Serveur MCP « ${nom} »`, authorization_token: String(authorization_token || '').trim() || undefined, auth: auth === 'oauth' ? 'oauth' : 'token', ajouteLe: new Date().toISOString() };
+  liste.push(serveur);
+  await ecrireValeur('mcp-servers', liste);
+  return serveur;
+}
+export async function retirerServeur(nom) {
+  const liste = await listerServeursAjoutes();
+  if (!liste.some((s) => s.name === nom)) return false;
+  await ecrireValeur('mcp-servers', liste.filter((s) => s.name !== nom));
+  return true;
 }

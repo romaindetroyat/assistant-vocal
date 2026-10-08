@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mes outils</title>
+  <meta name="theme-color" content="#0f1115">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body { overflow: auto; }
+    main { max-width: 600px; margin: 0 auto; padding: 24px var(--gouttiere) 48px; display: flex; flex-direction: column; gap: 18px; }
+    .carte { background: var(--fond-2); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .carte h2 { margin: 0; font-size: 17px; }
+    label { font-size: 14px; color: var(--texte-2); display: flex; flex-direction: column; gap: 4px; }
+    input { padding: 10px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--fond); color: var(--texte); font: inherit; }
+    .outil { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--bordure); }
+    .outil:first-of-type { border-top: 0; }
+    .outil .texte { flex: 1; min-width: 0; }
+    .outil .nom { font-weight: 600; }
+    .outil .desc { font-size: 13px; color: var(--texte-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .point { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: 0 0 auto; }
+    .point.off { background: var(--erreur); }
+    .actions { display: flex; gap: 6px; }
+    .btn-petit { padding: 6px 10px; font-size: 13px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mes outils</h1>
+    <section class="carte">
+      <h2>Outils connectés</h2>
+      <div id="liste"></div>
+    </section>
+
+    <section class="carte">
+      <h2>Ajouter un outil (serveur MCP)</h2>
+      <p class="discret">Collez l'adresse du serveur MCP. S'il demande une autorisation (OAuth), un bouton « Connecter » apparaîtra. S'il fournit un jeton, collez-le ci-dessous.</p>
+      <label>Nom (court, ex. zapier, notion) <input id="nom" autocomplete="off" placeholder="zapier"></label>
+      <label>Adresse du serveur MCP <input id="url" autocomplete="off" inputmode="url" placeholder="https://…"></label>
+      <label>À quoi sert-il ? (aide l'assistant à choisir) <input id="desc" autocomplete="off" placeholder="ex. Mes mails et mon agenda via Zapier"></label>
+      <label>Jeton d'accès (seulement si le service vous en a donné un) <input id="jeton" autocomplete="off" placeholder="facultatif"></label>
+      <button id="btn-ajouter" class="btn btn-primaire">Ajouter</button>
+      <p id="etat"></p>
+    </section>
+
+    <p><a href="/app">← Retour à l'assistant</a></p>
+  </main>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    async function api(chemin, options = {}) {
+      const r = await fetch(chemin, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if (r.status === 401) { location.href = '/login'; throw new Error('Session expirée'); }
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json.erreur || `HTTP ${r.status}`);
+      return json;
+    }
+    async function charger() {
+      const liste = await api('/api/mcp');
+      const el = $('#liste'); el.innerHTML = '';
+      if (!liste.length) { el.innerHTML = '<p class="discret">Aucun outil pour l\'instant.</p>'; return; }
+      for (const s of liste) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const point = document.createElement('span'); point.className = `point${s.connecte ? '' : ' off'}`;
+        const texte = document.createElement('div'); texte.className = 'texte';
+        texte.innerHTML = `<div class="nom"></div><div class="desc"></div>`;
+        texte.querySelector('.nom').textContent = s.name + (s.connecte ? '' : ' — à connecter');
+        texte.querySelector('.desc').textContent = s.description || '';
+        const actions = document.createElement('div'); actions.className = 'actions';
+        if (s.auth === 'oauth') {
+          const b = document.createElement('button'); b.className = 'btn btn-secondaire btn-petit';
+          b.textContent = s.connecte ? 'Déconnecter' : 'Connecter';
+          b.onclick = async () => { if (s.connecte) { if (confirm(`Déconnecter ${s.name} ?`)) { await api(`/api/mcp/${s.name}`, { method: 'DELETE' }); charger(); } } else location.href = `/connect/${encodeURIComponent(s.name)}`; };
+          actions.append(b);
+        }
+        if (s.source === 'app') {
+          const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Retirer';
+          x.onclick = async () => { if (confirm(`Retirer ${s.name} ?`)) { await api(`/api/mcp/${s.name}/remove`, { method: 'DELETE' }); charger(); } };
+          actions.append(x);
+        }
+        ligne.append(point, texte, actions); el.append(ligne);
+      }
+    }
+    $('#btn-ajouter').addEventListener('click', async () => {
+      $('#etat').textContent = 'Vérification…';
+      try {
+        const r = await api('/api/mcp', { method: 'POST', body: JSON.stringify({ name: $('#nom').value, url: $('#url').value, description: $('#desc').value, authorization_token: $('#jeton').value }) });
+        for (const id of ['#nom', '#url', '#desc', '#jeton']) $(id).value = '';
+        if (r.auth === 'oauth') { $('#etat').textContent = `${r.name} ajouté : il faut maintenant l'autoriser.`; location.href = `/connect/${encodeURIComponent(r.name)}`; }
+        else { $('#etat').textContent = `${r.name} ajouté ✓`; charger(); }
+      } catch (e) { $('#etat').textContent = `Impossible d'ajouter : ${e.message}`; }
+    });
+    charger().catch((e) => { $('#liste').textContent = e.message; });
+  </script>
+</body>
+</html>
