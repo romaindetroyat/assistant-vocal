@@ -99,7 +99,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     let texte = ''; let erreur = null;
     try {
       const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
-      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes })) {
+      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix })) {
         if (ev.type === 'tool_use') outils.push(ev.name);
         else if (ev.type === 'done') texte = ev.text;
         else if (ev.type === 'error') erreur = ev.message;

@@ -8,6 +8,7 @@ export const config = {
   get sessionSecret() { return env().SESSION_SECRET || ''; },
   get model() { return env().CLAUDE_MODEL || 'claude-opus-5-5'; },
   get effort() { return env().CLAUDE_EFFORT || 'medium'; },
+  get effortVoix() { return env().CLAUDE_EFFORT_VOICE || 'low'; },
   get assistantName() { return env().ASSISTANT_NAME || 'Assistant'; },
   get userName() { return env().USER_NAME || ''; },
   get mcpConfigPath() { return env().MCP_CONFIG || './mcp.config.json'; },

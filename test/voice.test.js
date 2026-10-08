@@ -46,3 +46,14 @@ test('délégation /api/voice/ask : Claude répond, historique partagé', async 
   assert.equal(conv.messages.length, 2);
   assert.equal(conv.messages[0].content[0].text, 'Quelle heure est-il ?');
 });
+
+test('les demandes vocales passent à Claude avec l\'effort rapide', async () => {
+  const requetes = [];
+  const client = { beta: { messages: { stream(p) { requetes.push(p); const r = { stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }; return { async *[Symbol.asyncIterator]() {}, async finalMessage() { return r; } }; } } } };
+  const app = creerApplication({ client, serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  await app.request('/api/voice/ask', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ message: 'Salut' }) });
+  assert.deepEqual(requetes[0].output_config, { effort: 'low' });
+  await (await app.request('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ content: [{ type: 'text', text: 'Salut' }] }) })).text();
+  assert.deepEqual(requetes[1].output_config, { effort: 'medium' });
+});
