@@ -36,6 +36,14 @@ Pour le téléphone, servez l'application en **HTTPS** (obligatoire pour l'insta
 notifications) : un reverse proxy (Caddy, Traefik, Cloudflare Tunnel…) ou l'hébergeur de votre choix via le
 `Dockerfile`. Sur iPhone, ajoutez l'app à l'écran d'accueil avant d'activer les notifications.
 
+## Mode conversation vocale (GPT-Realtime + Claude)
+
+Avec une clé OpenAI (`OPENAI_API_KEY`), le bouton 📞 ouvre une conversation en direct : le navigateur se
+connecte en WebRTC au modèle vocal d'OpenAI (`gpt-realtime-2.1-mini` par défaut, `OPENAI_REALTIME_MODEL`
+pour changer, `OPENAI_REALTIME_VOICE` pour la voix), qui écoute, parle et gère les interruptions. Pour toute
+demande réelle, il appelle la fonction `demander_assistant`, que le serveur exécute avec Claude et tous les
+outils MCP : Claude reste le cerveau, l'historique est partagé avec le mode texte.
+
 ## Déclarer des serveurs MCP
 
 `mcp.config.json` :
@@ -69,6 +77,7 @@ OAuth de claude.ai ne sont pas réutilisables : chaque serveur doit fournir sa p
 |---|---|
 | `ANTHROPIC_API_KEY` | Clé API Claude (obligatoire) |
 | `ANTHROPIC_WORKSPACE_ID` | Identifiant d'espace de travail, requis si la clé n'y est pas rattachée |
+| `OPENAI_API_KEY`, `OPENAI_REALTIME_MODEL`, `OPENAI_REALTIME_VOICE` | Mode conversation vocale en direct (optionnel) |
 | `ASSISTANT_PASSWORD`, `SESSION_SECRET` | Accès et signature du cookie de session (obligatoires) |
 | `CLAUDE_MODEL`, `CLAUDE_EFFORT` | Modèle (`claude-opus-5-5`) et effort (`low`…`max`, défaut `medium`) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notifications push (`npm run vapid`) |

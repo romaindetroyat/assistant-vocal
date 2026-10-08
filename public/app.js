@@ -1,11 +1,12 @@
-// Interface de l'assistant : connexion, conversations, envoi multimodal, dictée, voix, notifications.
+// Interface de l'assistant : connexion, conversations, envoi multimodal, dictée, voix, notifications, conversation en direct.
+import { creerConversationVocale } from '/conversation.js';
 const $ = (s) => document.querySelector(s);
 const ui = {
   login: $('#ecran-login'), app: $('#ecran-app'), formLogin: $('#form-login'), motDePasse: $('#mot-de-passe'), loginErreur: $('#login-erreur'),
   messages: $('#messages'), saisie: $('#saisie'), pieces: $('#pieces'), etat: $('#etat'), titre: $('#titre-conv'),
   tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'), listeOutils: $('#liste-outils'),
   btnMicro: $('#btn-micro'), btnVocal: $('#btn-vocal'), btnEnvoyer: $('#btn-envoyer'), btnVoix: $('#btn-voix'),
-  btnMainsLibres: $('#btn-mains-libres'), btnNotifs: $('#btn-notifs'),
+  btnMainsLibres: $('#btn-mains-libres'), btnNotifs: $('#btn-notifs'), btnAppel: $('#btn-appel'), bandeauAppel: $('#bandeau-appel'), appelEtat: $('#appel-etat'),
 };
 
 const etat = {
@@ -67,6 +68,8 @@ async function demarrer() {
   ui.btnVoix.setAttribute('aria-pressed', String(etat.voix));
   ui.btnMainsLibres.setAttribute('aria-pressed', String(etat.mainsLibres));
   ui.btnNotifs.hidden = !etat.moi.push;
+  ui.btnAppel.hidden = !etat.moi.voix;
+  if (etat.moi.voix) ui.btnAppel.title = `Conversation vocale en direct (${etat.moi.voix.modele})`;
   if (!etat.moi.transcription) ui.btnVocal.title = 'Vocal : service de transcription non configuré, utilisez la dictée';
   if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
     ui.btnMicro.disabled = true; ui.btnMicro.title = 'Dictée non disponible dans ce navigateur : écrivez ou enregistrez un vocal';
@@ -425,6 +428,30 @@ ui.btnNotifs.addEventListener('click', async () => {
     ui.btnNotifs.setAttribute('aria-pressed', 'true'); setEtat('Notifications activées sur cet appareil');
   } catch (e) { setEtat(`Notifications : ${e.message}${/iP(hone|ad)/.test(navigator.userAgent) ? ' (sur iPhone, installez d\'abord l\'app sur l\'écran d\'accueil)' : ''}`); }
 });
+
+// ---------- Conversation vocale en direct (GPT-Realtime + Claude) ----------
+const appel = creerConversationVocale({
+  api,
+  surEtat: (t) => { ui.appelEtat.textContent = t; },
+  surTexteUtilisateur: (t) => { ui.messages.querySelector('.vide-accueil')?.remove(); creerBulle('user').textContent = t; defiler(); },
+  surTexteAssistant: (t) => { creerBulle('assistant').innerHTML = rendreMarkdown(t); defiler(); },
+  surOutils: (noms) => { const l = creerLigneOutils(); for (const n of noms) ajouterBadge(l, n, '', 'ok'); defiler(); },
+  surFin: (raison) => {
+    ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false');
+    if (raison) setEtat(raison);
+    chargerListe();
+  },
+});
+ui.btnAppel.addEventListener('click', async () => {
+  if (appel.actif) { appel.arreter(); return; }
+  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false });
+  ui.bandeauAppel.hidden = false; ui.btnAppel.setAttribute('aria-pressed', 'true');
+  try {
+    const id = await appel.demarrer(etat.conversationId);
+    if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
+  } catch { /* état déjà affiché */ }
+});
+$('#btn-raccrocher').addEventListener('click', () => appel.arreter());
 
 // ---------- Tiroir ----------
 function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; }

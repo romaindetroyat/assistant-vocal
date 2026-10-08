@@ -102,3 +102,9 @@ button { font: inherit; color: inherit; }
 .liste-outils .point { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: 0 0 auto; }
 .liste-outils .point.off { background: var(--erreur); }
 .liste-outils .btn { padding: 4px 10px; font-size: 13px; }
+
+.bandeau-appel { display: flex; align-items: center; gap: 10px; padding: 8px var(--gouttiere); background: var(--fond-3); border-bottom: 1px solid var(--bordure); font-size: 14px; }
+.bandeau-appel span:nth-child(2) { flex: 1; }
+.point-appel { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); animation: clignote 1.4s infinite; }
+.app { grid-template-rows: auto auto 1fr auto; }
+#btn-appel[aria-pressed="true"] { background: var(--ok); color: #0b1020; }

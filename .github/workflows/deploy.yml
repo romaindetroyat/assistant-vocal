@@ -26,6 +26,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ASSISTANT_PASSWORD: ${{ secrets.ASSISTANT_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -36,7 +37,7 @@ jobs:
           TRANSCRIBE_MODEL: ${{ secrets.TRANSCRIBE_MODEL }}
         run: |
           node -e '
-            const noms = ["ANTHROPIC_API_KEY","ANTHROPIC_WORKSPACE_ID","ASSISTANT_PASSWORD","SESSION_SECRET","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","MCP_CONFIG_JSON","TRANSCRIBE_URL","TRANSCRIBE_API_KEY","TRANSCRIBE_MODEL"];
+            const noms = ["ANTHROPIC_API_KEY","ANTHROPIC_WORKSPACE_ID","OPENAI_API_KEY","ASSISTANT_PASSWORD","SESSION_SECRET","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","MCP_CONFIG_JSON","TRANSCRIBE_URL","TRANSCRIBE_API_KEY","TRANSCRIBE_MODEL"];
             const secrets = Object.fromEntries(noms.filter((n) => process.env[n]).map((n) => [n, process.env[n]]));
             require("fs").writeFileSync("secrets.json", JSON.stringify(secrets));
             console.log("Secrets poussés :", Object.keys(secrets).join(", ") || "(aucun)");

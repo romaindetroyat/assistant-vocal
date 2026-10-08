@@ -34,7 +34,13 @@
       <button id="btn-voix" class="btn-icone" aria-pressed="false" aria-label="Lecture à voix haute" title="Lecture à voix haute">🔈</button>
       <button id="btn-mains-libres" class="btn-icone" aria-pressed="false" aria-label="Mode conversation" title="Mode conversation : réécoute après chaque réponse">🔁</button>
       <button id="btn-notifs" class="btn-icone" aria-label="Notifications" title="Activer les notifications">🔔</button>
+      <button id="btn-appel" class="btn-icone" aria-label="Mode conversation" title="Conversation vocale en direct" hidden>📞</button>
     </header>
+    <div id="bandeau-appel" class="bandeau-appel" hidden>
+      <span class="point-appel"></span>
+      <span id="appel-etat">Connexion…</span>
+      <button id="btn-raccrocher" class="btn btn-secondaire">Raccrocher</button>
+    </div>
 
     <aside id="tiroir" class="tiroir" hidden>
       <div class="tiroir-entete">

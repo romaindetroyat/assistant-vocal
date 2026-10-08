@@ -10,6 +10,7 @@ import { transcriptionDisponible, transcrire } from './transcribe.js';
 import * as store from './store.js';
 import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
+import { voixDisponible, modeleVoix, creerJetonEphemere } from './voice.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -44,6 +45,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     push: pushDisponible(),
     vapidPublicKey: config.vapid.publicKey || null,
     transcription: transcriptionDisponible(),
+    voix: voixDisponible() ? { modele: modeleVoix() } : null,
   }));
 
   app.get('/api/conversations', async (c) => c.json(await store.listerConversations()));
