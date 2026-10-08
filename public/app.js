@@ -90,7 +90,7 @@ function afficherOutils(serveurs) {
     if (s.auth === 'oauth') {
       const b = document.createElement('button'); b.className = 'btn btn-secondaire';
       b.textContent = s.connecte ? 'Déconnecter' : 'Connecter';
-      b.onclick = () => (s.connecte ? deconnecterOutil(s.name) : connecterOutil(s.name));
+      b.onclick = () => (s.connecte ? deconnecterOutil(s.name) : (location.href = `/connect/${encodeURIComponent(s.name)}`));
       li.append(b);
     }
     ui.listeOutils.append(li);

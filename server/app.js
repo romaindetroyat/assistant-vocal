@@ -134,6 +134,7 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   app.get('/', (c) => c.redirect(estConnecte(c) ? '/app' : '/login'));
   app.get('/login', (c) => fichier(c, '/index.html'));
   app.get('/app', (c) => fichier(c, '/index.html'));
+  app.get('/connect/:nom', (c) => (estConnecte(c) ? fichier(c, '/connect.html') : c.redirect('/login')));
   app.get('/sw.js', async (c) => { const r = await fichier(c, '/sw.js'); const h = new Headers(r.headers); h.set('Cache-Control', 'no-cache'); return new Response(r.body, { status: r.status, headers: h }); });
   app.get('/*', (c) => fichier(c, new URL(c.req.url).pathname));
 
