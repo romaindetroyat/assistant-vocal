@@ -44,6 +44,15 @@ pour changer, `OPENAI_REALTIME_VOICE` pour la voix), qui écoute, parle et gère
 demande réelle, il appelle la fonction `demander_assistant`, que le serveur exécute avec Claude et tous les
 outils MCP : Claude reste le cerveau, l'historique est partagé avec le mode texte.
 
+## Gmail en direct (connexion Google)
+
+Dans « Mes outils », la section Gmail permet de connecter un ou plusieurs comptes Google (OAuth, portée
+`gmail.modify`). Les jetons sont stockés côté serveur et rafraîchis automatiquement. L'assistant dispose alors
+des outils `gmail_rechercher`, `gmail_lire`, `gmail_repondre`, `gmail_envoyer`, `gmail_brouillon` et
+`gmail_comptes`. Il faut un ID client OAuth Google (type Application Web) avec l'adresse de redirection
+`https://<votre-worker>/oauth/google/callback` et l'API Gmail activée ; l'ID et le secret se saisissent une fois
+dans l'application (ou via `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`).
+
 ## Déclarer des serveurs MCP
 
 `mcp.config.json` :

@@ -36,6 +36,18 @@
     </section>
 
     <section class="carte">
+      <h2>Gmail (connexion Google directe)</h2>
+      <div id="google-comptes"></div>
+      <div id="google-config" hidden>
+        <p class="discret">Première fois : il faut un identifiant OAuth Google (console.cloud.google.com → APIs et services → Identifiants → Créer → ID client OAuth, type « Application Web »). Adresse de redirection à déclarer : <code id="google-redirect"></code>. Activez aussi l'API Gmail dans le projet.</p>
+        <label>ID client <input id="google-client-id" autocomplete="off" placeholder="…apps.googleusercontent.com"></label>
+        <label>Secret client <input id="google-client-secret" autocomplete="off" type="password"></label>
+        <button id="btn-google-config" class="btn btn-secondaire btn-petit">Enregistrer</button>
+      </div>
+      <div class="actions"><button id="btn-google-connecter" class="btn btn-primaire btn-petit">Connecter un compte Google</button><span id="etat-google" class="discret"></span></div>
+    </section>
+
+    <section class="carte">
       <h2>Catalogue : connexion en un clic</h2>
       <p class="discret">Choisissez un service, autorisez-le dans votre navigateur, c'est tout. Gmail, Google Agenda et Google Drive passent par Zapier.</p>
       <input id="filtre" placeholder="Rechercher (Notion, agenda, design…)" autocomplete="off">
@@ -116,6 +128,34 @@
       } catch (e) { $('#etat').textContent = `Impossible d'ajouter : ${e.message}`; }
     });
     charger().catch((e) => { $('#liste').textContent = e.message; });
+
+    async function chargerGoogle() {
+      const g = await api('/api/google');
+      $('#google-redirect').textContent = g.redirectUri;
+      $('#google-config').hidden = g.configure;
+      $('#btn-google-connecter').disabled = !g.configure;
+      const el = $('#google-comptes'); el.innerHTML = '';
+      if (!g.comptes.length) el.innerHTML = '<p class="discret">Aucun compte Google connecté.</p>';
+      for (const c of g.comptes) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const point = document.createElement('span'); point.className = 'point';
+        const t = document.createElement('div'); t.className = 'texte'; t.innerHTML = '<div class="nom"></div><div class="desc">Gmail : lire, chercher, répondre, envoyer, brouillons</div>'; t.querySelector('.nom').textContent = c.email;
+        const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Retirer';
+        x.onclick = async () => { if (confirm(`Retirer ${c.email} ?`)) { await api(`/api/google/comptes/${encodeURIComponent(c.email)}`, { method: 'DELETE' }); chargerGoogle(); } };
+        ligne.append(point, t, x); el.append(ligne);
+      }
+      const nouveau = new URLSearchParams(location.search).get('google');
+      if (nouveau) { history.replaceState(null, '', '/outils'); $('#etat-google').textContent = `${nouveau} connecté ✓`; }
+    }
+    $('#btn-google-config').addEventListener('click', async () => {
+      try { await api('/api/google/config', { method: 'PUT', body: JSON.stringify({ clientId: $('#google-client-id').value, clientSecret: $('#google-client-secret').value }) }); $('#etat-google').textContent = 'Identifiants enregistrés ✓'; chargerGoogle(); }
+      catch (e) { $('#etat-google').textContent = `Erreur : ${e.message}`; }
+    });
+    $('#btn-google-connecter').addEventListener('click', async () => {
+      try { const { url } = await api('/api/google/connect', { method: 'POST' }); location.href = url; }
+      catch (e) { $('#etat-google').textContent = `Erreur : ${e.message}`; }
+    });
+    chargerGoogle().catch(() => {});
 
     let catalogue = [];
     function afficherCatalogue() {

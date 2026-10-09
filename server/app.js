@@ -13,6 +13,7 @@ import * as oauth from './oauth-mcp.js';
 import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './voice.js';
 import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
 import { CATALOGUE, parId } from './catalogue.js';
+import * as google from './google.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -147,6 +148,21 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     } catch (e) { return c.json({ erreur: e.message }, 400); }
   });
 
+  // --- Google (Gmail) : identifiants OAuth et comptes connectés ---
+  app.get('/api/google', async (c) => {
+    const cfg = await google.configGoogle();
+    return c.json({ configure: Boolean(cfg.clientId && cfg.clientSecret), source: cfg.source, clientId: cfg.clientId ? `${cfg.clientId.slice(0, 12)}…` : null, redirectUri: new URL('/oauth/google/callback', c.req.url).toString(), comptes: (await google.listerComptes()).map((x) => ({ email: x.email, ajouteLe: x.ajouteLe })) });
+  });
+  app.put('/api/google/config', async (c) => {
+    try { await google.enregistrerConfigGoogle(await c.req.json().catch(() => ({}))); return c.json({ ok: true }); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.post('/api/google/connect', async (c) => {
+    try { return c.json({ url: await google.demarrerConnexionGoogle(new URL('/oauth/google/callback', c.req.url).toString()) }); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.delete('/api/google/comptes/:email', async (c) => { await google.retirerCompte(c.req.param('email')); return c.json({ ok: true }); });
+
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);
     const f = form?.get('file');
@@ -221,6 +237,14 @@ export function creerApplication({ client, serveurs = [], fichier }) {
       catch (e) { if (!/attente|state/.test(e.message)) return c.text(`Connexion refusée : ${e.message}`, 400); }
     }
     return c.text('Aucune connexion en attente ne correspond.', 400);
+  });
+
+  app.get('/oauth/google/callback', async (c) => {
+    if (!estConnecte(c)) return c.redirect('/login');
+    const code = c.req.query('code'); const state = c.req.query('state');
+    if (!code || !state) return c.text(`Connexion Google refusée : ${c.req.query('error') || 'code manquant'}`, 400);
+    try { const email = await google.terminerConnexionGoogle({ code, state }); return c.redirect(`/outils?google=${encodeURIComponent(email)}`); }
+    catch (e) { return c.text(`Connexion Google impossible : ${e.message}`, 400); }
   });
 
   // Fichiers statiques (PWA)

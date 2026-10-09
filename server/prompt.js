@@ -1,7 +1,7 @@
 // Prompt système : identité, contexte temporel, carte des outils.
 import { config } from './config.js';
 
-export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false, nonConnectes = [] } = {}) {
+export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false, nonConnectes = [], comptesGmail = [] } = {}) {
   const maintenant = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' });
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
 
@@ -23,6 +23,7 @@ Outils locaux :
 - notify_me : notification push immédiate sur les appareils de l'utilisateur
 - schedule_reminder / list_reminders / cancel_reminder : rappels programmés livrés en push${rappelsActifs ? ` (${rappelsActifs} en attente)` : ''}
 - web_search : recherche web quand l'information n'est pas dans tes outils
+${comptesGmail.length ? `- gmail_rechercher / gmail_lire / gmail_repondre / gmail_envoyer / gmail_brouillon : e-mails des comptes connectés (${comptesGmail.join(', ')}). Pour un envoi ou une réponse, confirme le texte à l'utilisateur sauf s'il l'a dicté précisément.` : '- (aucun compte Gmail connecté : pour les e-mails, utilise un serveur MCP mail s\'il existe, sinon dis-le)'}
 ${pushDisponible ? '' : '\nLes notifications push ne sont pas encore configurées : préviens l\'utilisateur si on te demande une notification ou un rappel.\n'}
 ## Comment travailler
 

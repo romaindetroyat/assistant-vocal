@@ -1,6 +1,8 @@
 // Outils locaux exécutés par ce serveur (en plus des serveurs MCP).
 import { envoyerNotification, pushDisponible } from './push.js';
 import { ajouterRappel, listerRappels, sauverRappels } from './store.js';
+import { definitionsOutilsGmail, nomsOutilsGmail, executerOutilGmail } from './gmail.js';
+import { listerComptes } from './google.js';
 
 export const definitionsOutilsLocaux = [
   {
@@ -51,13 +53,20 @@ export const definitionsOutilsLocaux = [
   },
 ];
 
-export const nomsOutilsLocaux = new Set(definitionsOutilsLocaux.map((t) => t.name));
+export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail]);
+
+// Outils disponibles pour une requête : outils de base + Gmail si au moins un compte Google est connecté.
+export async function outilsLocauxDisponibles() {
+  const comptes = await listerComptes().catch(() => []);
+  return comptes.length ? [...definitionsOutilsLocaux, ...definitionsOutilsGmail] : definitionsOutilsLocaux;
+}
 
 function texte(s, max) {
   return typeof s === 'string' ? s.trim().slice(0, max) : '';
 }
 
 export async function executerOutilLocal(nom, entree) {
+  if (nomsOutilsGmail.has(nom)) return executerOutilGmail(nom, entree);
   switch (nom) {
     case 'notify_me': {
       const titre = texte(entree.title, 60);
