@@ -23,6 +23,7 @@ import * as taches from './taches.js';
 import * as brief from './brief.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
+import * as jetons from './jetons.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -47,7 +48,24 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     return c.json({ ok: true });
   });
   app.post('/api/logout', (c) => { retirerCookie(c); return c.json({ ok: true }); });
-  app.use('/api/*', exigerSession);
+  // Session (cookie) ou jeton d'appareil (Authorization: Bearer) : réservé aux routes appelées par les raccourcis iOS.
+  const sessionOuJeton = async (c, next) => {
+    if (estConnecte(c)) return next();
+    const appareil = await jetons.verifierJeton(jetons.jetonDepuisEntete(c.req.header('authorization')));
+    if (!appareil) return c.json({ erreur: 'Non authentifié' }, 401);
+    c.set('appareil', appareil);
+    await next();
+  };
+  const ROUTES_JETON = new Set(['/api/partage', '/api/raccourci']);
+  app.use('/api/*', (c, next) => (ROUTES_JETON.has(new URL(c.req.url).pathname) ? sessionOuJeton(c, next) : exigerSession(c, next)));
+
+  // --- Jetons d'appareil (raccourcis iOS) : cookie de session uniquement ---
+  app.get('/api/jetons', async (c) => c.json(await jetons.listerJetons()));
+  app.post('/api/jetons', async (c) => {
+    try { const { nom } = await c.req.json().catch(() => ({})); return c.json(await jetons.creerJeton(nom), 201); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.delete('/api/jetons/:id', async (c) => ((await jetons.revoquerJeton(c.req.param('id'))) ? c.json({ ok: true }) : c.json({ erreur: 'Jeton introuvable' }, 404)));
 
   const etatServeurs = async () => Promise.all((await lesServeurs()).map(async (s) => ({ name: s.name, description: s.description, auth: s.auth || 'token', source: s.source || 'env', ...(s.auth === 'oauth' ? await oauth.etatConnexion(s.name) : { connecte: true }) })));
 
