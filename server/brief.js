@@ -51,7 +51,7 @@ export async function tourEphemere({ client, serveurs = [], nonConnectes = [], m
   const conversation = { id, titre, messages: [] };
   const outils = [];
   let texte = '';
-  for await (const ev of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs, nonConnectes, outilsLocaux, effort: config.effortVoix, consigne })) {
+  for await (const ev of executerTour({ source: 'brief',  client, conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs, nonConnectes, outilsLocaux, effort: config.effortVoix, consigne })) {
     if (ev.type === 'tool_use') outils.push(ev.name);
     else if (ev.type === 'done') texte = ev.text;
     else if (ev.type === 'error' && !texte) throw new Error(ev.message);

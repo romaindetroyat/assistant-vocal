@@ -8,6 +8,7 @@ import { lireConsignes } from './consignes.js';
 import { lireMemoire } from './memoire.js';
 import { pushDisponible } from './push.js';
 import { listerRappels } from './store.js';
+import { enregistrerUsage } from './usage.js';
 import { compacterSiNecessaire } from './compaction.js';
 
 const BETAS = ['mcp-client-2025-11-20', 'server-side-fallback-2026-07-01'];
@@ -33,7 +34,7 @@ function nettoyerPourHistorique(contenu) {
  *   {type:'done', text} · {type:'error', message} · {type:'compaction', messages} (historique ancien résumé, n messages compactés)
  * `conversation.messages` est enrichi en place (message utilisateur, réponses, résultats d'outils).
  */
-export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null }) {
+export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null, source = 'chat' }) {
   if (!outilsLocaux) outilsLocaux = await outilsLocauxDisponibles();
   const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
   const consignes = await lireConsignes().catch(() => []);
@@ -104,6 +105,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
     }
 
     const reponse = await stream.finalMessage();
+    await enregistrerUsage(reponse.usage, source).catch(() => {});
     // Chronométrage (journal) : latence avant le premier événement, durée de l'itération, outils appelés.
     console.log(`[chat] itération ${iteration + 1} : premier événement ${premierEvenement ? premierEvenement - debutIteration : '-'} ms, durée ${Date.now() - debutIteration} ms, arrêt ${reponse.stop_reason}, outils ${reponse.content.filter((b) => b.type === 'tool_use' || b.type === 'mcp_tool_use' || b.type === 'server_tool_use').map((b) => b.name).join(',') || '-'}, cache ${reponse.usage?.cache_read_input_tokens ?? 0}/${reponse.usage?.input_tokens ?? 0}`);
     if (!texteIteration) { const t = texteDe(reponse.content); if (t) { texteIteration = t; yield { type: 'text', text: t }; } } // sécurité : texte final sans delta streamé

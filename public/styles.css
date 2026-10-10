@@ -160,3 +160,7 @@ body.mode-voiture { color-scheme: dark; background: #000; }
 .resume-historique summary { cursor: pointer; font-weight: 600; }
 .resume-historique .resume { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--bordure); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--texte); }
 .resume-historique .resume .discret { margin-bottom: 4px; }
+
+.tableau { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.tableau th, .tableau td { text-align: right; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--bordure, #333); }
+.tableau th:first-child, .tableau td:first-child { text-align: left; }

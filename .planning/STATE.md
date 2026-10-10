@@ -35,6 +35,7 @@
 ## Next
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
+- Décision : Opus 5.5 conservé partout, suivi de consommation dans Mes outils pour juger sur pièces
 - Romain : coller la clé Routes (Mes outils › Trajets), créer un jeton d'appareil et les raccourcis iOS (partage, Siri, voiture), tester en voiture
 - Retours d'usage → corrections en `/gsd-quick` ; prochaine version à définir d'après l'usage
 - Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone

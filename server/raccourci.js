@@ -51,7 +51,7 @@ export async function repondreRaccourci({ client, serveurs = [], nonConnectes = 
   const tour = (async () => {
     let reponse = ''; let erreur = null;
     try {
-      for await (const ev of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: texte }], serveurs, nonConnectes, effort: config.effortVoix, consigne })) {
+      for await (const ev of executerTour({ source: 'siri',  client, conversation, contenuUtilisateur: [{ type: 'text', text: texte }], serveurs, nonConnectes, effort: config.effortVoix, consigne })) {
         if (ev.type === 'done') reponse = ev.text;
         else if (ev.type === 'error') erreur = ev.message;
       }

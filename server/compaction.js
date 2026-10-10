@@ -1,5 +1,6 @@
 // Compaction des longues conversations : les messages anciens sont résumés par Claude et remplacés par un
 // court échange, les derniers messages restent intacts. Les résumés sont conservés dans `conversation.resumes`.
+import { enregistrerUsage } from './usage.js';
 import { config } from './config.js';
 
 const env = () => (typeof process !== 'undefined' && process.env) || {};
@@ -54,6 +55,7 @@ async function resumer(client, messages) {
     system: "Tu résumes en français, pour un assistant personnel, le début d'une conversation qui va être compactée. Conserve : faits établis, décisions prises, demandes en cours ou non terminées, noms, dates et chiffres importants. Quinze lignes maximum, phrases courtes, pas d'introduction ni de conclusion.",
     messages: [{ role: 'user', content: `Voici la conversation à résumer :\n\n${texte}` }],
   });
+  await enregistrerUsage(reponse.usage, 'compaction').catch(() => {});
   const resume = (reponse.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
   if (!resume) throw new Error('résumé vide');
   return resume;

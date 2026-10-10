@@ -140,7 +140,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     try {
       const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
       const position = trajets.consignePosition(corps.position);
-      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: position ? `${consigne} ${position}` : consigne })) {
+      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: position ? `${consigne} ${position}` : consigne, source: 'voix' })) {
         if (ev.type === 'tool_use') outils.push(ev.name);
         else if (ev.type === 'done') texte = ev.text;
         else if (ev.type === 'error') erreur = ev.message;
@@ -340,6 +340,9 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     }
     return c.json(resultats);
   });
+
+  // Consommation Claude par jour (tokens, coût estimé) : visible dans « Mes outils ».
+  app.get('/api/usage', async (c) => { const { lireUsage } = await import('./usage.js'); return c.json(await lireUsage(Number(c.req.query('jours')) || 14)); });
 
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);

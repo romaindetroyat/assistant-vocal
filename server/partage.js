@@ -57,7 +57,7 @@ export async function traiterPartage({ client, serveurs = [], nonConnectes = [],
   contenu.push({ type: 'text', text: composerTexte({ texte, url, consigne }) });
   let reponse = ''; let erreur = null;
   try {
-    for await (const ev of executerTour({ client, conversation, contenuUtilisateur: contenu, serveurs, nonConnectes, effort: config.effortVoix, consigne: 'Réponse courte, sans mise en forme : elle sera lue à voix haute et affichée en notification.' })) {
+    for await (const ev of executerTour({ source: 'partage',  client, conversation, contenuUtilisateur: contenu, serveurs, nonConnectes, effort: config.effortVoix, consigne: 'Réponse courte, sans mise en forme : elle sera lue à voix haute et affichée en notification.' })) {
       if (ev.type === 'done') reponse = ev.text;
       else if (ev.type === 'error') erreur = ev.message;
     }

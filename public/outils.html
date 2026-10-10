@@ -214,6 +214,12 @@
       <div id="journal-memoire"></div>
     </section>
 
+    <section>
+      <h2>Consommation Claude</h2>
+      <p class="discret">Tokens et coût estimé par jour (tarifs Opus 5.5 : 4 $/M en entrée, 0,20 $/M lus en cache, 20 $/M en sortie). La facture réelle d'Anthropic fait foi ; la voix OpenAI est facturée à part.</p>
+      <p id="usage-total"></p>
+      <table class="tableau" id="usage-table"><thead><tr><th>Jour</th><th>Appels</th><th>Entrée</th><th>Cache</th><th>Sortie</th><th>Coût</th></tr></thead><tbody></tbody></table>
+    </section>
     <section class="carte">
       <h2>Trajets (Google Routes)</h2>
       <p class="discret">Temps de trajet avec le trafic, heure de départ conseillée, liens Plans et Google Maps. Il faut une clé Google Maps Platform restreinte à l'API Routes (console.cloud.google.com → API Routes activée → Identifiants → Clé API).</p>
@@ -521,6 +527,15 @@
     $('#btn-trajets-cle').addEventListener('click', enregistrerCleTrajets);
     $('#trajets-cle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enregistrerCleTrajets(); } });
     $('#trajets-cle').addEventListener('change', () => { if ($('#trajets-cle').value.trim()) enregistrerCleTrajets(); });
+    api('/api/usage').then((u) => {
+      $('#usage-total').textContent = u.jours.length ? `${u.totalCout} $ sur ${u.jours.length} jour(s) suivis` : 'Aucune donnée encore.';
+      const corps = $('#usage-table tbody'); corps.innerHTML = '';
+      for (const j of u.jours) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${j.jour}</td><td>${j.appels}</td><td>${j.entree.toLocaleString('fr-FR')}</td><td>${(j.cache_lecture + j.cache_ecriture).toLocaleString('fr-FR')}</td><td>${j.sortie.toLocaleString('fr-FR')}</td><td>${j.cout.toFixed(2)} $</td>`;
+        corps.append(tr);
+      }
+    }).catch(() => {});
     async function enregistrerTrajets() {
       try {
         const t = await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ domicile: $('#trajets-domicile').value, bureau: $('#trajets-bureau').value, partagerPosition: $('#trajets-position').checked }) });

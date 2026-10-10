@@ -1,5 +1,6 @@
 // Consolidation de la mémoire de personnalisation par Claude : fusion des doublons et contradictions,
 // suppression de l'obsolète, profil court. Traitement de fond (hebdomadaire) ou à la demande, journalisé.
+import { enregistrerUsage } from './usage.js';
 import { config } from './config.js';
 import { lireValeur, ecrireValeur } from './store.js';
 import { CATEGORIES, lireMemoire, remplacerMemoire } from './memoire.js';
@@ -61,6 +62,7 @@ async function demanderAClaude(client, memoire) {
     system: PROMPT_SYSTEME,
     messages: [{ role: 'user', content: `Mémoire actuelle (${entree.length} entrées) :\n${JSON.stringify(entree)}` }],
   });
+  await enregistrerUsage(reponse.usage, 'memoire').catch(() => {});
   return (reponse.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
 }
 
