@@ -1,10 +1,12 @@
-// Point d'entrée Cloudflare Workers : KV pour les données, assets statiques, cron pour les rappels.
+// Point d'entrée Cloudflare Workers : KV pour les données, assets statiques, cron pour les rappels, le point du matin
+// et la consolidation hebdomadaire de la mémoire.
 import Anthropic from '@anthropic-ai/sdk';
 import { creerApplication } from './app.js';
 import { serveursDepuisEnv } from './mcp.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendKv } from './store-kv.js';
 import { livrerRappelsDus, pointDuMatin } from './scheduler.js';
+import { consolidationHebdo } from './memoire-consolidation.js';
 import { fichiersInline, infosBuild } from './assets-inline.js';
 
 function preparer(env) {
@@ -31,8 +33,10 @@ function servirInline(chemin) {
   return new Response(cacheBinaire.get(chemin), { headers: { 'Content-Type': f.type, 'Cache-Control': immuable ? 'public, max-age=86400' : 'public, max-age=300' } });
 }
 
+const clientAnthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined });
+
 const app = creerApplication({
-  client: () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }),
+  client: clientAnthropic,
   serveurs,
   fichier: (_c, chemin) => servirInline(chemin),
   version: infosBuild,
@@ -48,6 +52,10 @@ export default {
   },
   async scheduled(_event, env, ctx) {
     preparer(env);
-    ctx.waitUntil(Promise.all([livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)), pointDuMatin().catch((e) => console.warn('[matin]', e.message))]));
+    ctx.waitUntil(Promise.all([
+      livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)),
+      pointDuMatin().catch((e) => console.warn('[matin]', e.message)),
+      env.ANTHROPIC_API_KEY ? consolidationHebdo({ client: clientAnthropic() }).catch((e) => console.warn('[mémoire]', e.message)) : Promise.resolve(false),
+    ]));
   },
 };

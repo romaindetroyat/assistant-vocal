@@ -1,7 +1,8 @@
-// Livraison des rappels programmés (vérification périodique).
+// Livraison des rappels programmés, point du matin et consolidation hebdomadaire de la mémoire (vérification périodique).
 import { listerRappels, sauverRappels, lireValeur, ecrireValeur } from './store.js';
 import { resumeDuJour } from './taches.js';
 import { envoyerNotification, pushDisponible } from './push.js';
+import { consolidationHebdo } from './memoire-consolidation.js';
 
 export async function livrerRappelsDus(maintenant = Date.now()) {
   if (!pushDisponible()) return 0;
@@ -41,8 +42,14 @@ export async function pointDuMatin(maintenant = new Date()) {
   return true;
 }
 
-export function demarrerPlanificateur(intervalleMs = 20_000) {
-  const t = setInterval(() => { livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)); pointDuMatin().catch((e) => console.warn('[matin]', e.message)); }, intervalleMs);
+// `client` : client Anthropic (ou fabrique) pour la consolidation de la mémoire ; sans client, elle est ignorée.
+export function demarrerPlanificateur(intervalleMs = 20_000, { client = null } = {}) {
+  const leClient = () => (typeof client === 'function' ? client() : client);
+  const t = setInterval(() => {
+    livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message));
+    pointDuMatin().catch((e) => console.warn('[matin]', e.message));
+    if (client) consolidationHebdo({ client: leClient() }).catch((e) => console.warn('[mémoire]', e.message));
+  }, intervalleMs);
   t.unref();
   return t;
 }

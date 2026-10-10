@@ -30,7 +30,9 @@ export function chargerServeursMcp() {
   return analyserConfigMcp(fs.readFileSync(chemin, 'utf8'));
 }
 
-export function creerApplicationNode({ client = new Anthropic({ defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }), serveurs = chargerServeursMcp() } = {}) {
+const clientAnthropic = () => new Anthropic({ defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined });
+
+export function creerApplicationNode({ client = clientAnthropic(), serveurs = chargerServeursMcp() } = {}) {
   utiliserBackend(creerBackendFs(config.dataDir));
   return creerApplication({ client, serveurs, fichier: (c, chemin) => statique.fetch(new Request(new URL(chemin, c.req.url))), version: infosBuild() });
 }
@@ -42,6 +44,7 @@ if (estPrincipal) {
   const serveurs = chargerServeursMcp();
   console.log(`[mcp] ${serveurs.length} serveur(s) : ${serveurs.map((s) => s.name).join(', ') || '—'}`);
   console.log(`[push] ${pushDisponible() ? 'activé' : 'désactivé (npm run vapid)'} · [transcription] ${transcriptionDisponible() ? 'activée' : 'désactivée'}`);
-  demarrerPlanificateur();
-  serve({ fetch: creerApplicationNode({ serveurs }).fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
+  const client = clientAnthropic();
+  demarrerPlanificateur(20_000, { client });
+  serve({ fetch: creerApplicationNode({ client, serveurs }).fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
 }
