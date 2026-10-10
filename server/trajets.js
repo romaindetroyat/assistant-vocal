@@ -161,6 +161,9 @@ export function formaterTrajet(t) {
   return lignes.join('\n');
 }
 
+// Retire les lignes « Plans : https://… » / « Google Maps : https://… » d'un texte destiné à la voix.
+export const sansLiensItineraire = (texte) => String(texte || '').replace(/^\s*(Plans|Google Maps)\s*:\s*https?:\/\/\S+\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+
 // ---------- Adresses connues ----------
 export async function definirAdresse(lieu, adresse) {
   const l = String(lieu || '').toLowerCase();

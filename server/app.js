@@ -14,6 +14,7 @@ import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './vo
 import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
 import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
+import * as trajets from './trajets.js';
 import * as as from './oauth-server.js';
 import * as bring from './bring.js';
 import { lireConsignes, remplacerConsignes } from './consignes.js';
@@ -78,7 +79,8 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
       await flux.writeSSE({ event: 'start', data: JSON.stringify({ conversationId: conversation.id }) });
       try {
         const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
-        for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: corps.content, serveurs: prets, nonConnectes })) {
+        const consigne = trajets.consignePosition(corps.position); // position GPS (réglage « partager ma position ») : contexte du tour + origine des trajets
+        for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: corps.content, serveurs: prets, nonConnectes, consigne })) {
           await flux.writeSSE({ event: ev.type, data: JSON.stringify(ev) });
         }
       } catch (e) {
@@ -112,7 +114,8 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     let texte = ''; let erreur = null;
     try {
       const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
-      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: `Réponse destinée à être lue à voix haute. ${consigneConcision((await lireReglages()).concision)} Pas de mise en forme.` })) {
+      const position = trajets.consignePosition(corps.position);
+      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: `Réponse destinée à être lue à voix haute. ${consigneConcision((await lireReglages()).concision)} Pas de mise en forme.${position ? ` ${position}` : ''}` })) {
         if (ev.type === 'tool_use') outils.push(ev.name);
         else if (ev.type === 'done') texte = ev.text;
         else if (ev.type === 'error') erreur = ev.message;
@@ -123,7 +126,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     } finally {
       await store.sauverConversation(conversation);
     }
-    return c.json({ text: texte || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, conversationId: conversation.id });
+    return c.json({ text: trajets.sansLiensItineraire(texte) || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, conversationId: conversation.id });
   });
 
   // --- Réglages ---
@@ -179,6 +182,25 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
   app.delete('/api/google/comptes/:email', async (c) => { await google.retirerCompte(c.req.param('email')); return c.json({ ok: true }); });
+
+  // --- Trajets (Google Routes) : clé masquée, adresses connues, partage de position, calcul direct ---
+  const etatTrajets = async () => { const cfg = await trajets.configTrajets(); const r = await lireReglages(); return { configure: Boolean(cfg.cle), source: cfg.source, cle: trajets.masquerCle(cfg.cle), domicile: r.domicile, bureau: r.bureau, partagerPosition: r.partagerPosition }; };
+  app.get('/api/trajets/config', async (c) => c.json(await etatTrajets()));
+  app.put('/api/trajets/config', async (c) => {
+    const corps = await c.req.json().catch(() => ({}));
+    try {
+      if (corps.cle !== undefined) { if (corps.cle === '') await trajets.retirerConfigTrajets(); else await trajets.enregistrerConfigTrajets({ cle: corps.cle }); }
+      const reglages = {}; for (const k of ['domicile', 'bureau', 'partagerPosition']) if (corps[k] !== undefined) reglages[k] = corps[k];
+      if (Object.keys(reglages).length) await modifierReglages(reglages);
+      return c.json(await etatTrajets());
+    } catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.post('/api/trajets', async (c) => {
+    const corps = await c.req.json().catch(() => ({}));
+    if (corps.position) trajets.definirPositionCourante(corps.position);
+    try { return c.json(await trajets.calculerTrajet({ origine: corps.origine, destination: corps.destination, mode: corps.mode, departA: corps.departA, arriveeA: corps.arriveeA })); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
 
   // --- Bring! (listes de courses) ---
   app.get('/api/bring', async (c) => c.json(await bring.etatBring()));

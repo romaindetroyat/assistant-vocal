@@ -113,3 +113,67 @@ test('heure de départ : deux appels en voiture (sans puis avec trafic), marge d
   assert.match(await executerOutilTrajets('trajet_calculer', { destination: 'Toulon', arriveeA: 'demain midi' }, f), /Trajet impossible : Heure d'arrivée invalide/);
   await ecrireValeur('reglages', {});
 });
+
+// ---------- Routes HTTP ----------
+import { creerApplicationNode as creerApplication } from '../server/index.js';
+import { creerJeton } from '../server/auth.js';
+const cookie = `assistant_session=${creerJeton()}`;
+const entetes = { 'Content-Type': 'application/json', cookie };
+
+// Client Anthropic simulé (même principe que brief.test.js) : rejoue des réponses, enregistre les requêtes.
+function clientSimule(reponses) {
+  const requetes = [];
+  return {
+    requetes,
+    beta: { messages: { stream(params) {
+      requetes.push(structuredClone(params));
+      const reponse = reponses.shift();
+      if (!reponse) throw new Error('API indisponible (simulation)');
+      const evenements = [];
+      for (const bloc of reponse.content) {
+        evenements.push({ type: 'content_block_start', content_block: bloc });
+        if (bloc.type === 'text') evenements.push({ type: 'content_block_delta', delta: { type: 'text_delta', text: bloc.text } });
+      }
+      return { async *[Symbol.asyncIterator]() { for (const e of evenements) yield e; }, async finalMessage() { return reponse; } };
+    } } },
+  };
+}
+const reponseTexte = (text) => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] });
+
+test('routes /api/trajets/config : clé masquée, adresses et partage de position ; /api/trajets sans destination → 400', async () => {
+  await retirerConfigTrajets(); await ecrireValeur('reglages', {});
+  const app = creerApplication({ client: clientSimule([]), serveurs: [] });
+  let r = await app.request('/api/trajets/config', { headers: { cookie } });
+  assert.deepEqual(await r.json(), { configure: false, source: null, cle: null, domicile: '', bureau: '', partagerPosition: false });
+  r = await app.request('/api/trajets/config', { method: 'PUT', headers: entetes, body: JSON.stringify({ cle: CLE, domicile: DOMICILE, partagerPosition: true }) });
+  assert.equal(r.status, 200);
+  const cfg = await r.json();
+  assert.equal(cfg.configure, true); assert.equal(cfg.source, 'app'); assert.equal(cfg.cle, 'AIza…1234'); assert.equal(cfg.domicile, DOMICILE); assert.equal(cfg.partagerPosition, true);
+  assert.ok(!JSON.stringify(cfg).includes(CLE), 'la clé complète ne sort jamais');
+  r = await app.request('/api/trajets/config', { method: 'PUT', headers: entetes, body: JSON.stringify({ cle: 'courte' }) });
+  assert.equal(r.status, 400);
+  r = await app.request('/api/trajets', { method: 'POST', headers: entetes, body: JSON.stringify({ origine: '' }) });
+  assert.equal(r.status, 400); assert.match((await r.json()).erreur, /Destination manquante/);
+  r = await app.request('/api/trajets/config');
+  assert.equal(r.status, 401, 'session obligatoire');
+  r = await app.request('/api/trajets/config', { method: 'PUT', headers: entetes, body: JSON.stringify({ cle: '' }) });
+  assert.equal((await r.json()).configure, false, 'clé effacée');
+});
+
+test('position jointe à /api/chat et /api/voice/ask : consigne « Position actuelle » ; la voix ne lit pas les liens', async () => {
+  const client = clientSimule([reponseTexte('Vous êtes à Toulon.'), reponseTexte('Comptez 45 min.\nPlans : https://maps.apple.com/?daddr=Toulon\nGoogle Maps : https://www.google.com/maps/dir/?api=1&destination=Toulon'), reponseTexte('Bonjour.')]);
+  const app = creerApplication({ client, serveurs: [] });
+  let r = await app.request('/api/chat', { method: 'POST', headers: entetes, body: JSON.stringify({ content: [{ type: 'text', text: 'Où suis-je ?' }], position: { lat: 43.1242, lng: 5.928, precision: 20 } }) });
+  assert.equal(r.status, 200); await r.text();
+  let consigne = client.requetes[0].messages.at(-1);
+  assert.equal(consigne.role, 'system'); assert.match(consigne.content, /Position actuelle de l'utilisateur : 43\.1242,5\.928 \(±20 m\)/);
+  r = await app.request('/api/voice/ask', { method: 'POST', headers: entetes, body: JSON.stringify({ message: 'Temps pour Toulon ?', position: { lat: 43.1, lng: 5.9 } }) });
+  const j = await r.json();
+  assert.equal(j.text, 'Comptez 45 min.', 'liens retirés pour la lecture à voix haute');
+  consigne = client.requetes[1].messages.at(-1);
+  assert.match(consigne.content, /lue à voix haute/); assert.match(consigne.content, /Position actuelle de l'utilisateur : 43\.1,5\.9\./);
+  r = await app.request('/api/chat', { method: 'POST', headers: entetes, body: JSON.stringify({ content: [{ type: 'text', text: 'Salut' }] }) });
+  await r.text();
+  assert.ok(!client.requetes[2].messages.some((m) => m.role === 'system'), 'sans position : pas de consigne');
+  assert.equal(definirPositionCourante(undefined), null);
+});
