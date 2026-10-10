@@ -60,6 +60,18 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     await next();
   };
   const ROUTES_JETON = new Set(['/api/partage', '/api/raccourci']);
+  // CORS pour l'extension de navigateur (phase 21) : seules les origines d'extension (chrome-extension://, moz-extension://)
+  // sont autorisées, uniquement sur les routes à jeton. Le préflight OPTIONS passe avant l'authentification.
+  const ORIGINE_EXTENSION = /^(chrome|moz)-extension:\/\/[a-z0-9-]+$/i;
+  const entetesCors = (origine) => ({ 'Access-Control-Allow-Origin': origine, 'Vary': 'Origin', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Max-Age': '86400' });
+  for (const route of ROUTES_JETON) {
+    app.options(route, (c) => { const o = c.req.header('origin') || ''; return ORIGINE_EXTENSION.test(o) ? c.body(null, 204, entetesCors(o)) : c.body(null, 204); });
+    app.use(route, async (c, next) => {
+      await next();
+      const o = c.req.header('origin') || '';
+      if (ORIGINE_EXTENSION.test(o)) for (const [k, v] of Object.entries(entetesCors(o))) c.res.headers.set(k, v);
+    });
+  }
   app.use('/api/*', (c, next) => (ROUTES_JETON.has(new URL(c.req.url).pathname) ? sessionOuJeton(c, next) : exigerSession(c, next)));
 
   // --- Jetons d'appareil (raccourcis iOS) : cookie de session uniquement ---
