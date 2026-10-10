@@ -198,6 +198,31 @@
           <li>L'app s'ouvre en mode voiture : écran noir à un seul gros bouton, conversation permanente avec reprise mains libres, rappels et notifications lus à voix haute, écran maintenu allumé. Un premier tap sur le bouton lance la conversation (obligatoire sur iOS pour le micro).</li>
         </ol>
       </details>
+
+      <h3 style="margin:10px 0 0;font-size:15px">Extension Chromium</h3>
+      <p class="discret">Sur un ordinateur (Chrome, Chromium, Edge, Brave, Arc, Vivaldi) : un raccourci clavier ouvre l'assistant dans une fenêtre dédiée et lance l'écoute ; un clic droit envoie la sélection, un lien ou la page. L'extension n'est pas sur le Web Store : elle se charge depuis le dossier <code>extension/</code> du dépôt GitHub <strong>romaindetroyat/assistant-vocal</strong> (ou du zip produit par <code>npm run extension:zip</code>). Pas de version Safari ni iPhone : utilisez les raccourcis iOS ci-dessus.</p>
+      <details class="raccourci">
+        <summary>Installer l'extension et coller le jeton</summary>
+        <ol class="guide">
+          <li>Récupérez le dossier <code>extension/</code> du dépôt (clone Git ou téléchargement du zip du dépôt sur GitHub, puis décompression).</li>
+          <li>Ouvrez <code>chrome://extensions</code> (Edge : <code>edge://extensions</code>, Brave : <code>brave://extensions</code>) et activez le <strong>Mode développeur</strong> (en haut à droite).</li>
+          <li>Cliquez <strong>Charger l'extension non empaquetée</strong> et choisissez le dossier <code>extension/</code> (celui qui contient <code>manifest.json</code>). Épinglez l'icône bleue via le menu des extensions.</li>
+          <li>Ci-dessus, créez un jeton avec <strong>Nouvel appareil</strong> (nom « Chrome ») : <code><span class="jeton-exemple">&lt;votre jeton&gt;</span></code></li>
+          <li>Clic droit sur l'icône de l'extension → <strong>Options</strong> : collez le jeton, laissez l'adresse vide (<code class="hote-raccourci"></code> par défaut), <strong>Enregistrer</strong> puis <strong>Tester</strong> : l'assistant répond « Bonjour… ».</li>
+        </ol>
+        <p class="discret">Erreur 401 au test : jeton faux ou révoqué, créez-en un nouveau. Le jeton est conservé dans le profil Chrome ; révoquez-le ici si le poste est perdu.</p>
+      </details>
+      <details class="raccourci">
+        <summary>Raccourcis clavier et menu contextuel</summary>
+        <ul class="guide">
+          <li><strong>Ctrl + Maj + Espace</strong> (Mac : Contrôle + Maj + Espace) : ouvre la fenêtre de l'assistant sur <code class="url-app" data-suffixe="?action=appel"></code> et lance la conversation vocale.</li>
+          <li><strong>Ctrl + Maj + A</strong> : ouvre (ou ramène au premier plan) la fenêtre de l'assistant sans changer de conversation.</li>
+          <li><strong>Ctrl + Maj + E</strong> : envoie la page courante (titre + texte, 20 000 caractères max.) ; une fenêtre « Que faire ? » permet une consigne, vide = l'assistant choisit. La réponse arrive en notification ; un clic ouvre la conversation « Partages ».</li>
+          <li><strong>Clic droit</strong> → « Envoyer la sélection / ce lien / cette page à l'assistant » : même envoi depuis le texte sélectionné, un lien ou la page.</li>
+          <li><strong>Icône de l'extension</strong> : Parler, Ouvrir l'assistant, Envoyer la page.</li>
+        </ul>
+        <p class="discret">Chrome n'applique un raccourci que s'il est libre. Pour le changer, le rendre <strong>global</strong> (actif même quand Chrome n'est pas au premier plan) ou vérifier qu'il est actif : tapez <code>chrome://extensions/shortcuts</code> dans la barre d'adresse, repérez « Assistant vocal » et choisissez la combinaison, puis « Dans Chrome » ou « Global ». Les pages internes (<code>chrome://</code>, Web Store, PDF) ne peuvent pas être lues : seuls le titre et l'adresse sont envoyés.</p>
+      </details>
     </section>
 
     <section class="carte">

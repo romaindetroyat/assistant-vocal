@@ -13,7 +13,9 @@
     "test": "node --test \"test/**/*.test.js\"",
     "deploy": "node scripts/inline-assets.mjs && wrangler deploy",
     "cf:dev": "node scripts/inline-assets.mjs --dev && wrangler dev",
-    "vapid": "node server/vapid.js"
+    "vapid": "node server/vapid.js",
+    "extension:icons": "node scripts/extension-icons.mjs",
+    "extension:zip": "node scripts/extension-zip.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.0",
