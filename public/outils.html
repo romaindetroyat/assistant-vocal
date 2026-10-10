@@ -49,6 +49,18 @@
     </section>
 
     <section class="carte">
+      <h2>Bring! (listes de courses)</h2>
+      <div id="bring-etat" class="discret"></div>
+      <div id="bring-form">
+        <label>E-mail du compte Bring! <input id="bring-email" autocomplete="off" inputmode="email"></label>
+        <label>Mot de passe <input id="bring-mdp" type="password" autocomplete="off"></label>
+        <p class="discret">Bring! n'a pas d'API officielle : l'assistant utilise l'accès de l'application, avec vos identifiants stockés dans le Worker.</p>
+        <button id="btn-bring" class="btn btn-primaire btn-petit">Connecter Bring!</button>
+      </div>
+      <div class="actions"><span id="etat-bring" class="discret"></span></div>
+    </section>
+
+    <section class="carte">
       <h2>Catalogue : connexion en un clic</h2>
       <p class="discret">Choisissez un service, autorisez-le dans votre navigateur, c'est tout. Gmail, Google Agenda et Google Drive passent par Zapier.</p>
       <input id="filtre" placeholder="Rechercher (Notion, agenda, design…)" autocomplete="off">
@@ -189,6 +201,26 @@
       }
     }
     chargerClientsMcp().catch(() => {});
+
+    async function chargerBring() {
+      const b = await api('/api/bring');
+      $('#bring-form').hidden = b.connecte;
+      const el = $('#bring-etat'); el.innerHTML = '';
+      if (b.connecte) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const point = document.createElement('span'); point.className = 'point';
+        const t = document.createElement('div'); t.className = 'texte'; t.innerHTML = '<div class="nom"></div><div class="desc">Ajouter, lire, cocher, retirer des articles à la voix</div>'; t.querySelector('.nom').textContent = `${b.name ? b.name + ' · ' : ''}${b.email}`;
+        const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Déconnecter';
+        x.onclick = async () => { if (confirm('Déconnecter Bring! ?')) { await api('/api/bring', { method: 'DELETE' }); chargerBring(); } };
+        ligne.append(point, t, x); el.append(ligne);
+      }
+    }
+    $('#btn-bring').addEventListener('click', async () => {
+      $('#etat-bring').textContent = 'Connexion…';
+      try { const r = await api('/api/bring', { method: 'PUT', body: JSON.stringify({ email: $('#bring-email').value, password: $('#bring-mdp').value }) }); $('#bring-mdp').value = ''; $('#etat-bring').textContent = `Connecté : ${r.email} ✓`; chargerBring(); }
+      catch (e) { $('#etat-bring').textContent = `Échec : ${e.message}`; }
+    });
+    chargerBring().catch(() => {});
 
     let catalogue = [];
     function afficherCatalogue() {

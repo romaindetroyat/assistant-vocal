@@ -15,6 +15,7 @@ import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } f
 import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
 import * as as from './oauth-server.js';
+import * as bring from './bring.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
 
@@ -173,6 +174,14 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
   app.delete('/api/google/comptes/:email', async (c) => { await google.retirerCompte(c.req.param('email')); return c.json({ ok: true }); });
+
+  // --- Bring! (listes de courses) ---
+  app.get('/api/bring', async (c) => c.json(await bring.etatBring()));
+  app.put('/api/bring', async (c) => {
+    try { return c.json(await bring.connecterBring(await c.req.json().catch(() => ({})))); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
+  app.delete('/api/bring', async (c) => { await bring.deconnecterBring(); return c.json({ ok: true }); });
 
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);

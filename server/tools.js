@@ -4,6 +4,7 @@ import { ajouterRappel, listerRappels, sauverRappels } from './store.js';
 import { definitionsOutilsGmail, nomsOutilsGmail, executerOutilGmail } from './gmail.js';
 import { listerComptes } from './google.js';
 import { definitionOutilDev, executerOutilDev, devDisponible } from './dev.js';
+import { definitionsOutilsBring, nomsOutilsBring, executerOutilBring, bringDisponible } from './bring.js';
 
 export const definitionsOutilsLocaux = [
   {
@@ -54,12 +55,13 @@ export const definitionsOutilsLocaux = [
   },
 ];
 
-export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, definitionOutilDev.name]);
+export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, definitionOutilDev.name]);
 
 // Outils disponibles pour une requête : outils de base + Gmail si au moins un compte Google est connecté.
 export async function outilsLocauxDisponibles() {
   const comptes = await listerComptes().catch(() => []);
-  return [...definitionsOutilsLocaux, ...(comptes.length ? definitionsOutilsGmail : []), ...(devDisponible() ? [definitionOutilDev] : [])];
+  const bring = await bringDisponible().catch(() => false);
+  return [...definitionsOutilsLocaux, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])];
 }
 
 function texte(s, max) {
@@ -69,6 +71,7 @@ function texte(s, max) {
 export async function executerOutilLocal(nom, entree) {
   if (nomsOutilsGmail.has(nom)) return executerOutilGmail(nom, entree);
   if (nom === definitionOutilDev.name) return executerOutilDev(entree);
+  if (nomsOutilsBring.has(nom)) return executerOutilBring(nom, entree);
   switch (nom) {
     case 'notify_me': {
       const titre = texte(entree.title, 60);
