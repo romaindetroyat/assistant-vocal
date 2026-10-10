@@ -5,7 +5,7 @@ import { serveursDepuisEnv } from './mcp.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendKv } from './store-kv.js';
 import { livrerRappelsDus } from './scheduler.js';
-import { fichiersInline } from './assets-inline.js';
+import { fichiersInline, infosBuild } from './assets-inline.js';
 
 function preparer(env) {
   // Les variables et secrets du Worker alimentent process.env (lu par config.js).
@@ -35,6 +35,7 @@ const app = creerApplication({
   client: () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }),
   serveurs,
   fichier: (_c, chemin) => servirInline(chemin),
+  version: infosBuild,
 });
 
 export default {

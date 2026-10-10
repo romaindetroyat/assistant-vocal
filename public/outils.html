@@ -25,6 +25,7 @@
     .actions { display: flex; gap: 6px; align-items: center; }
     .btn-petit { padding: 6px 10px; font-size: 13px; }
     a { color: var(--accent); }
+    .pied-version { margin: 0; text-align: center; font-size: 12px; opacity: 0.8; overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
@@ -90,6 +91,7 @@
     </section>
 
     <p><a href="/app">← Retour à l'assistant</a></p>
+    <footer id="version" class="discret pied-version"></footer>
   </main>
   <script>
     const $ = (s) => document.querySelector(s);
@@ -136,6 +138,7 @@
       } catch (e) { $('#etat').textContent = `Impossible d'ajouter : ${e.message}`; }
     });
     charger().catch((e) => { $('#liste').textContent = e.message; });
+    api('/api/version').then((v) => { $('#version').textContent = v.texte; }).catch(() => {});
 
     async function chargerGoogle() {
       const g = await api('/api/google');
