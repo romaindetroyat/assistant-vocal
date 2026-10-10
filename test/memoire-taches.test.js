@@ -50,3 +50,19 @@ test('tâches : ajout avec déduction, tri, filtres, rappel lié, terminer, rés
   assert.equal(await pointDuMatin(new Date()), false);
   assert.equal((await lireTaches()).length, 4);
 });
+
+test("jamais plus de 20 outils stricts, même avec tout de connecté", async () => {
+  const { limiterStricts, LIMITE_STRICTS } = await import('../server/tools.js');
+  const { definitionsOutilsLocaux } = await import('../server/tools.js');
+  const { definitionsOutilsGmail } = await import('../server/gmail.js');
+  const { definitionsOutilsBring } = await import('../server/bring.js');
+  const { definitionsOutilsConsignes } = await import('../server/consignes.js');
+  const { definitionsOutilsMemoire } = await import('../server/memoire.js');
+  const { definitionsOutilsTaches } = await import('../server/taches.js');
+  const { definitionOutilDev } = await import('../server/dev.js');
+  const tous = limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsGmail, ...definitionsOutilsBring, definitionOutilDev]);
+  assert.ok(tous.length > 20);
+  assert.ok(tous.filter((t) => t.strict).length <= LIMITE_STRICTS);
+  assert.equal(tous.find((t) => t.name === 'gmail_envoyer').strict, true);
+  assert.equal(tous.find((t) => t.name === 'list_reminders').strict, false);
+});

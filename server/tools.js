@@ -60,11 +60,23 @@ export const definitionsOutilsLocaux = [
 
 export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, definitionOutilDev.name]);
 
+// L'API n'accepte que 20 outils « stricts » : on réserve le mode strict aux schémas complexes.
+const STRICTS_PRIORITAIRES = new Set(['gmail_envoyer', 'gmail_repondre', 'gmail_brouillon', 'gmail_rechercher', 'tache_ajouter', 'tache_modifier', 'courses_ajouter', 'courses_cocher', 'courses_retirer', 'schedule_reminder', 'memoire_noter', 'demander_developpement']);
+export const LIMITE_STRICTS = 20;
+export function limiterStricts(outils) {
+  let n = 0;
+  return outils.map((t) => {
+    const garder = t.strict && STRICTS_PRIORITAIRES.has(t.name) && n < LIMITE_STRICTS;
+    if (garder) n++;
+    return garder ? t : { ...t, strict: false };
+  });
+}
+
 // Outils disponibles pour une requête : outils de base + Gmail si au moins un compte Google est connecté.
 export async function outilsLocauxDisponibles() {
   const comptes = await listerComptes().catch(() => []);
   const bring = await bringDisponible().catch(() => false);
-  return [...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])];
+  return limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]);
 }
 
 function texte(s, max) {
