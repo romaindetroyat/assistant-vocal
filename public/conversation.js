@@ -1,11 +1,20 @@
 // Mode conversation : WebRTC vers GPT-Realtime (voix), délégation des demandes à Claude via /api/voice/ask.
 // Fiabilité : les états WebRTC « disconnected » sont tolérés quelques secondes, puis reconnexion automatique
 // (nouvelle session, même conversation) ; une réponse de Claude arrivée pendant une coupure est rejouée.
-export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin }) {
+// Mains libres : `delaiInactivite()` (ms, 0 = jamais) raccroche automatiquement après un silence sans parole ni réponse.
+export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0 }) {
   let pc = null; let canal = null; let flux = null; let audioEl = null; let conversationId = null;
-  let actif = false; let reconnexions = 0; let minuteurDeco = null;
+  let actif = false; let reconnexions = 0; let minuteurDeco = null; let minuteurInactivite = null;
   const enCours = new Set(); const resultatsEnAttente = [];
   const MAX_RECONNEXIONS = 4;
+
+  // Temporisateur d'inactivité : réarmé à chaque signe de vie (parole, réponse, délégation) ; suspendu pendant qu'on attend Claude.
+  function armerInactivite() {
+    clearTimeout(minuteurInactivite); minuteurInactivite = null;
+    const delai = Number(delaiInactivite()) || 0;
+    if (!actif || delai <= 0) return;
+    minuteurInactivite = setTimeout(() => { if (actif && !enCours.size) arreter('Fin automatique après un silence'); }, delai);
+  }
 
   async function demarrer(idConversation) {
     if (actif) return conversationId;
@@ -27,7 +36,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     const monPc = pc;
     canal = pc.createDataChannel('oai-events');
     canal.onmessage = (e) => { try { traiter(JSON.parse(e.data)); } catch { /* ignoré */ } };
-    canal.onopen = () => { clearTimeout(minuteurDeco); surEtat('Je vous écoute'); rejouerResultats(); };
+    canal.onopen = () => { clearTimeout(minuteurDeco); surEtat('Je vous écoute'); rejouerResultats(); armerInactivite(); };
     pc.onconnectionstatechange = () => {
       if (monPc !== pc || !actif) return;
       const s = monPc.connectionState;
@@ -67,6 +76,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   }
 
   async function traiter(ev) {
+    if (ev.type?.startsWith('input_audio_buffer.') || ev.type?.startsWith('response.') || ev.type?.startsWith('conversation.item.')) armerInactivite();
     switch (ev.type) {
       case 'input_audio_buffer.speech_started': surEtat('Je vous écoute…'); break;
       case 'input_audio_buffer.speech_stopped': surEtat('…'); break;
@@ -91,6 +101,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     let message = '';
     try { message = JSON.parse(item.arguments || '{}').message || ''; } catch { message = ''; }
     surEtat('Je réfléchis…');
+    clearTimeout(minuteurInactivite); // pas de raccrochage pendant que Claude travaille
     let texte;
     try {
       const r = await api('/api/voice/ask', { method: 'POST', body: JSON.stringify({ conversationId, message }) });
@@ -98,12 +109,13 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
       texte = r.text;
     } catch (e) { texte = `Désolé, une erreur est survenue : ${e.message}`; }
     if (!actif) return;
+    armerInactivite();
     const livre = envoyer({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: item.call_id, output: JSON.stringify({ reponse: texte }) } }) && envoyer({ type: 'response.create' });
     if (!livre) resultatsEnAttente.push({ message, texte }); // le canal est tombé pendant le traitement : rejoué après reconnexion
   }
 
   function fermerPc() {
-    clearTimeout(minuteurDeco);
+    clearTimeout(minuteurDeco); clearTimeout(minuteurInactivite);
     try { canal?.close(); } catch { /* ignoré */ }
     try { pc?.close(); } catch { /* ignoré */ }
     pc = canal = null;
