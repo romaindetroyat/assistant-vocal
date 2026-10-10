@@ -61,7 +61,7 @@ export const definitionsOutilsLocaux = [
 export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, definitionOutilDev.name]);
 
 // L'API n'accepte que 20 outils « stricts » : on réserve le mode strict aux schémas complexes.
-const STRICTS_PRIORITAIRES = new Set(['gmail_envoyer', 'gmail_repondre', 'gmail_brouillon', 'gmail_rechercher', 'tache_ajouter', 'tache_modifier', 'courses_ajouter', 'courses_cocher', 'courses_retirer', 'schedule_reminder', 'memoire_noter', 'demander_developpement']);
+const STRICTS_PRIORITAIRES = new Set(['gmail_envoyer', 'gmail_repondre', 'tache_ajouter', 'courses_ajouter', 'schedule_reminder', 'memoire_noter']);
 export const LIMITE_STRICTS = 20;
 export function limiterStricts(outils) {
   let n = 0;
