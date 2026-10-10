@@ -5,3 +5,4 @@ mcp.config.json
 .dev.vars
 server/assets-inline.js
 .claude/worktrees/
+dist/
