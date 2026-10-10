@@ -2,7 +2,7 @@
 
 ## Current Position
 
-- Milestone: v1 livré ; v2 à planifier (phase 13 = brief du matin)
+- Milestone: v2 en cours — phases 13 (brief), 14 (mémoire consolidée), 15 (mains libres + compaction) exécutées en parallèle ; Google Agenda direct abandonné (Agenda Hub suffit)
 - Last action: passage complet en mode GSD (docs, CLAUDE.md, boucle de dev alignée) — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
 - Tests : 39 (`npm test`)
@@ -21,6 +21,7 @@
 | 2026-10-10 | Claude Code Actions + PR + déploiement CI | Développer l'outil depuis l'outil |
 | 2026-10-10 | Mode strict limité à 6 outils | Limite API (20 stricts, complexité globale) |
 | 2026-10-10 | Mémoire alimentée par l'assistant via outil | Simple, visible, corrigeable |
+| 2026-10-10 | Abandon de Google Agenda en direct (ex-phase 15) | Agenda Hub couvre les quatre comptes |
 
 ## Blockers
 
@@ -29,5 +30,5 @@
 ## Next
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
-- `/gsd-discuss-phase 13` puis `/gsd-plan-phase 13` pour le brief du matin
+- Fusionner les trois phases v2, vérifier en production
 - Toute nouvelle demande passe par une phase GSD (voir CLAUDE.md), y compris via `demander_developpement`

@@ -49,7 +49,6 @@
 
 - **PER-04** Synthèse périodique de la mémoire (fusion, obsolescence) par Claude
 - **PER-05** Brief du matin complet (agenda + tâches + mails importants) en push et à la voix
-- **INT-05** Google Agenda en direct (même OAuth que Gmail) pour les comptes sans Agenda Hub
 - **INT-06** Element/Matrix TakeOff si un MCP OAuth standard est exposé
 - **IN-07** Mot d'activation mains libres
 - **ORC-09** Compaction serveur des longues conversations
@@ -58,6 +57,7 @@
 
 | Feature | Reason |
 |---------|--------|
+| INT-05 Google Agenda en direct | Agenda Hub couvre déjà les quatre comptes (décision 2026-10-10) |
 | MCP locaux (stdio) | Connecteur API = URL distantes seulement |
 | Connecteurs claude.ai réutilisés | Jetons OAuth non exportables |
 | Framework front | Zéro build, déploiement simple |
@@ -78,7 +78,10 @@
 | INT-04 | 10 | Validated |
 | INT-02 | 11 | Validated |
 | PER-01..03 | 12 | Validated |
-| PER-04, PER-05, INT-05, INT-06, IN-07, ORC-09 | v2 | Pending |
+| PER-05 | 13 | Pending |
+| PER-04 | 14 | Pending |
+| IN-07, ORC-09 | 15 | Pending |
+| INT-06 | v2 backlog | Pending |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*

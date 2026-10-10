@@ -17,7 +17,7 @@
 | 11 — Bring! | Complete | Listes de courses à la voix |
 | 12 — Personnalisation | Complete | Consignes, mémoire auto-alimentée, tâches intelligentes, point du matin |
 
-## Milestone v2 — à planifier (`/gsd-plan-phase 13`)
+## Milestone v2 — en cours (phases 13, 14, 15 lancées en parallèle le 2026-10-10)
 
 ### Phase 13 — Brief du matin complet
 **Goal**: à 8 h, un push et un résumé vocal : agenda du jour (Agenda Hub), tâches, mails importants.
@@ -27,13 +27,12 @@
 **Goal**: synthèse hebdomadaire de la mémoire par Claude (fusion des doublons, obsolescence, profil court).
 **Requirements**: PER-04 · **Success criteria**: profil ≤ 60 lignes, aucune contradiction, journal des changements visible.
 
-### Phase 15 — Google Agenda en direct
-**Goal**: lire et créer des rendez-vous sur les comptes Google connectés sans passer par Agenda Hub.
-**Requirements**: INT-05 · **Success criteria**: même OAuth que Gmail (portée calendar), fusion avec Agenda Hub.
+### Phase 15 — Mains libres et compaction
+**Goal**: conversation en direct utilisable sans toucher l'écran (mot d'activation, reprise automatique) et conversations longues compactées côté serveur pour rester rapides et sous la limite de contexte.
+**Requirements**: IN-07, ORC-09 · **Success criteria**: dire le mot d'activation relance l'écoute ; une conversation de 60 tours reste fluide et se poursuit sans erreur de contexte, l'historique résumé étant visible.
 
-### Phase 16 — Mains libres et compaction
-**Requirements**: IN-07, ORC-09.
+> Google Agenda en direct (ex-phase 15, INT-05) abandonné le 2026-10-10 : Agenda Hub suffit.
 
 ## Progress
 
-12 phases livrées sur 12 (v1). v2 non commencée.
+12 phases livrées sur 12 (v1). v2 : phases 13, 14, 15 en cours (exécution parallèle).
