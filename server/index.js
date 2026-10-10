@@ -45,6 +45,7 @@ if (estPrincipal) {
   console.log(`[mcp] ${serveurs.length} serveur(s) : ${serveurs.map((s) => s.name).join(', ') || '—'}`);
   console.log(`[push] ${pushDisponible() ? 'activé' : 'désactivé (npm run vapid)'} · [transcription] ${transcriptionDisponible() ? 'activée' : 'désactivée'}`);
   const client = clientAnthropic();
-  demarrerPlanificateur(20_000, { client });
-  serve({ fetch: creerApplicationNode({ client, serveurs }).fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
+  const app = creerApplicationNode({ client, serveurs });
+  demarrerPlanificateur({ client, serveurs }); // après creerApplicationNode : le backend de stockage doit être prêt
+  serve({ fetch: app.fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
 }

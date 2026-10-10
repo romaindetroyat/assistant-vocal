@@ -52,9 +52,10 @@ export default {
   },
   async scheduled(_event, env, ctx) {
     preparer(env);
+    // Brief du matin : le cron passe le client Anthropic et les serveurs MCP (env + ajoutés, jetons OAuth résolus).
     ctx.waitUntil(Promise.all([
       livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)),
-      pointDuMatin().catch((e) => console.warn('[matin]', e.message)),
+      pointDuMatin({ client: clientAnthropic, serveurs }).catch((e) => console.warn('[matin]', e.message)),
       env.ANTHROPIC_API_KEY ? consolidationHebdo({ client: clientAnthropic() }).catch((e) => console.warn('[mémoire]', e.message)) : Promise.resolve(false),
     ]));
   },
