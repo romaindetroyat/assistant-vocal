@@ -80,6 +80,25 @@ test('réglages : voix et concision appliqués à la session vocale et à la con
   assert.equal(r.voix, 'cedar');
 });
 
+test('réglages mains libres : valeurs par défaut, validation, mot d\'activation normalisé', async () => {
+  const { lireReglages, modifierReglages } = await import('../server/reglages.js');
+  const defauts = await lireReglages();
+  assert.equal(defauts.mainsLibres, false);
+  assert.equal(defauts.motActivation, 'assistant');
+  await assert.rejects(() => modifierReglages({ mainsLibres: 'oui' }), /booléen/);
+  await assert.rejects(() => modifierReglages({ motActivation: 'a' }), /entre 2 et 40/);
+  const r = await modifierReglages({ mainsLibres: true, motActivation: '  Jarvis  ' });
+  assert.equal(r.mainsLibres, true);
+  assert.equal(r.motActivation, 'jarvis');
+  const app = creerApplication({ client: clientSimule('x'), serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  const json = await (await app.request('/api/reglages', { headers: { cookie } })).json();
+  assert.equal(json.mainsLibres, true); assert.equal(json.motActivation, 'jarvis');
+  const ko = await app.request('/api/reglages', { method: 'PUT', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ motActivation: '' }) });
+  assert.equal(ko.status, 400);
+  await modifierReglages({ mainsLibres: false, motActivation: 'assistant' });
+});
+
 test('aperçu de voix : généré une fois puis servi depuis le cache', async () => {
   const { apercuVoix } = await import('../server/voice.js');
   const store = await import('../server/store.js');

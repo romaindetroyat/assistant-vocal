@@ -8,6 +8,7 @@ import { lireConsignes } from './consignes.js';
 import { lireMemoire } from './memoire.js';
 import { pushDisponible } from './push.js';
 import { listerRappels } from './store.js';
+import { compacterSiNecessaire } from './compaction.js';
 
 const BETAS = ['mcp-client-2025-11-20', 'server-side-fallback-2026-07-01'];
 const MAX_ITERATIONS = 12;
@@ -29,7 +30,7 @@ function nettoyerPourHistorique(contenu) {
 /**
  * Exécute un tour complet et émet des événements pour l'interface :
  *   {type:'text', text} · {type:'tool_use', name, server} · {type:'tool_result', name, ok, preview}
- *   {type:'done', text} · {type:'error', message}
+ *   {type:'done', text} · {type:'error', message} · {type:'compaction', messages} (historique ancien résumé, n messages compactés)
  * `conversation.messages` est enrichi en place (message utilisateur, réponses, résultats d'outils).
  */
 export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null }) {
@@ -37,6 +38,9 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
   const consignes = await lireConsignes().catch(() => []);
   const memoire = await lireMemoire().catch(() => []);
+  // Longue conversation : les messages anciens sont résumés avant d'ajouter le nouveau tour.
+  const compactee = await compacterSiNecessaire({ client, conversation }).catch((e) => { console.warn('[compaction]', e.message); return false; });
+  if (compactee) yield { type: 'compaction', messages: conversation.resumes.at(-1).messagesCompactes };
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
   const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);

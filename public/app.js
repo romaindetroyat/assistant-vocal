@@ -7,10 +7,12 @@ const ui = {
   tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'), listeOutils: $('#liste-outils'),
   btnMicro: $('#btn-micro'), btnVocal: $('#btn-vocal'), btnEnvoyer: $('#btn-envoyer'), btnVoix: $('#btn-voix'),
   btnMainsLibres: $('#btn-mains-libres'), btnNotifs: $('#btn-notifs'), btnAppel: $('#btn-appel'), bandeauAppel: $('#bandeau-appel'), appelEtat: $('#appel-etat'),
+  bandeauVeille: $('#bandeau-veille'), veilleEtat: $('#veille-etat'), btnQuitterVeille: $('#btn-quitter-veille'),
 };
 
 const etat = {
   moi: null,
+  reglages: {}, // réglages serveur (/api/reglages) : voix, concision, mainsLibres, motActivation
   conversationId: null,
   images: [], // {data (base64), media_type, url}
   envoiEnCours: false,
@@ -65,6 +67,7 @@ async function demarrer() {
   ui.login.hidden = true; ui.app.hidden = false;
   document.title = etat.moi.assistantName;
   afficherOutils(etat.moi.serveurs);
+  etat.reglages = await api('/api/reglages').catch(() => ({}));
   const connecte = new URLSearchParams(location.search).get('connecte');
   if (connecte) { history.replaceState(null, '', '/app'); setEtat(`${connecte} connecté ✓`); }
   ui.btnVoix.setAttribute('aria-pressed', String(etat.voix));
@@ -143,6 +146,7 @@ async function ouvrirConversation(id) {
   } else {
     const conv = await api(`/api/conversations/${id}`);
     ui.titre.textContent = conv.titre;
+    if (conv.resumes?.length) afficherResumes(conv.resumes);
     for (const m of conv.messages) afficherMessageHistorique(m);
     defiler();
   }
@@ -152,6 +156,7 @@ function afficherMessageHistorique(m) {
   const blocs = Array.isArray(m.content) ? m.content : [{ type: 'text', text: m.content }];
   if (m.role === 'user') {
     if (blocs.every((b) => b.type === 'tool_result')) return;
+    if (blocs[0]?.type === 'text' && blocs[0].text.startsWith(MARQUE_RESUME)) { creerBulle('systeme').textContent = 'Historique compacté'; return; }
     const el = creerBulle('user');
     for (const b of blocs) {
       if (b.type === 'image' && b.source?.type === 'base64') { const img = document.createElement('img'); img.src = `data:${b.source.media_type};base64,${b.source.data}`; el.append(img); }
@@ -161,8 +166,25 @@ function afficherMessageHistorique(m) {
     const outils = blocs.filter((b) => ['tool_use', 'mcp_tool_use', 'server_tool_use'].includes(b.type));
     if (outils.length) { const o = creerLigneOutils(); for (const t of outils) ajouterBadge(o, t.name, t.server_name || (t.type === 'server_tool_use' ? 'anthropic' : 'local'), 'ok'); }
     const texte = blocs.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    if (texte === ACCUSE_RESUME) return;
     if (texte) creerBulle('assistant').innerHTML = rendreMarkdown(texte);
   }
+}
+// Historique compacté côté serveur : les résumés restent consultables dans un bloc repliable en tête.
+const MARQUE_RESUME = '[Résumé de la conversation précédente]';
+const ACCUSE_RESUME = 'Compris, je poursuis avec ce contexte.';
+function afficherResumes(resumes) {
+  const det = document.createElement('details'); det.className = 'resume-historique';
+  const sum = document.createElement('summary'); sum.textContent = `Résumé de l'historique (${resumes.length})`; det.append(sum);
+  for (const r of resumes) {
+    const bloc = document.createElement('div'); bloc.className = 'resume';
+    const meta = document.createElement('div'); meta.className = 'discret';
+    const date = r.date ? new Date(r.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    meta.textContent = `${date}${r.messagesCompactes ? ` · ${r.messagesCompactes} messages résumés` : ''}`;
+    const texte = document.createElement('div'); texte.textContent = r.texte || '';
+    bloc.append(meta, texte); det.append(bloc);
+  }
+  ui.messages.append(det);
 }
 function creerBulle(role) { const el = document.createElement('div'); el.className = `msg ${role}`; ui.messages.append(el); return el; }
 function creerLigneOutils() { const el = document.createElement('div'); el.className = 'outils'; ui.messages.append(el); return el; }
@@ -200,6 +222,7 @@ async function envoyer() {
       else if (ev.event === 'tool_use') { if (!ligneOutils) { ligneOutils = creerLigneOutils(); ui.messages.insertBefore(ligneOutils, bulle); } badgeActif = ajouterBadge(ligneOutils, ev.data.name, ev.data.server); setEtat(`Outil : ${ev.data.name}…`); defiler(); }
       else if (ev.event === 'tool_result') { if (badgeActif) { badgeActif.className = `outil ${ev.data.ok ? 'ok' : 'ko'}`; badgeActif.title = ev.data.preview || ''; } }
       else if (ev.event === 'done') { texteFinal = ev.data.text; }
+      else if (ev.event === 'compaction') { const s = creerBulle('systeme'); s.textContent = `Historique compacté (${ev.data.messages} messages résumés)`; ui.messages.insertBefore(s, bulleUser); }
       else if (ev.event === 'error') { const e = creerBulle('erreur'); e.textContent = ev.data.message; }
     }
     if (!texteRecu) bulle.remove();
@@ -277,7 +300,7 @@ const dictee = { actif: false, maintien: false, rec: null, final: '', base: '', 
 function demarrerDictee({ maintien = false } = {}) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR || dictee.actif) return;
-  window.speechSynthesis?.cancel();
+  window.speechSynthesis?.cancel(); arreterVeille();
   dictee.actif = true; dictee.maintien = maintien; dictee.final = ''; dictee.echecs = 0;
   dictee.base = ui.saisie.value ? `${ui.saisie.value.trim()} ` : '';
   ui.btnMicro.setAttribute('aria-pressed', 'true');
@@ -359,6 +382,7 @@ ui.btnMicro.addEventListener('contextmenu', (e) => e.preventDefault());
 async function demarrerEnregistrement() {
   if (etat.enregistreur) return;
   if (!etat.moi.transcription) { setEtat('Vocal indisponible : service de transcription non configuré. Utilisez la dictée 🎤.'); return; }
+  arreterVeille();
   try {
     const flux = await navigator.mediaDevices.getUserMedia({ audio: true });
     const rec = new MediaRecorder(flux); const morceaux = [];
@@ -432,6 +456,7 @@ ui.btnNotifs.addEventListener('click', async () => {
 });
 
 // ---------- Conversation vocale en direct (GPT-Realtime + Claude) ----------
+const INACTIVITE_APPEL_MS = 45_000; // mains libres : raccrochage automatique après ce silence, retour en veille
 const appel = creerConversationVocale({
   api,
   surEtat: (t) => { ui.appelEtat.textContent = t; },
@@ -442,18 +467,87 @@ const appel = creerConversationVocale({
     ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false');
     if (raison) setEtat(raison);
     chargerListe();
+    // Mains libres : après la fin de l'appel (automatique, erreur, coupure ou raccrochage), on repasse en veille.
+    if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
   },
+  delaiInactivite: () => (etat.reglages.mainsLibres ? INACTIVITE_APPEL_MS : 0),
 });
-ui.btnAppel.addEventListener('click', async () => {
-  if (appel.actif) { appel.arreter(); return; }
-  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false });
+async function demarrerAppel() {
+  if (appel.actif) return;
+  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false }); arreterVeille();
   ui.bandeauAppel.hidden = false; ui.btnAppel.setAttribute('aria-pressed', 'true');
   try {
     const id = await appel.demarrer(etat.conversationId);
     if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
   } catch { /* état déjà affiché */ }
-});
+}
+ui.btnAppel.addEventListener('click', () => { if (appel.actif) appel.arreter(); else demarrerAppel(); });
 $('#btn-raccrocher').addEventListener('click', () => appel.arreter());
+
+// ---------- Mains libres : veille à mot d'activation ----------
+// Après un appel, une reconnaissance vocale continue n'écoute que le mot d'activation et relance l'appel.
+// Anti-boucle : au plus un redémarrage par seconde, arrêt après 5 échecs consécutifs. Pas de veille pendant un
+// appel ou une dictée ; suspendue quand l'onglet est caché (batterie), reprise quand il redevient visible.
+const veille = { actif: false, rec: null, dernierDemarrage: 0, echecs: 0, minuteur: null, suspendue: false };
+const normaliser = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function motActivation() { return normaliser(etat.reglages.motActivation || 'assistant').trim() || 'assistant'; }
+function speechRecognitionDisponible() { return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition); }
+
+function demarrerVeille() {
+  if (veille.actif || !etat.reglages.mainsLibres || appel.actif || dictee.actif || etat.enregistreur) return;
+  if (document.hidden) { veille.suspendue = true; return; }
+  if (!speechRecognitionDisponible()) { setEtat('Mains libres non pris en charge par ce navigateur'); return; }
+  veille.actif = true; veille.suspendue = false; veille.echecs = 0;
+  ui.veilleEtat.textContent = `En veille · dites « ${etat.reglages.motActivation || 'assistant'} »`;
+  ui.bandeauVeille.hidden = false;
+  lancerEcouteVeille();
+}
+
+function lancerEcouteVeille() {
+  if (!veille.actif || veille.rec) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+  const debut = Date.now(); veille.dernierDemarrage = debut;
+  let erreur = null; let declenche = false;
+  rec.onresult = (e) => {
+    if (declenche) return;
+    const mot = motActivation();
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (normaliser(e.results[i][0]?.transcript).includes(mot)) { declenche = true; break; }
+    }
+    if (declenche) { arreterVeille(); setEtat(`« ${etat.reglages.motActivation || 'assistant' } » entendu : je vous appelle`); demarrerAppel(); }
+  };
+  rec.onerror = (e) => { erreur = e.error; };
+  rec.onend = () => {
+    veille.rec = null;
+    if (!veille.actif) return;
+    if (erreur === 'not-allowed' || erreur === 'service-not-allowed') { arreterVeille(); setEtat('Micro refusé par le navigateur : la veille mains libres est arrêtée'); return; }
+    // Échec = session morte en moins de 1,5 s ou sur erreur réseau/audio ; « no-speech » et « aborted » sont normaux.
+    const echec = (erreur && erreur !== 'no-speech' && erreur !== 'aborted') || Date.now() - debut < 1500;
+    veille.echecs = echec ? veille.echecs + 1 : 0;
+    if (veille.echecs >= 5) { arreterVeille(); setEtat('La reconnaissance vocale s\'interrompt sans cesse : veille mains libres arrêtée'); return; }
+    const attente = Math.max(250, 1000 - (Date.now() - veille.dernierDemarrage)); // au plus un redémarrage par seconde
+    clearTimeout(veille.minuteur);
+    veille.minuteur = setTimeout(() => { if (veille.actif && !veille.rec) { try { lancerEcouteVeille(); } catch (err) { arreterVeille(); setEtat(`Veille impossible : ${err.message}`); } } }, attente);
+  };
+  veille.rec = rec;
+  try { rec.start(); } catch (e) { veille.rec = null; arreterVeille(); setEtat(`Veille impossible : ${e.message}`); }
+}
+
+function arreterVeille() {
+  clearTimeout(veille.minuteur); veille.minuteur = null;
+  ui.bandeauVeille.hidden = true;
+  if (!veille.actif) return;
+  veille.actif = false;
+  const rec = veille.rec; veille.rec = null;
+  if (rec) { rec.onend = null; rec.onresult = null; try { rec.abort(); } catch { /* ignoré */ } }
+}
+ui.btnQuitterVeille.addEventListener('click', () => { arreterVeille(); veille.suspendue = false; setEtat('Veille quittée'); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (veille.actif) { arreterVeille(); veille.suspendue = true; } }
+  else if (veille.suspendue && etat.reglages.mainsLibres) { veille.suspendue = false; demarrerVeille(); }
+});
 
 // ---------- Tiroir ----------
 function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; }
