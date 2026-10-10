@@ -25,6 +25,7 @@ import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
 import * as jetons from './jetons.js';
 import * as partage from './partage.js';
+import * as raccourci from './raccourci.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -223,6 +224,22 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   app.post('/api/taches', async (c) => { try { return c.json(await taches.ajouterTache(await c.req.json().catch(() => ({}))), 201); } catch (e) { return c.json({ erreur: e.message }, 400); } });
   app.put('/api/taches/:id', async (c) => { try { return c.json(await taches.modifierTache(c.req.param('id'), await c.req.json().catch(() => ({})))); } catch (e) { return c.json({ erreur: e.message }, 400); } });
   app.delete('/api/taches/:id', async (c) => { try { await taches.supprimerTache(c.req.param('id')); return c.json({ ok: true }); } catch (e) { return c.json({ erreur: e.message }, 404); } });
+
+  // --- Raccourci Siri « Demande à l'assistant » (jeton d'appareil ou cookie) : JSON { texte, position? } → { texte, enAttente } ---
+  app.post('/api/raccourci', async (c) => {
+    try {
+      const corps = (await c.req.json().catch(() => null)) || {};
+      const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
+      // Sur Workers, le tour continue après la réponse grâce à waitUntil ; sur Node, simple promesse flottante.
+      let attendre = null;
+      try { const ctx = c.executionCtx; if (ctx && typeof ctx.waitUntil === 'function') attendre = (p) => ctx.waitUntil(p); } catch { attendre = null; }
+      return c.json(await raccourci.repondreRaccourci({ client: leClient(), serveurs: prets, nonConnectes, texte: corps.texte, position: corps.position, attendre }));
+    } catch (e) {
+      if (!e.status) console.error('[raccourci]', e);
+      const message = e instanceof Anthropic.APIError ? `Erreur API (${e.status}) : ${e.message}` : e.message;
+      return c.json({ erreur: message }, e instanceof Anthropic.APIError ? 502 : (e.status && e.status < 500 ? e.status : 500));
+    }
+  });
 
   // --- Brief du matin : dernier brief enregistré, ou génération à la demande ---
   app.get('/api/brief', async (c) => c.json((await brief.lireDernierBrief()) || { jour: null, texte: null, genereLe: null }));
