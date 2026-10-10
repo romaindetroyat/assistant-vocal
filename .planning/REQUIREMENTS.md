@@ -81,6 +81,12 @@
 - [x] **MET-01** Prévisions à la voix (aujourd'hui, demain, semaine, date ; lieu par défaut position/domicile) avec conseil pratique
 - [x] **MET-02** Phrase météo en tête du brief du matin
 
+### Extension et fluidité (EXT)
+- [x] **EXT-01** Extension Chromium non empaquetée : raccourcis globaux, menus clic droit, fenêtre dédiée, jeton d'appareil, CORS
+- [x] **EXT-02** Raccourcis clavier dans l'app (Espace maintenue, Ctrl+Espace, Échap, Ctrl+K, aide « ? »)
+- [x] **EXT-03** Micro accordé une fois et conservé ; position mise en cache une heure
+- [x] **EXT-04** Section « Autorisations » dans Mes outils (états, demande, marche à suivre Chrome / iPhone)
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -117,6 +123,7 @@
 | SIRI-01..03 | 18 | Validated (tests) |
 | VOI-01..03 | 19 | Validated (tests) |
 | MET-01..02 | 20 | Validated (tests) |
+| EXT-01..04 | 21 | Validated (tests) |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*

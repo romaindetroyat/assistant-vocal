@@ -59,7 +59,8 @@ Siri de la 18). Plans détaillés dans `.planning/phases/16-…` à `19-…`. Pr
 | Phase | Status | Goal |
 |-------|--------|------|
 | 20 — Météo | Complete | Outil meteo (Open-Meteo : ECMWF IFS + AROME, modèles de tameteo.com), tranches de journée, conseil, météo dans le brief |
+| 21 — Extension Chromium, raccourcis, autorisations | Complete | extension/ (MV3, raccourcis globaux, menus clic droit, fenêtre dédiée, CORS), raccourcis dans l'app, micro conservé, position 1 h, section Autorisations |
 
 ## Progress
 
-20 phases livrées sur 20 (v1 à v4 en cours). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
+21 phases livrées sur 21 (v1 à v4 en cours). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.

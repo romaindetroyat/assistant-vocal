@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v4 « Quotidien » en cours : phase 20 météo livrée le 2026-10-10 ; v3 à valider sur iPhone par Romain
-- Last action: phase 20 météo (Open-Meteo, modèles ECMWF + AROME) ; auparavant cinq tâches rapides post-v3 (anti-bruit vocal, iPhone en mode voiture, latence ÷2 et coût ÷18, suivi de consommation), cache SW v28 — 2026-10-10
+- Milestone: v4 « Quotidien » en cours : phases 20 (météo) et 21 (extension Chromium, raccourcis, autorisations) livrées le 2026-10-10 ; v3 à valider sur iPhone par Romain
+- Last action: phase 21 en deux chantiers parallèles (A extension + CORS, B raccourcis/micro/autorisations), cache SW v30 (anti-bruit vocal, iPhone en mode voiture, latence ÷2 et coût ÷18, suivi de consommation), cache SW v28 — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 86 (`npm test`)
+- Tests : 91 (`npm test`)
 
 ## Decisions Log
 
@@ -37,6 +37,7 @@
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
 - Décision : Opus 5.5 conservé partout, suivi de consommation dans Mes outils pour juger sur pièces
+- Romain : charger l'extension (dossier extension/, mode développeur), coller le jeton dans ses options, tester Ctrl+Maj+Espace ; vérifier les badges Autorisations
 - Clé Routes collée et trajets vérifiés ✓ ; reste à Romain : jeton d'appareil + raccourcis iOS (partage, Siri), test en voiture
 - Retours d'usage → corrections en `/gsd-quick` ; prochaine version à définir d'après l'usage
 - Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone
