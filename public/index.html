@@ -52,6 +52,7 @@
         <a href="/taches" class="btn btn-secondaire" style="text-align:center;text-decoration:none">Mes tâches</a>
         <a href="/outils" class="btn btn-secondaire" style="text-align:center;text-decoration:none">Mes outils</a>
         <button id="btn-mode-voiture" class="btn btn-secondaire" type="button" title="Un seul bouton, conversation permanente, tout lu à voix haute">🚗 Mode voiture</button>
+        <button id="btn-raccourcis" class="btn btn-secondaire" type="button" title="Espace pour parler, Ctrl+Espace pour appeler…">⌨️ Raccourcis clavier</button>
         <ul id="liste-outils" class="liste-outils"></ul>
         <button id="btn-logout" class="btn btn-secondaire">Se déconnecter</button>
       </div>
@@ -92,6 +93,25 @@
       <p id="voiture-reponse" class="voiture-reponse" aria-live="polite"></p>
     </section>
   </section>
+
+  <!-- Aide-mémoire des raccourcis clavier (touche ? hors champ de saisie, ou bouton du tiroir) ; fermé par Échap ou clic -->
+  <div id="aide-raccourcis" class="aide-raccourcis" hidden role="dialog" aria-label="Raccourcis clavier">
+    <div class="aide-carte">
+      <div class="aide-entete">
+        <h2>Raccourcis clavier</h2>
+        <button id="btn-fermer-aide" class="btn-icone" type="button" aria-label="Fermer">✕</button>
+      </div>
+      <dl class="aide-liste">
+        <dt><kbd>Espace</kbd> maintenue</dt><dd>Parler : la dictée démarre à l'appui et le message part au relâchement (hors champ de saisie)</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>Espace</kbd></dt><dd>Lancer ou raccrocher la conversation vocale (<kbd>⌘</kbd> + <kbd>Espace</kbd> sur Mac si Spotlight ne l'intercepte pas)</dd>
+        <dt><kbd>Échap</kbd></dt><dd>Raccrocher, quitter la veille, arrêter la dictée ou fermer le tiroir</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>K</kbd></dt><dd>Aller au champ de saisie</dd>
+        <dt><kbd>Entrée</kbd></dt><dd>Envoyer le message (<kbd>Maj</kbd> + <kbd>Entrée</kbd> : nouvelle ligne)</dd>
+        <dt><kbd>?</kbd></dt><dd>Afficher cet aide-mémoire</dd>
+      </dl>
+      <p class="discret">Les raccourcis sans modificateur ne s'appliquent pas quand le curseur est dans un champ de texte.</p>
+    </div>
+  </div>
 
   <!-- Lien profond /app?action=appel (raccourci Siri) : un tap lance la conversation vocale -->
   <div id="ecran-tap" class="ecran-tap" hidden>

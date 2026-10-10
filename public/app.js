@@ -790,6 +790,69 @@ $('#btn-fermer-tiroir').addEventListener('click', fermerTiroir);
 ui.voile.addEventListener('click', fermerTiroir);
 $('#btn-nouvelle').addEventListener('click', async () => { await ouvrirConversation(null); fermerTiroir(); ui.saisie.focus(); });
 
+// ---------- Raccourcis clavier ----------
+// Hors champ de saisie : Espace maintenue = parler (dictée à l'appui, envoi au relâchement ; vocal enregistré si la
+// dictée n'existe pas dans le navigateur), Ctrl+K = champ de saisie, ? = aide-mémoire. Partout : Ctrl+Espace
+// (ou ⌘+Espace) = conversation vocale on/off, Échap = raccrocher / quitter la veille / arrêter la dictée / fermer.
+const raccourcis = { espace: false, mode: null }; // mode : 'dictee' | 'vocal' pendant un appui sur Espace
+const uiAide = { aide: $('#aide-raccourcis'), btnFermer: $('#btn-fermer-aide'), btnTiroir: $('#btn-raccourcis') };
+function dansChamp(e) {
+  const el = e.target;
+  return Boolean(el && (el.matches?.('input, textarea, select') || el.isContentEditable));
+}
+function ouvrirAide() { uiAide.aide.hidden = false; fermerTiroir(); uiAide.btnFermer.focus(); }
+function fermerAide() { uiAide.aide.hidden = true; }
+uiAide.btnTiroir.addEventListener('click', ouvrirAide);
+uiAide.btnFermer.addEventListener('click', fermerAide);
+uiAide.aide.addEventListener('click', (e) => { if (e.target === uiAide.aide) fermerAide(); });
+
+function echapper_() {
+  if (!uiAide.aide.hidden) { fermerAide(); return true; }
+  if (!ui.ecranTap.hidden) { ui.ecranTap.hidden = true; return true; }
+  if (appel.actif) { appel.arreter(); return true; }
+  if (veille.actif) { arreterVeille(); veille.suspendue = false; setEtat('Veille quittée'); return true; }
+  if (dictee.actif) { raccourcis.espace = false; arreterDictee({ envoyer: false }); return true; }
+  if (!ui.tiroir.hidden) { fermerTiroir(); return true; }
+  return false;
+}
+function commencerParole() {
+  if (dictee.actif || etat.enregistreur || appel.actif) return false;
+  if (!ui.btnMicro.disabled) { raccourcis.mode = 'dictee'; demarrerDictee({ maintien: true }); return dictee.actif; }
+  if (etat.moi?.transcription) { raccourcis.mode = 'vocal'; demarrerEnregistrement(); return true; }
+  return false;
+}
+function finirParole() {
+  if (!raccourcis.espace) return;
+  raccourcis.espace = false;
+  if (raccourcis.mode === 'vocal') arreterEnregistrement();
+  else if (dictee.actif) arreterDictee({ envoyer: true });
+  raccourcis.mode = null;
+}
+document.addEventListener('keydown', (e) => {
+  if (ui.app.hidden) return; // écran de connexion : rien
+  if (e.key === 'Escape') { if (echapper_()) e.preventDefault(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === ' ' || e.code === 'Space')) {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (!etat.moi?.voix) { setEtat('Conversation vocale non configurée sur le serveur'); return; }
+    if (appel.actif) appel.arreter(); else demarrerAppel();
+    return;
+  }
+  if (dansChamp(e)) return;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); ui.saisie.focus(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === ' ' || e.code === 'Space') {
+    if (raccourcis.espace) { e.preventDefault(); return; } // touche maintenue : on ignore la répétition
+    if (e.repeat || appel.actif || !uiAide.aide.hidden) return;
+    if (commencerParole()) { raccourcis.espace = true; e.preventDefault(); }
+    return;
+  }
+  if (e.key === '?') { e.preventDefault(); if (uiAide.aide.hidden) ouvrirAide(); else fermerAide(); }
+});
+document.addEventListener('keyup', (e) => { if (e.key === ' ' || e.code === 'Space') finirParole(); });
+// Fenêtre quittée pendant l'appui (Alt+Tab) : on arrête sans envoyer, le texte reste dans le champ.
+window.addEventListener('blur', () => { if (raccourcis.espace) { raccourcis.espace = false; if (raccourcis.mode === 'vocal') arreterEnregistrement(); else arreterDictee({ envoyer: false }); raccourcis.mode = null; } });
+
 // ---------- Mode voiture ----------
 // Un seul bouton géant, conversation permanente, tout lu à voix haute, écran sombre maintenu allumé (phase 19).
 // Activation : `?mode=voiture` (icône d'écran d'accueil, raccourci Siri) ou bouton « Mode voiture » du tiroir.
