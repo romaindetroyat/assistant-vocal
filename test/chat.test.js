@@ -76,7 +76,7 @@ test('tour simple : texte streamé, historique enrichi, requête bien formée', 
   assert.ok(req.tools.some((t) => t.type === 'mcp_toolset' && t.mcp_server_name === 'gmail'));
   // Latence : recherche d'outils en tête, bloc système stable mis en cache, date dans le bloc volatil, cache automatique.
   assert.equal(req.tools[0].type, 'tool_search_tool_bm25_20251119');
-  assert.deepEqual(req.system[0].cache_control, { type: 'ephemeral' });
+  assert.deepEqual(req.system[0].cache_control, { type: 'ephemeral', ttl: '1h' });
   assert.ok(!/Nous sommes le/.test(req.system[0].text) && /Nous sommes le/.test(req.system[1].text));
   assert.deepEqual(req.cache_control, { type: 'ephemeral' });
   assert.ok(req.tools.some((t) => t.type === 'web_search_20260209'));

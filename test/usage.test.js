@@ -15,7 +15,7 @@ test('usage : cumul par jour, sources, coût estimé, route /api/usage', async (
   assert.equal(j.jour, '2030-01-05'); assert.equal(j.appels, 2); assert.equal(j.entree, 150); assert.equal(j.cache_lecture, 15000); assert.equal(j.cache_ecriture, 16000); assert.equal(j.sortie, 400);
   assert.deepEqual(j.sources, { voix: 1, chat: 1 });
   assert.equal(j.cout, Number(coutUsd(j).toFixed(3)));
-  assert.ok(Math.abs(coutUsd(j) - (150 * 4 + 15000 * 0.2 + 16000 * 5 + 400 * 20) / 1e6) < 1e-9);
+  assert.ok(Math.abs(coutUsd(j) - (150 * 4 + 15000 * 0.2 + 16000 * 8 + 400 * 20) / 1e6) < 1e-9);
   assert.equal(await enregistrerUsage(null), null);
   const app = creerApplication({ client: {}, serveurs: [] });
   assert.equal((await app.request('/api/usage')).status, 401);

@@ -6,7 +6,8 @@ import { blocProfil } from './memoire.js';
 // cache côté API, puis un bloc volatil (date et heure, rappels en attente) placé après le point de cache.
 export function blocsPromptSysteme(serveurs, options = {}) {
   return [
-    { type: 'text', text: promptStable(serveurs, options), cache_control: { type: 'ephemeral' } },
+    // Cache d'une heure : usage personnel espacé dans la journée (un cache de 5 min serait réécrit à presque chaque demande).
+    { type: 'text', text: promptStable(serveurs, options), cache_control: { type: 'ephemeral', ttl: '1h' } },
     { type: 'text', text: promptVolatil(options) },
   ];
 }

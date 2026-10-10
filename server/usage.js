@@ -1,8 +1,8 @@
 // Suivi de la consommation Claude par jour (tokens et coût estimé), pour voir la dépense sans attendre la facture.
 import { lireValeur, ecrireValeur } from './store.js';
 
-// Tarifs Claude Opus 5.5 (USD par million de tokens) : entrée, lecture de cache, écriture de cache (5 min), sortie.
-export const TARIFS = { entree: 4, cache_lecture: 0.2, cache_ecriture: 5, sortie: 20 };
+// Tarifs Claude Opus 5.5 (USD par million de tokens) : entrée, lecture de cache, écriture de cache (1 h = 2 × entrée), sortie.
+export const TARIFS = { entree: 4, cache_lecture: 0.2, cache_ecriture: 8, sortie: 20 };
 
 const jourParis = (d = new Date()) => new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const cle = (jour) => `usage:${jour}`;
