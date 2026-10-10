@@ -27,6 +27,9 @@
     .actions { display: flex; gap: 6px; align-items: center; }
     .btn-petit { padding: 6px 10px; font-size: 13px; }
     a { color: var(--accent); }
+    details summary { cursor: pointer; font-weight: 600; }
+    .guide { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.45; }
+    .guide ul { padding-left: 18px; margin: 4px 0; }
     .pied-version { margin: 0; text-align: center; font-size: 12px; opacity: 0.8; overflow-wrap: anywhere; }
   </style>
 </head>
@@ -86,6 +89,51 @@
       <p><code id="mcp-url"></code></p>
       <p class="discret">Applications autorisées :</p>
       <div id="mcp-clients"></div>
+    </section>
+
+    <section class="carte">
+      <h2>Appareils et raccourcis</h2>
+      <p class="discret">Un jeton par appareil permet aux raccourcis iOS (partage, Siri) d'appeler l'assistant sans mot de passe. Le jeton n'est affiché qu'une fois : copiez-le dans le raccourci. Révoquez-le si l'appareil est perdu.</p>
+      <div id="jetons"></div>
+      <form id="form-jeton" class="actions" style="flex-wrap:wrap">
+        <input id="jeton-nom" placeholder="Nom de l'appareil (ex. iPhone de Romain)" maxlength="60" required style="flex:1;min-width:200px">
+        <button class="btn btn-primaire btn-petit" type="submit">Nouvel appareil</button>
+      </form>
+      <div id="jeton-nouveau" hidden style="display:flex;flex-direction:column;gap:6px">
+        <p class="discret" style="margin:0">Jeton de <strong id="jeton-nouveau-nom"></strong> — notez-le maintenant, il ne sera plus affiché :</p>
+        <code id="jeton-valeur" style="overflow-wrap:anywhere;user-select:all"></code>
+        <div class="actions"><button id="btn-copier-jeton" class="btn btn-secondaire btn-petit" type="button">Copier</button><span id="etat-jeton" class="discret"></span></div>
+      </div>
+      <details>
+        <summary>Guide : raccourci iOS « Partager avec l'assistant »</summary>
+        <p class="discret">Safari ne propose pas « Partager → Assistant » directement : on crée un raccourci qui apparaît dans la feuille de partage de toutes les apps (Safari, Mail, Photos, Notes…). Adresse de l'assistant : <code id="hote-partage"></code></p>
+        <ol class="guide">
+          <li>Ouvrez l'app <strong>Raccourcis</strong>, touchez <strong>+</strong> pour créer un raccourci et nommez-le <strong>Partager avec l'assistant</strong>.</li>
+          <li>Touchez le nom en haut → <strong>Détails</strong> (ⓘ) → activez <strong>Afficher dans la feuille de partage</strong>. Dans <strong>Types de la feuille de partage</strong>, gardez <strong>URL</strong>, <strong>Texte</strong> et <strong>Images</strong>.</li>
+          <li>Une action « Recevoir l'entrée de la feuille de partage » apparaît en tête. Réglez <em>Si aucune entrée</em> sur <strong>Demander du texte</strong>.</li>
+          <li>Ajoutez l'action <strong>Demander une saisie</strong> : question « Que faire ? », type Texte, et autorisez une réponse vide (facultatif : vide = l'assistant choisit ; sinon « résume », « ajoute à mes tâches », « mets-le dans l'agenda »…).</li>
+          <li>Ajoutez <strong>Si</strong> : condition « Entrée du raccourci » <em>a une valeur</em> de type Image → à l'intérieur, <strong>Convertir l'image</strong> en <strong>JPEG</strong> (l'API n'accepte pas HEIC). Vous obtiendrez une variable « Image convertie ».</li>
+          <li>Ajoutez <strong>Obtenir le contenu de l'URL</strong> :
+            <ul>
+              <li>URL : <code class="url-partage"></code></li>
+              <li>Méthode : <strong>POST</strong></li>
+              <li>En-têtes : <code>Authorization</code> = <code>Bearer <span class="jeton-exemple">&lt;votre jeton&gt;</span></code></li>
+              <li>Corps de la requête : <strong>Formulaire</strong>, avec les champs :
+                <ul>
+                  <li><code>texte</code> (Texte) = <em>Entrée du raccourci</em> (transformée en Texte)</li>
+                  <li><code>url</code> (Texte) = <em>Entrée du raccourci</em> (en tant qu'URL)</li>
+                  <li><code>consigne</code> (Texte) = <em>Saisie fournie</em></li>
+                  <li><code>fichier</code> (Fichier) = <em>Image convertie</em> (seulement si l'entrée est une image)</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li>Ajoutez <strong>Obtenir la valeur du dictionnaire</strong> : clé <code>texte</code> dans <em>Contenu de l'URL</em>.</li>
+          <li>Ajoutez <strong>Énoncer le texte</strong> avec la <em>Valeur du dictionnaire</em>. Terminez par <strong>OK</strong>.</li>
+          <li>Testez : dans Safari, Partager → <strong>Partager avec l'assistant</strong> → répondez à « Que faire ? » (ou laissez vide). Siri lit la réponse et une notification « Partage traité » ouvre la conversation « Partages ».</li>
+        </ol>
+        <p class="discret">En cas d'erreur 401, le jeton est faux ou révoqué ; 415 : image HEIC non convertie ; 413 : image de plus de 8 Mo.</p>
+      </details>
     </section>
 
     <section class="carte">
@@ -246,6 +294,41 @@
       }
     }
     chargerClientsMcp().catch(() => {});
+
+    // --- Appareils et raccourcis (jetons d'appareil) ---
+    $('#hote-partage').textContent = location.origin;
+    for (const el of document.querySelectorAll('.url-partage')) el.textContent = `${location.origin}/api/partage`;
+    const dateCourte = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : 'jamais');
+    async function chargerJetons() {
+      const liste = await api('/api/jetons');
+      const el = $('#jetons'); el.innerHTML = '';
+      if (!liste.length) { el.innerHTML = '<p class="discret">Aucun appareil pour l\'instant.</p>'; return; }
+      for (const j of liste) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const t = document.createElement('div'); t.className = 'texte'; t.innerHTML = '<div class="nom"></div><div class="desc"></div>';
+        t.querySelector('.nom').textContent = j.nom;
+        t.querySelector('.desc').textContent = `Créé le ${dateCourte(j.creeLe)} · dernier usage : ${dateCourte(j.dernierUsage)}`;
+        const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Révoquer';
+        x.onclick = async () => { if (confirm(`Révoquer le jeton de « ${j.nom} » ? Le raccourci de cet appareil cessera de fonctionner.`)) { await api(`/api/jetons/${j.id}`, { method: 'DELETE' }); chargerJetons(); } };
+        ligne.append(t, x); el.append(ligne);
+      }
+    }
+    chargerJetons().catch(() => {});
+    $('#form-jeton').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#etat-jeton').textContent = '';
+      try {
+        const cree = await api('/api/jetons', { method: 'POST', body: JSON.stringify({ nom: $('#jeton-nom').value }) });
+        $('#jeton-nouveau-nom').textContent = cree.nom; $('#jeton-valeur').textContent = cree.jeton;
+        for (const el of document.querySelectorAll('.jeton-exemple')) el.textContent = cree.jeton;
+        $('#jeton-nouveau').hidden = false; $('#jeton-nom').value = '';
+        await chargerJetons();
+      } catch (err) { $('#etat-jeton').textContent = `Erreur : ${err.message}`; $('#jeton-nouveau').hidden = false; }
+    });
+    $('#btn-copier-jeton').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('#jeton-valeur').textContent); $('#etat-jeton').textContent = 'Copié ✓'; }
+      catch { $('#etat-jeton').textContent = 'Copie impossible : sélectionnez le jeton et copiez-le.'; }
+    });
 
     async function chargerBring() {
       const b = await api('/api/bring');
