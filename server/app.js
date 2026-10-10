@@ -16,6 +16,7 @@ import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
 import * as as from './oauth-server.js';
 import * as bring from './bring.js';
+import { lireConsignes, remplacerConsignes } from './consignes.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
 
@@ -182,6 +183,10 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
   app.delete('/api/bring', async (c) => { await bring.deconnecterBring(); return c.json({ ok: true }); });
+
+  // --- Consignes personnelles ---
+  app.get('/api/consignes', async (c) => c.json(await lireConsignes()));
+  app.put('/api/consignes', async (c) => { const { textes } = await c.req.json().catch(() => ({})); return c.json(await remplacerConsignes(Array.isArray(textes) ? textes : [])); });
 
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);

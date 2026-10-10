@@ -4,6 +4,7 @@ import { parametresMcp } from './mcp.js';
 import { construirePromptSysteme } from './prompt.js';
 import { definitionsOutilsLocaux, nomsOutilsLocaux, executerOutilLocal, outilsLocauxDisponibles } from './tools.js';
 import { listerComptes } from './google.js';
+import { lireConsignes } from './consignes.js';
 import { pushDisponible } from './push.js';
 import { listerRappels } from './store.js';
 
@@ -33,12 +34,13 @@ function nettoyerPourHistorique(contenu) {
 export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null }) {
   if (!outilsLocaux) outilsLocaux = await outilsLocauxDisponibles();
   const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
+  const consignes = await lireConsignes().catch(() => []);
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
   const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);
   const rappelsActifs = (await listerRappels()).filter((r) => !r.livreLe).length;
   const system = [
-    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail }) },
+    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes }) },
   ];
   const tools = [
     ...outilsLocaux,

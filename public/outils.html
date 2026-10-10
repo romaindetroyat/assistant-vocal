@@ -87,6 +87,13 @@
     </section>
 
     <section class="carte">
+      <h2>Consignes personnelles</h2>
+      <p class="discret">Une consigne par ligne. L'assistant les respecte en priorité. Vous pouvez aussi lui dire « retiens que… » ou « oublie… ».</p>
+      <textarea id="consignes" rows="6" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--bordure);background:var(--fond);color:var(--texte);font:inherit;font-size:14px" placeholder="Quand je parle de liste de courses, il s'agit de Bring!"></textarea>
+      <p id="etat-consignes" class="discret"></p>
+    </section>
+
+    <section class="carte">
       <h2>Réglages de la voix</h2>
       <label>Voix de la conversation en direct
         <select id="voix"></select>
@@ -221,6 +228,13 @@
       catch (e) { $('#etat-bring').textContent = `Échec : ${e.message}`; }
     });
     chargerBring().catch(() => {});
+
+    api('/api/consignes').then((l) => { $('#consignes').value = l.map((c) => c.texte).join('\n'); }).catch(() => {});
+    let minuteurConsignes;
+    $('#consignes').addEventListener('input', () => { clearTimeout(minuteurConsignes); minuteurConsignes = setTimeout(async () => {
+      try { await api('/api/consignes', { method: 'PUT', body: JSON.stringify({ textes: $('#consignes').value.split('\n') }) }); $('#etat-consignes').textContent = 'Enregistré ✓'; }
+      catch (e) { $('#etat-consignes').textContent = `Erreur : ${e.message}`; }
+    }, 700); });
 
     let catalogue = [];
     function afficherCatalogue() {
