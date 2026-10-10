@@ -5,22 +5,32 @@ on:
   workflow_dispatch:
 jobs:
   deploy:
-    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     runs-on: ubuntu-latest
+    env:
+      JETON_PRESENT: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
+      - name: Vérifier la présence du jeton Cloudflare
+        run: |
+          if [ "$JETON_PRESENT" != "true" ]; then echo "::warning::Secret CLOUDFLARE_API_TOKEN absent : déploiement ignoré"; fi
       - uses: actions/checkout@v4
+        if: env.JETON_PRESENT == 'true'
       - uses: actions/setup-node@v4
+        if: env.JETON_PRESENT == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: env.JETON_PRESENT == 'true'
       - run: node scripts/inline-assets.mjs
+        if: env.JETON_PRESENT == 'true'
       - name: Déployer le Worker
+        if: env.JETON_PRESENT == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Pousser les secrets du Worker (ceux définis dans GitHub)
+        if: env.JETON_PRESENT == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
