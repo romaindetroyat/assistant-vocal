@@ -240,10 +240,12 @@ export async function resoudreLieuMeteo(lieu, fetchImpl = fetch) {
   const t = String(lieu || '').trim();
   const reglages = await lireReglages().catch(() => ({}));
   if (t && !ALIAS_DOMICILE.test(t) && !ALIAS_ICI.test(t)) return geocoder(t, fetchImpl);
-  if (ALIAS_DOMICILE.test(t)) { if (!reglages.domicile) throw new Error("Adresse du domicile inconnue : demande-la et enregistre-la avec trajet_adresse_definir"); return { ...(await geocoder(reglages.domicile, fetchImpl)), nom: 'la maison' }; }
+  // Domicile : une adresse sans ville (« 401 avenue X ») n'est pas géocodable → repli sur la ville par défaut.
+  const domicile = async () => { try { return await geocoder(reglages.domicile, fetchImpl); } catch { return geocoder(LIEU_PAR_DEFAUT, fetchImpl); } };
+  if (ALIAS_DOMICILE.test(t)) { if (!reglages.domicile) throw new Error("Adresse du domicile inconnue : demande-la et enregistre-la avec trajet_adresse_definir"); return { ...(await domicile()), nom: 'la maison' }; }
   const position = lirePositionCourante();
   if (position) return { nom: 'votre position', lat: position.lat, lng: position.lng, region: '', pays: '' };
-  if (reglages.domicile) return geocoder(reglages.domicile, fetchImpl);
+  if (reglages.domicile) return domicile();
   return geocoder(LIEU_PAR_DEFAUT, fetchImpl);
 }
 
