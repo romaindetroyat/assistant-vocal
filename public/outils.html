@@ -97,6 +97,11 @@
       <h2>Mémoire de personnalisation</h2>
       <p class="discret">Ce que l'assistant a retenu de vous au fil des échanges (préférences, personnes, projets, habitudes). Il l'enrichit seul ; vous pouvez corriger ou effacer.</p>
       <div id="memoire"></div>
+      <p class="discret">Chaque semaine, Claude consolide cette mémoire : doublons fusionnés, contradictions tranchées, faits périmés retirés (60 entrées au plus).</p>
+      <button class="btn btn-secondaire btn-petit" id="btn-consolider">Consolider maintenant</button>
+      <span id="etat-consolidation" class="discret"></span>
+      <h3 style="margin:14px 0 6px;font-size:14px">Journal des consolidations</h3>
+      <div id="journal-memoire"></div>
     </section>
 
     <section class="carte">
@@ -250,6 +255,30 @@
       }
     }
     chargerMemoire().catch(() => {});
+
+    async function chargerJournalMemoire() {
+      const j = await api('/api/memoire/journal');
+      const el = $('#journal-memoire'); el.innerHTML = '';
+      if (!j.length) { el.innerHTML = '<p class="discret">Aucune consolidation pour l\'instant.</p>'; return; }
+      for (const e of j) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const t = document.createElement('div'); t.className = 'texte'; t.innerHTML = '<div class="nom"></div><div class="desc"></div>';
+        const date = new Date(e.date).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'short' });
+        t.querySelector('.nom').textContent = e.ok ? `${date} · ${e.avant} → ${e.apres} entrées (${e.fusionnees} fusionnée(s), ${e.supprimees} supprimée(s))` : `${date} · échec`;
+        t.querySelector('.desc').textContent = (e.resume || []).join(' — ');
+        ligne.append(t); el.append(ligne);
+      }
+    }
+    chargerJournalMemoire().catch(() => {});
+    $('#btn-consolider').addEventListener('click', async () => {
+      const btn = $('#btn-consolider'); btn.disabled = true; $('#etat-consolidation').textContent = 'Consolidation en cours…';
+      try {
+        const r = await api('/api/memoire/consolider', { method: 'POST' });
+        $('#etat-consolidation').textContent = r ? (r.ok ? `Terminé : ${r.avant} → ${r.apres} entrées ✓` : 'Échec, mémoire inchangée') : 'Trop peu d\'entrées pour consolider (8 minimum).';
+        await Promise.all([chargerMemoire(), chargerJournalMemoire()]);
+      } catch (e) { $('#etat-consolidation').textContent = `Erreur : ${e.message}`; }
+      btn.disabled = false;
+    });
 
     api('/api/consignes').then((l) => { $('#consignes').value = l.map((c) => c.texte).join('\n'); }).catch(() => {});
     let minuteurConsignes;
