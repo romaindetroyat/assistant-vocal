@@ -99,6 +99,71 @@ test('réglages mains libres : valeurs par défaut, validation, mot d\'activatio
   await modifierReglages({ mainsLibres: false, motActivation: 'assistant' });
 });
 
+test('mode voiture : contexte « voiture » dans la session Realtime (instructions renforcées, très court forcé)', async () => {
+  const { CONSIGNE_VOITURE_REALTIME } = await import('../server/voice.js');
+  const { modifierReglages } = await import('../server/reglages.js');
+  await modifierReglages({ concision: 'normal' });
+  const normale = configurationSession({ concision: 'normal' });
+  assert.doesNotMatch(normale.instructions, /conduit/);
+  const voiture = configurationSession({ concision: 'normal' }, { contexte: 'voiture' });
+  assert.ok(voiture.instructions.includes(CONSIGNE_VOITURE_REALTIME));
+  assert.match(voiture.instructions, /dix à vingt mots/); // concision forcée malgré le réglage « normal »
+  assert.doesNotMatch(voiture.instructions, /Deux à quatre phrases/);
+  // Un contexte inconnu est ignoré.
+  assert.doesNotMatch(configurationSession({ concision: 'normal' }, { contexte: 'avion' }).instructions, /conduit/);
+
+  process.env.OPENAI_API_KEY = 'sk-test';
+  let corps;
+  await creerJetonEphemere(async (_u, init) => { corps = JSON.parse(init.body); return new Response(JSON.stringify({ value: 'ek' })); }, { contexte: 'voiture' });
+  assert.match(corps.session.instructions, /conduit/);
+  // Route : le corps JSON `contexte` est transmis jusqu'aux instructions (fetch global simulé, aucun réseau).
+  const fetchOriginal = globalThis.fetch;
+  const appels = [];
+  globalThis.fetch = async (url, init) => { appels.push({ url, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ value: 'ek_v', expires_at: 1 }), { status: 200 }); };
+  try {
+    const app = creerApplication({ client: clientSimule('x'), serveurs: [] });
+    const cookie = `assistant_session=${creerJeton()}`;
+    const r = await app.request('/api/voice/session', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ contexte: 'voiture' }) });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).value, 'ek_v');
+    assert.match(appels[0].body.session.instructions, /conduit/);
+    await app.request('/api/voice/session', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: '{}' });
+    assert.doesNotMatch(appels[1].body.session.instructions, /conduit/);
+  } finally { globalThis.fetch = fetchOriginal; delete process.env.OPENAI_API_KEY; }
+  await modifierReglages({ concision: 'court' });
+});
+
+test('mode voiture : /api/voice/ask force la concision très courte et interdit les liens', async () => {
+  const { modifierReglages, CONSIGNE_VOITURE_CLAUDE } = await import('../server/reglages.js');
+  await modifierReglages({ concision: 'normal' });
+  const requetes = [];
+  const client = { beta: { messages: { stream(p) { requetes.push(p); const r = { stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }; return { async *[Symbol.asyncIterator]() {}, async finalMessage() { return r; } }; } } } };
+  const app = creerApplication({ client, serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  await app.request('/api/voice/ask', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ message: 'Combien de temps pour aller à Toulon ?', contexte: 'voiture' }) });
+  const consigneVoiture = requetes[0].messages.at(-1);
+  assert.equal(consigneVoiture.role, 'system');
+  assert.match(consigneVoiture.content, /dix à vingt mots/);
+  assert.ok(consigneVoiture.content.includes(CONSIGNE_VOITURE_CLAUDE));
+  await app.request('/api/voice/ask', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ message: 'Et sans voiture ?' }) });
+  const consigneNormale = requetes[1].messages.at(-1);
+  assert.match(consigneNormale.content, /Deux à quatre phrases/);
+  assert.doesNotMatch(consigneNormale.content, /conduit/);
+  await modifierReglages({ concision: 'court' });
+});
+
+test('réglage voitureAutoAppel : vrai par défaut, booléen exigé, modifiable par /api/reglages', async () => {
+  const { lireReglages, modifierReglages } = await import('../server/reglages.js');
+  assert.equal((await lireReglages()).voitureAutoAppel, true);
+  await assert.rejects(() => modifierReglages({ voitureAutoAppel: 'non' }), /booléen/);
+  const app = creerApplication({ client: clientSimule('x'), serveurs: [] });
+  const cookie = `assistant_session=${creerJeton()}`;
+  const r = await (await app.request('/api/reglages', { method: 'PUT', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ voitureAutoAppel: false }) })).json();
+  assert.equal(r.voitureAutoAppel, false);
+  assert.equal((await (await app.request('/api/reglages', { headers: { cookie } })).json()).voitureAutoAppel, false);
+  await modifierReglages({ voitureAutoAppel: true });
+});
+
 test('aperçu de voix : généré une fois puis servi depuis le cache', async () => {
   const { apercuVoix } = await import('../server/voice.js');
   const store = await import('../server/store.js');
