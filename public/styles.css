@@ -108,3 +108,10 @@ button { font: inherit; color: inherit; }
 .point-appel { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); animation: clignote 1.4s infinite; }
 .app { grid-template-rows: auto auto 1fr auto; }
 #btn-appel[aria-pressed="true"] { background: var(--ok); color: #0b1020; }
+
+/* Compaction : messages système et résumé de l'historique */
+.msg.systeme { align-self: center; background: transparent; color: var(--texte-2); font-size: 13px; padding: 2px 10px; }
+.resume-historique { align-self: stretch; max-width: 720px; margin: 0 auto; width: 100%; font-size: 14px; color: var(--texte-2); background: var(--fond-2); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 8px 12px; }
+.resume-historique summary { cursor: pointer; font-weight: 600; }
+.resume-historique .resume { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--bordure); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--texte); }
+.resume-historique .resume .discret { margin-bottom: 4px; }

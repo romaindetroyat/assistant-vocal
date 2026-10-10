@@ -143,6 +143,7 @@ async function ouvrirConversation(id) {
   } else {
     const conv = await api(`/api/conversations/${id}`);
     ui.titre.textContent = conv.titre;
+    if (conv.resumes?.length) afficherResumes(conv.resumes);
     for (const m of conv.messages) afficherMessageHistorique(m);
     defiler();
   }
@@ -152,6 +153,7 @@ function afficherMessageHistorique(m) {
   const blocs = Array.isArray(m.content) ? m.content : [{ type: 'text', text: m.content }];
   if (m.role === 'user') {
     if (blocs.every((b) => b.type === 'tool_result')) return;
+    if (blocs[0]?.type === 'text' && blocs[0].text.startsWith(MARQUE_RESUME)) { creerBulle('systeme').textContent = 'Historique compacté'; return; }
     const el = creerBulle('user');
     for (const b of blocs) {
       if (b.type === 'image' && b.source?.type === 'base64') { const img = document.createElement('img'); img.src = `data:${b.source.media_type};base64,${b.source.data}`; el.append(img); }
@@ -161,8 +163,25 @@ function afficherMessageHistorique(m) {
     const outils = blocs.filter((b) => ['tool_use', 'mcp_tool_use', 'server_tool_use'].includes(b.type));
     if (outils.length) { const o = creerLigneOutils(); for (const t of outils) ajouterBadge(o, t.name, t.server_name || (t.type === 'server_tool_use' ? 'anthropic' : 'local'), 'ok'); }
     const texte = blocs.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    if (texte === ACCUSE_RESUME) return;
     if (texte) creerBulle('assistant').innerHTML = rendreMarkdown(texte);
   }
+}
+// Historique compacté côté serveur : les résumés restent consultables dans un bloc repliable en tête.
+const MARQUE_RESUME = '[Résumé de la conversation précédente]';
+const ACCUSE_RESUME = 'Compris, je poursuis avec ce contexte.';
+function afficherResumes(resumes) {
+  const det = document.createElement('details'); det.className = 'resume-historique';
+  const sum = document.createElement('summary'); sum.textContent = `Résumé de l'historique (${resumes.length})`; det.append(sum);
+  for (const r of resumes) {
+    const bloc = document.createElement('div'); bloc.className = 'resume';
+    const meta = document.createElement('div'); meta.className = 'discret';
+    const date = r.date ? new Date(r.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    meta.textContent = `${date}${r.messagesCompactes ? ` · ${r.messagesCompactes} messages résumés` : ''}`;
+    const texte = document.createElement('div'); texte.textContent = r.texte || '';
+    bloc.append(meta, texte); det.append(bloc);
+  }
+  ui.messages.append(det);
 }
 function creerBulle(role) { const el = document.createElement('div'); el.className = `msg ${role}`; ui.messages.append(el); return el; }
 function creerLigneOutils() { const el = document.createElement('div'); el.className = 'outils'; ui.messages.append(el); return el; }
@@ -200,6 +219,7 @@ async function envoyer() {
       else if (ev.event === 'tool_use') { if (!ligneOutils) { ligneOutils = creerLigneOutils(); ui.messages.insertBefore(ligneOutils, bulle); } badgeActif = ajouterBadge(ligneOutils, ev.data.name, ev.data.server); setEtat(`Outil : ${ev.data.name}…`); defiler(); }
       else if (ev.event === 'tool_result') { if (badgeActif) { badgeActif.className = `outil ${ev.data.ok ? 'ok' : 'ko'}`; badgeActif.title = ev.data.preview || ''; } }
       else if (ev.event === 'done') { texteFinal = ev.data.text; }
+      else if (ev.event === 'compaction') { const s = creerBulle('systeme'); s.textContent = `Historique compacté (${ev.data.messages} messages résumés)`; ui.messages.insertBefore(s, bulleUser); }
       else if (ev.event === 'error') { const e = creerBulle('erreur'); e.textContent = ev.data.message; }
     }
     if (!texteRecu) bulle.remove();
