@@ -163,6 +163,11 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     try { return c.json({ url: await google.demarrerConnexionGoogle(new URL('/oauth/google/callback', c.req.url).toString()) }); }
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
+  app.get('/api/google/signatures', async (c) => c.json(await google.lireSignatures()));
+  app.put('/api/google/signatures/:email', async (c) => {
+    try { const { signature } = await c.req.json().catch(() => ({})); return c.json({ email: c.req.param('email'), signature: await google.definirSignature(c.req.param('email'), signature) }); }
+    catch (e) { return c.json({ erreur: e.message }, 400); }
+  });
   app.delete('/api/google/comptes/:email', async (c) => { await google.retirerCompte(c.req.param('email')); return c.json({ ok: true }); });
 
   app.post('/api/transcribe', async (c) => {

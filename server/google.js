@@ -85,3 +85,16 @@ export async function resoudreCompte(indice) {
   if (!trouve) throw new Error(`Compte « ${indice} » introuvable parmi : ${comptes.map((c) => c.email).join(', ')}`);
   return trouve.email;
 }
+
+// Signatures d'e-mail par compte (ajoutées automatiquement aux envois, réponses et brouillons).
+export async function lireSignatures() { return (await lireValeur('gmail-signatures')) || {}; }
+export async function definirSignature(email, signature) {
+  const comptes = await listerComptes();
+  if (!comptes.some((c) => c.email === email)) throw new Error(`Compte inconnu : ${email}`);
+  const toutes = await lireSignatures();
+  const texte = String(signature || '').trim().slice(0, 1500);
+  if (texte) toutes[email] = texte; else delete toutes[email];
+  await ecrireValeur('gmail-signatures', toutes);
+  return texte;
+}
+export async function signaturePour(email) { return (await lireSignatures())[email] || ''; }

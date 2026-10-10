@@ -139,6 +139,7 @@
 
     async function chargerGoogle() {
       const g = await api('/api/google');
+      const signatures = await api('/api/google/signatures').catch(() => ({}));
       $('#google-redirect').textContent = g.redirectUri;
       $('#google-config').hidden = g.configure;
       $('#btn-google-connecter').disabled = !g.configure;
@@ -151,6 +152,11 @@
         const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Retirer';
         x.onclick = async () => { if (confirm(`Retirer ${c.email} ?`)) { await api(`/api/google/comptes/${encodeURIComponent(c.email)}`, { method: 'DELETE' }); chargerGoogle(); } };
         ligne.append(point, t, x); el.append(ligne);
+        const sig = document.createElement('label'); sig.style.marginBottom = '10px';
+        sig.innerHTML = `Signature pour ${c.email} (ajoutée automatiquement aux envois)<textarea rows="3" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--bordure);background:var(--fond);color:var(--texte);font:inherit;font-size:14px" placeholder="Romain de Troyat\nTakeOff · 06 …"></textarea><span class="discret"></span>`;
+        const ta = sig.querySelector('textarea'); ta.value = signatures[c.email] || '';
+        let minuteur; ta.addEventListener('input', () => { clearTimeout(minuteur); minuteur = setTimeout(async () => { try { await api(`/api/google/signatures/${encodeURIComponent(c.email)}`, { method: 'PUT', body: JSON.stringify({ signature: ta.value }) }); sig.querySelector('span').textContent = 'Enregistrée ✓'; } catch (err) { sig.querySelector('span').textContent = `Erreur : ${err.message}`; } }, 600); });
+        el.append(sig);
       }
       const nouveau = new URLSearchParams(location.search).get('google');
       if (nouveau) { history.replaceState(null, '', '/outils'); $('#etat-google').textContent = `${nouveau} connecté ✓`; }

@@ -73,3 +73,23 @@ test('routes Google : état, connexion, callback', async () => {
   const r = await app.request('/oauth/google/callback?error=access_denied', { headers: { cookie } });
   assert.equal(r.status, 400);
 });
+
+test('signatures : définies par compte, ajoutées aux envois, réponses et brouillons, pas en double', async () => {
+  const { enregistrerConfigGoogle, demarrerConnexionGoogle, terminerConnexionGoogle, definirSignature, retirerCompte } = await import('../server/google.js');
+  const journal = []; const f = googleSimule(journal);
+  await enregistrerConfigGoogle({ clientId: 'abc.apps.googleusercontent.com', clientSecret: 'secret' });
+  const state = new URL(await demarrerConnexionGoogle('https://w.test/oauth/google/callback')).searchParams.get('state');
+  await terminerConnexionGoogle({ code: 'c', state }, f);
+  await assert.rejects(() => definirSignature('inconnu@x.fr', 'x'), /inconnu/);
+  assert.match(await executerOutilGmail('gmail_signature', { compte: 'perso', signature: 'Romain de Troyat\nTakeOff' }, f), /enregistrée/);
+  assert.match(await executerOutilGmail('gmail_signature', { compte: '', signature: '' }, f), /TakeOff/);
+  await executerOutilGmail('gmail_envoyer', { compte: 'perso', a: 'a@b.fr', cc: '', objet: 'Test', corps: 'Bonjour,\nvoici le document.' }, f);
+  const mime = Buffer.from(JSON.parse(journal.findLast((j) => j.u.endsWith('/messages/send')).init.body).raw, 'base64url').toString();
+  const corps = Buffer.from(mime.split('\r\n\r\n')[1], 'base64').toString();
+  assert.equal(corps, 'Bonjour,\nvoici le document.\n\n--\nRomain de Troyat\nTakeOff');
+  await executerOutilGmail('gmail_brouillon', { compte: 'perso', a: 'a@b.fr', objet: 'T', corps: 'Déjà signé\n\n--\nRomain de Troyat\nTakeOff' }, f);
+  const mime2 = Buffer.from(JSON.parse(journal.findLast((j) => j.u.endsWith('/drafts')).init.body).message.raw, 'base64url').toString();
+  assert.equal((Buffer.from(mime2.split('\r\n\r\n')[1], 'base64').toString().match(/TakeOff/g) || []).length, 1, 'pas de double signature');
+  assert.match(await executerOutilGmail('gmail_signature', { compte: 'perso', signature: '' }, f), /effacée/);
+  await retirerCompte('romain@perso.fr', f);
+});

@@ -27,6 +27,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN_ASSISTANT: ${{ secrets.GH_TOKEN_ASSISTANT }}
           ASSISTANT_PASSWORD: ${{ secrets.ASSISTANT_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}

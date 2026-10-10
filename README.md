@@ -53,6 +53,14 @@ des outils `gmail_rechercher`, `gmail_lire`, `gmail_repondre`, `gmail_envoyer`, 
 `https://<votre-worker>/oauth/google/callback` et l'API Gmail activée ; l'ID et le secret se saisissent une fois
 dans l'application (ou via `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`).
 
+## Faire évoluer l'assistant depuis l'assistant (Claude Code)
+
+Avec un secret `GITHUB_TOKEN` (jeton GitHub à granularité fine, droits Issues : lecture/écriture sur ce dépôt),
+l'assistant dispose de l'outil `demander_developpement` : il ouvre une issue mentionnant `@claude`. Le workflow
+`.github/workflows/claude.yml` (Claude Code GitHub Actions, secret `ANTHROPIC_API_KEY` côté GitHub, application
+GitHub « Claude » installée sur le dépôt) implémente la demande et ouvre une pull request. La fusion sur `main`
+redéploie le Worker via `deploy.yml`.
+
 ## Déclarer des serveurs MCP
 
 `mcp.config.json` :

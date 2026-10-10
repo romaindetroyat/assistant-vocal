@@ -1,5 +1,5 @@
 // Outils Gmail (API Gmail directe) : chercher, lire, répondre, envoyer, brouillons.
-import { jetonAcces, resoudreCompte, listerComptes } from './google.js';
+import { jetonAcces, resoudreCompte, listerComptes, signaturePour, definirSignature, lireSignatures } from './google.js';
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const texte = (s, max) => (typeof s === 'string' ? s.trim().slice(0, max) : '');
@@ -14,6 +14,8 @@ export const definitionsOutilsGmail = [
     input_schema: { type: 'object', properties: { compte: { type: 'string', description: "Compte expéditeur (adresse ou mot-clé)" }, a: { type: 'string', description: 'Destinataire(s), séparés par des virgules' }, cc: { type: 'string', description: 'Copie (optionnel, chaîne vide sinon)' }, objet: { type: 'string' }, corps: { type: 'string', description: 'Texte du message (texte brut)' } }, required: ['compte', 'a', 'cc', 'objet', 'corps'], additionalProperties: false } },
   { name: 'gmail_repondre', description: "Répond à un e-mail existant (dans le même fil, à l'expéditeur).", strict: true,
     input_schema: { type: 'object', properties: { compte: { type: 'string' }, id: { type: 'string', description: 'Identifiant du message auquel répondre' }, corps: { type: 'string', description: 'Texte de la réponse' }, repondre_a_tous: { type: 'boolean' } }, required: ['compte', 'id', 'corps', 'repondre_a_tous'], additionalProperties: false } },
+  { name: 'gmail_signature', description: "Définit (ou efface) la signature d'un compte, ajoutée automatiquement à la fin des e-mails envoyés, des réponses et des brouillons. Sans paramètre signature, renvoie les signatures actuelles.", strict: true,
+    input_schema: { type: 'object', properties: { compte: { type: 'string', description: 'Adresse ou mot-clé du compte (vide pour lister)' }, signature: { type: 'string', description: 'Texte de la signature, lignes séparées par des retours ; chaîne vide pour effacer ou pour lister' } }, required: ['compte', 'signature'], additionalProperties: false } },
   { name: 'gmail_brouillon', description: "Crée un brouillon (non envoyé) que l'utilisateur relira dans Gmail.", strict: true,
     input_schema: { type: 'object', properties: { compte: { type: 'string' }, a: { type: 'string' }, objet: { type: 'string' }, corps: { type: 'string' } }, required: ['compte', 'a', 'objet', 'corps'], additionalProperties: false } },
 ];
@@ -52,8 +54,22 @@ function construireMime({ de, a, cc, objet, corps, enReponseA, references }) {
   return btoa(unescape(encodeURIComponent(brut))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+// Corps final : texte + signature du compte (sauf si le texte la contient déjà).
+async function corpsSigne(email, corps) {
+  const texte = String(corps || '').trimEnd();
+  const sig = await signaturePour(email);
+  if (!sig || texte.includes(sig)) return texte;
+  return `${texte}\n\n--\n${sig}`;
+}
+
 export async function executerOutilGmail(nom, e, fetchImpl = fetch) {
   switch (nom) {
+    case 'gmail_signature': {
+      if (!texte(e.signature, 1500) && !e.compte) { const t = await lireSignatures(); const l = Object.entries(t); return l.length ? l.map(([c, s]) => `${c} :\n${s}`).join('\n\n') : 'Aucune signature définie.'; }
+      const email = await resoudreCompte(e.compte);
+      const sig = await definirSignature(email, e.signature);
+      return sig ? `Signature enregistrée pour ${email} :\n${sig}` : `Signature effacée pour ${email}.`;
+    }
     case 'gmail_comptes': { const c = await listerComptes(); return c.length ? c.map((x) => x.email).join(', ') : 'Aucun compte Google connecté.'; }
     case 'gmail_rechercher': {
       const email = await resoudreCompte(e.compte);
@@ -72,7 +88,7 @@ export async function executerOutilGmail(nom, e, fetchImpl = fetch) {
     case 'gmail_envoyer': {
       const email = await resoudreCompte(e.compte);
       if (!texte(e.a, 500) || !texte(e.objet, 300)) throw new Error('Destinataire et objet obligatoires');
-      const raw = construireMime({ de: email, a: texte(e.a, 500), cc: texte(e.cc, 500), objet: texte(e.objet, 300), corps: String(e.corps || '') });
+      const raw = construireMime({ de: email, a: texte(e.a, 500), cc: texte(e.cc, 500), objet: texte(e.objet, 300), corps: await corpsSigne(email, e.corps) });
       const r = await gmail(email, 'messages/send', { method: 'POST', body: { raw } }, fetchImpl);
       return `E-mail envoyé depuis ${email} à ${e.a} (id ${r.id}).`;
     }
@@ -82,13 +98,13 @@ export async function executerOutilGmail(nom, e, fetchImpl = fetch) {
       const a = entete(orig, 'Reply-To') || entete(orig, 'From');
       const cc = e.repondre_a_tous ? [entete(orig, 'To'), entete(orig, 'Cc')].filter(Boolean).join(', ') : '';
       const objetOrig = entete(orig, 'Subject');
-      const raw = construireMime({ de: email, a, cc, objet: /^re\s*:/i.test(objetOrig) ? objetOrig : `Re: ${objetOrig}`, corps: String(e.corps || ''), enReponseA: entete(orig, 'Message-ID') || entete(orig, 'Message-Id'), references: entete(orig, 'References') });
+      const raw = construireMime({ de: email, a, cc, objet: /^re\s*:/i.test(objetOrig) ? objetOrig : `Re: ${objetOrig}`, corps: await corpsSigne(email, e.corps), enReponseA: entete(orig, 'Message-ID') || entete(orig, 'Message-Id'), references: entete(orig, 'References') });
       const r = await gmail(email, 'messages/send', { method: 'POST', body: { raw, threadId: orig.threadId } }, fetchImpl);
       return `Réponse envoyée à ${a} depuis ${email} (id ${r.id}).`;
     }
     case 'gmail_brouillon': {
       const email = await resoudreCompte(e.compte);
-      const raw = construireMime({ de: email, a: texte(e.a, 500), objet: texte(e.objet, 300), corps: String(e.corps || '') });
+      const raw = construireMime({ de: email, a: texte(e.a, 500), objet: texte(e.objet, 300), corps: await corpsSigne(email, e.corps) });
       const r = await gmail(email, 'drafts', { method: 'POST', body: { message: { raw } } }, fetchImpl);
       return `Brouillon créé dans ${email} (id ${r.id}). L'utilisateur peut le relire et l'envoyer depuis Gmail.`;
     }
