@@ -31,8 +31,10 @@ function servirInline(chemin) {
   return new Response(cacheBinaire.get(chemin), { headers: { 'Content-Type': f.type, 'Cache-Control': immuable ? 'public, max-age=86400' : 'public, max-age=300' } });
 }
 
+const client = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined });
+
 const app = creerApplication({
-  client: () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }),
+  client,
   serveurs,
   fichier: (_c, chemin) => servirInline(chemin),
   version: infosBuild,
@@ -48,6 +50,7 @@ export default {
   },
   async scheduled(_event, env, ctx) {
     preparer(env);
-    ctx.waitUntil(Promise.all([livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)), pointDuMatin().catch((e) => console.warn('[matin]', e.message))]));
+    // Brief du matin : le cron passe le client Anthropic et les serveurs MCP (env + ajoutés, jetons OAuth résolus).
+    ctx.waitUntil(Promise.all([livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)), pointDuMatin({ client, serveurs }).catch((e) => console.warn('[matin]', e.message))]));
   },
 };

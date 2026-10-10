@@ -5,7 +5,7 @@ import { noter, oublier, chercher, lireMemoire, blocProfil, executerOutilMemoire
 import { ajouterTache, listerTaches, modifierTache, executerOutilTaches, resumeDuJour, lireTaches } from '../server/taches.js';
 import { listerRappels, sauverRappels, ecrireValeur } from '../server/store.js';
 import { construirePromptSysteme } from '../server/prompt.js';
-import { pointDuMatin } from '../server/scheduler.js';
+import { briefDuMatin } from '../server/brief.js';
 
 test('mémoire : notation, mise à jour par clé, recherche, prompt, oubli', async () => {
   await remplacerMemoire([]);
@@ -46,8 +46,8 @@ test('tâches : ajout avec déduction, tri, filtres, rappel lié, terminer, rés
   await modifierTache('garage', { echeance: demain, priorite: 'haute' });
   assert.equal((await listerTaches({ filtre: 'retard' })).length, 0);
   await assert.rejects(() => executerOutilTaches('tache_terminer', { tache: 'inexistante' }), /introuvable/);
-  // Point du matin : une seule fois par jour, et seulement avec le push configuré (absent ici → false)
-  assert.equal(await pointDuMatin(new Date()), false);
+  // Brief du matin : seulement avec le push configuré (absent ici → false)
+  assert.equal(await briefDuMatin({ maintenant: new Date() }), false);
   assert.equal((await lireTaches()).length, 4);
 });
 

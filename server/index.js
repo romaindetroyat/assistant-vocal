@@ -42,6 +42,8 @@ if (estPrincipal) {
   const serveurs = chargerServeursMcp();
   console.log(`[mcp] ${serveurs.length} serveur(s) : ${serveurs.map((s) => s.name).join(', ') || '—'}`);
   console.log(`[push] ${pushDisponible() ? 'activé' : 'désactivé (npm run vapid)'} · [transcription] ${transcriptionDisponible() ? 'activée' : 'désactivée'}`);
-  demarrerPlanificateur();
-  serve({ fetch: creerApplicationNode({ serveurs }).fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
+  const client = new Anthropic({ defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined });
+  const app = creerApplicationNode({ client, serveurs });
+  demarrerPlanificateur({ client, serveurs }); // après creerApplicationNode : le backend de stockage doit être prêt
+  serve({ fetch: app.fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
 }

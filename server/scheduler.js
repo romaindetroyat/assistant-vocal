@@ -1,7 +1,7 @@
-// Livraison des rappels programmés (vérification périodique).
-import { listerRappels, sauverRappels, lireValeur, ecrireValeur } from './store.js';
-import { resumeDuJour } from './taches.js';
+// Livraison des rappels programmés (vérification périodique) et brief du matin.
+import { listerRappels, sauverRappels } from './store.js';
 import { envoyerNotification, pushDisponible } from './push.js';
+import { briefDuMatin, resoudreContexteBrief } from './brief.js';
 
 export async function livrerRappelsDus(maintenant = Date.now()) {
   if (!pushDisponible()) return 0;
@@ -25,24 +25,20 @@ export async function livrerRappelsDus(maintenant = Date.now()) {
   return livres;
 }
 
-// Point du matin : tâches du jour, envoyé en push une fois par jour à partir de 8 h (Europe/Paris).
-export async function pointDuMatin(maintenant = new Date()) {
+// Point du matin = brief complet (agenda, tâches, mails) en un seul push, à partir de 8 h, une fois par jour.
+// `client` : client Anthropic ; `serveurs` : serveurs MCP de l'environnement (ou fonction qui les renvoie).
+export async function pointDuMatin({ client = null, serveurs = [], maintenant = new Date() } = {}) {
   if (!pushDisponible()) return false;
-  const paris = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).formatToParts(maintenant);
-  const v = (t) => paris.find((p) => p.type === t)?.value;
-  const jour = `${v('year')}-${v('month')}-${v('day')}`; const heure = Number(v('hour'));
-  if (heure < 8) return false;
-  const etat = (await lireValeur('point-du-matin')) || {};
-  if (etat.jour === jour) return false;
-  await ecrireValeur('point-du-matin', { jour });
-  const r = await resumeDuJour();
-  if (!r) return false;
-  await envoyerNotification({ titre: r.titre, corps: r.corps, url: '/taches', tag: 'point-du-matin' });
-  return true;
+  const env = typeof serveurs === 'function' ? serveurs() : serveurs;
+  const contexte = await resoudreContexteBrief(env);
+  return briefDuMatin({ client: typeof client === 'function' ? client() : client, ...contexte, maintenant });
 }
 
-export function demarrerPlanificateur(intervalleMs = 20_000) {
-  const t = setInterval(() => { livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)); pointDuMatin().catch((e) => console.warn('[matin]', e.message)); }, intervalleMs);
+export function demarrerPlanificateur({ client = null, serveurs = [] } = {}, intervalleMs = 20_000) {
+  const t = setInterval(() => {
+    livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message));
+    pointDuMatin({ client, serveurs }).catch((e) => console.warn('[matin]', e.message));
+  }, intervalleMs);
   t.unref();
   return t;
 }
