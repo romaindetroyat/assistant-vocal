@@ -1,5 +1,5 @@
 // Service worker : app shell en cache, réseau pour l'API, notifications push.
-const CACHE = 'assistant-v19';
+const CACHE = 'assistant-v20';
 const CACHE_PARTAGE = 'partage';
 const CLE_PARTAGE = '/partage/attente';
 const SHELL = ['/app', '/login', '/styles.css', '/app.js', '/conversation.js', '/taches.html', '/outils.html', '/manifest.webmanifest', '/icons/icon.svg'];
