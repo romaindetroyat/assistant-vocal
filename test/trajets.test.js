@@ -29,7 +29,7 @@ test('trajets : sans clé, l\'outil répond par un message explicite (pas d\'exc
   assert.ok(nomsOutilsLocaux.has('trajet_calculer') && nomsOutilsLocaux.has('trajet_adresse_definir'));
   const outils = await outilsLocauxDisponibles();
   for (const nom of ['trajet_calculer', 'trajet_adresse_definir']) { const o = outils.find((t) => t.name === nom); assert.ok(o && !o.strict, `${nom} présent et non strict`); }
-  assert.equal(outils.filter((t) => t.strict).length, 3, 'outils stricts inchangés (tache_ajouter, schedule_reminder, memoire_noter)');
+  assert.equal(outils.filter((t) => t.strict).length, 0, 'aucun outil strict (latence)');
 });
 
 test('trajets : configuration (validation, masquage), adresses domicile/bureau, position courante', async () => {

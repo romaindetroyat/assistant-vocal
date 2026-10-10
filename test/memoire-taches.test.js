@@ -63,6 +63,6 @@ test("jamais plus de 20 outils stricts, même avec tout de connecté", async () 
   const tous = limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsGmail, ...definitionsOutilsBring, definitionOutilDev]);
   assert.ok(tous.length > 20);
   assert.ok(tous.filter((t) => t.strict).length <= LIMITE_STRICTS);
-  assert.equal(tous.find((t) => t.name === 'gmail_envoyer').strict, true);
+  assert.equal(tous.find((t) => t.name === 'gmail_envoyer').strict, false, 'mode strict désactivé (latence de compilation de grammaire)');
   assert.equal(tous.find((t) => t.name === 'list_reminders').strict, false);
 });

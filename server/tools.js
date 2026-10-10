@@ -62,16 +62,13 @@ export const definitionsOutilsLocaux = [
 
 export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, ...nomsOutilsTrajets, definitionOutilBrief.name, definitionOutilDev.name]);
 
-// L'API n'accepte que 20 outils « stricts » : on réserve le mode strict aux schémas complexes.
-const STRICTS_PRIORITAIRES = new Set(['gmail_envoyer', 'gmail_repondre', 'tache_ajouter', 'courses_ajouter', 'schedule_reminder', 'memoire_noter']);
-export const LIMITE_STRICTS = 20;
+// Mode strict désactivé partout : l'API compile une grammaire pour l'ensemble des outils, recompilée à chaque
+// changement de jeu d'outils (serveur MCP activé, outil différé chargé…), ce qui coûtait 20 à 30 s de latence.
+// Les schémas restent simples et les entrées sont validées côté serveur.
+export const STRICTS_PRIORITAIRES = new Set();
+export const LIMITE_STRICTS = 0;
 export function limiterStricts(outils) {
-  let n = 0;
-  return outils.map((t) => {
-    const garder = t.strict && STRICTS_PRIORITAIRES.has(t.name) && n < LIMITE_STRICTS;
-    if (garder) n++;
-    return garder ? t : { ...t, strict: false };
-  });
+  return outils.map((t) => (t.strict ? { ...t, strict: false } : t));
 }
 
 // Outils locaux rarement utilisés : chargés à la demande par la recherche d'outils (moins de tokens par requête).

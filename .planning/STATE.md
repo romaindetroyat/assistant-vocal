@@ -19,7 +19,7 @@
 | 2026-10-09 | Gmail API directe (pas le MCP Google en aperçu) | Envoi et réponse nécessaires |
 | 2026-10-10 | Serveur OAuth 2.1 maison pour exposer l'assistant | claude.ai exige DCR + PKCE |
 | 2026-10-10 | Claude Code Actions + PR + déploiement CI | Développer l'outil depuis l'outil |
-| 2026-10-10 | Mode strict limité à 6 outils | Limite API (20 stricts, complexité globale) |
+| 2026-10-10 | Mode strict désactivé ; MCP secondaires à la demande ; prompt en cache | Latence : grammaire stricte et connexions MCP coûtaient 10 à 30 s |
 | 2026-10-10 | Mémoire alimentée par l'assistant via outil | Simple, visible, corrigeable |
 | 2026-10-10 | Abandon de Google Agenda en direct (ex-phase 15) | Agenda Hub couvre les quatre comptes |
 | 2026-10-10 | Phases v2 exécutées en parallèle dans des worktrees, fusion manuelle | Rapidité ; conflits limités à scheduler/worker/index |

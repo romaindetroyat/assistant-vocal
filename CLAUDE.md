@@ -24,8 +24,11 @@ la planification vit dans `.planning/`. Lis `.planning/STATE.md` puis `.planning
   (clés `[a-z0-9:_-]`).
 - Cerveau : `server/chat.js` (boucle Claude, outils locaux + MCP + web_search), prompt dans `server/prompt.js`
   (carte des outils, consignes, mémoire). Outils locaux déclarés dans `server/tools.js` via
-  `outilsLocauxDisponibles()` : **au plus 20 outils `strict`** et schéma global limité → ne mets `strict: true`
-  que si tu l'ajoutes à `STRICTS_PRIORITAIRES`, et garde les schémas simples (pas d'arrays imbriqués profonds).
+  `outilsLocauxDisponibles()` : **mode strict désactivé** (`limiterStricts` retire tout `strict` : la grammaire
+  stricte est recompilée à chaque changement de jeu d'outils et coûtait 20 à 30 s). Garde les schémas simples et
+  valide les entrées côté serveur. Latence : seuls les serveurs MCP prioritaires (agenda, courrier) sont attachés
+  d'emblée, les autres via `activer_serveur` ; prompt stable mis en cache (`blocsPromptSysteme`), date dans le bloc
+  volatil ; journal `[chat] itération…` et route `POST /api/diag/latence` pour mesurer.
 - Intégrations : `gmail.js`/`google.js`, `bring.js`, `taches.js`, `memoire.js`, `consignes.js`, `dev.js`,
   `oauth-mcp.js` (client), `oauth-server.js` + `mcp-server.js` (serveur MCP exposé), `voice.js` (Realtime).
 - Front : `public/app.js` (chat, dictée, voix, push), `conversation.js` (WebRTC), pages `outils.html`,
