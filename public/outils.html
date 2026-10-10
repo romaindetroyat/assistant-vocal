@@ -217,7 +217,7 @@
     <section class="carte">
       <h2>Trajets (Google Routes)</h2>
       <p class="discret">Temps de trajet avec le trafic, heure de départ conseillée, liens Plans et Google Maps. Il faut une clé Google Maps Platform restreinte à l'API Routes (console.cloud.google.com → API Routes activée → Identifiants → Clé API).</p>
-      <label>Clé API Routes <input id="trajets-cle" autocomplete="off" type="password" placeholder="AIza…"></label>
+      <label>Clé API Routes <input id="trajets-cle" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="AIza…"></label>
       <div class="actions"><button id="btn-trajets-cle" class="btn btn-secondaire btn-petit">Enregistrer la clé</button><span id="etat-trajets-cle" class="discret"></span></div>
       <label>Adresse du domicile <input id="trajets-domicile" type="text" maxlength="200" autocomplete="street-address" placeholder="12 rue …, 83000 Toulon"></label>
       <label>Adresse du bureau <input id="trajets-bureau" type="text" maxlength="200" autocomplete="off" placeholder="facultatif"></label>
@@ -511,6 +511,7 @@
     async function enregistrerCleTrajets() {
       const cle = $('#trajets-cle').value.trim();
       if (!cle) { $('#etat-trajets-cle').textContent = 'Collez d’abord la clé dans le champ.'; return; }
+      if (!cle.startsWith('AIza')) { $('#etat-trajets-cle').textContent = 'Ce n’est pas une clé Google (elle commence par AIza) : le navigateur a peut-être rempli le champ avec un mot de passe.'; return; }
       $('#etat-trajets-cle').textContent = 'Enregistrement…';
       try { await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ cle }) }); $('#etat-trajets-cle').textContent = 'Clé enregistrée ✓'; chargerTrajets(); }
       catch (e) { $('#etat-trajets-cle').textContent = `Erreur : ${e.message}`; }

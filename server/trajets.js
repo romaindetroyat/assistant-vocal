@@ -25,7 +25,7 @@ export async function configTrajets() {
 }
 export async function enregistrerConfigTrajets({ cle }) {
   const c = String(cle || '').trim();
-  if (!/^[A-Za-z0-9_-]{20,}$/.test(c)) throw new Error('Clé Google Maps invalide (attendue : AIza… sans espace)');
+  if (!/^AIza[A-Za-z0-9_-]{20,}$/.test(c)) throw new Error('Clé Google Maps invalide : elle commence par « AIza » (vérifiez que le navigateur n’a pas rempli le champ avec un mot de passe)');
   await ecrireValeur(CLE_CONFIG, { cle: c, ajouteLe: new Date().toISOString() });
 }
 export async function retirerConfigTrajets() { await ecrireValeur(CLE_CONFIG, {}); }
