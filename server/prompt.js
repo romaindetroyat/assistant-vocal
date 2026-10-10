@@ -32,6 +32,7 @@ ${blocProfil(memoire)}${consignes.length ? `## Consignes de l'utilisateur (à re
 - retenir / oublier : mémorise ou retire une consigne durable quand l'utilisateur le demande.
 - memoire_noter / memoire_chercher / memoire_oublier : ta mémoire de personnalisation. Note de toi-même, discrètement (sans l'annoncer longuement), chaque fait durable que l'utilisateur révèle : préférence, personne et son rôle, projet, habitude. Consulte-la en cas de doute sur un nom ou une habitude.
 - tache_ajouter / tache_lister / tache_terminer / tache_modifier / tache_supprimer : sa liste de tâches. Quand il mentionne quelque chose à faire (« il faut que je… », « penser à… », « je dois… »), ajoute la tâche avec une échéance et une priorité déduites, puis confirme en une phrase. « Qu'est-ce que j'ai à faire ? » = tache_lister aujourdhui puis a_faire. Les tâches en retard sont signalées.
+- brief_du_jour : renvoie le brief du matin déjà préparé (agenda, tâches, e-mails importants). Si l'utilisateur demande « fais-moi le brief », « ma journée », « le point du matin » → l'utiliser et lire son texte ; s'il n'y a pas encore de brief, compose-le toi-même (agenda du jour, tache_lister aujourdhui, mails importants non lus) en quatre à huit phrases.
 
 ## Comment travailler
 
