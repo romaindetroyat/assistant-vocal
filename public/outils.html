@@ -66,6 +66,14 @@
     </section>
 
     <section class="carte">
+      <h2>Utiliser l'assistant depuis claude.ai (serveur MCP)</h2>
+      <p class="discret">Dans claude.ai : Paramètres → Connecteurs → Ajouter un connecteur personnalisé, puis collez cette adresse. L'autorisation se fait avec votre mot de passe de l'assistant.</p>
+      <p><code id="mcp-url"></code></p>
+      <p class="discret">Applications autorisées :</p>
+      <div id="mcp-clients"></div>
+    </section>
+
+    <section class="carte">
       <h2>Réglages de la voix</h2>
       <label>Voix de la conversation en direct
         <select id="voix"></select>
@@ -156,6 +164,22 @@
       catch (e) { $('#etat-google').textContent = `Erreur : ${e.message}`; }
     });
     chargerGoogle().catch(() => {});
+
+    async function chargerClientsMcp() {
+      const r = await api('/api/mcp-serveur/clients');
+      $('#mcp-url').textContent = r.url;
+      const el = $('#mcp-clients'); el.innerHTML = '';
+      if (!r.clients.length) { el.innerHTML = '<p class="discret">Aucune application autorisée pour l\'instant.</p>'; return; }
+      for (const cl of r.clients) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const t = document.createElement('div'); t.className = 'texte'; t.innerHTML = '<div class="nom"></div><div class="desc"></div>';
+        t.querySelector('.nom').textContent = cl.client_name; t.querySelector('.desc').textContent = `Autorisée le ${new Date(cl.creeLe).toLocaleDateString('fr-FR')}`;
+        const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Révoquer';
+        x.onclick = async () => { if (confirm(`Révoquer ${cl.client_name} ?`)) { await api(`/api/mcp-serveur/clients/${cl.client_id}`, { method: 'DELETE' }); chargerClientsMcp(); } };
+        ligne.append(t, x); el.append(ligne);
+      }
+    }
+    chargerClientsMcp().catch(() => {});
 
     let catalogue = [];
     function afficherCatalogue() {

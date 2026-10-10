@@ -52,6 +52,8 @@ ui.formLogin.addEventListener('submit', async (e) => {
   try {
     await api('/api/login', { method: 'POST', body: JSON.stringify({ password: ui.motDePasse.value }) });
     ui.motDePasse.value = '';
+    const suite = new URLSearchParams(location.search).get('next');
+    if (suite && suite.startsWith('/') && !suite.startsWith('//')) { location.href = suite; return; }
     await demarrer();
   } catch (err) { ui.loginErreur.textContent = err.message; }
 });

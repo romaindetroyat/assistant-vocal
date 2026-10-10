@@ -14,6 +14,8 @@ import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './vo
 import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
 import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
+import * as as from './oauth-server.js';
+import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -226,6 +228,68 @@ export function creerApplication({ client, serveurs = [], fichier }) {
     if (endpoint) await store.retirerAbonnement(endpoint);
     return c.json({ ok: true });
   });
+
+  // ======== L'assistant exposé en serveur MCP (claude.ai, Claude Code…) ========
+  const origine = (c) => new URL(c.req.url).origin;
+  app.get('/.well-known/oauth-authorization-server', (c) => c.json(as.metadonnees(origine(c))));
+  app.get('/.well-known/oauth-authorization-server/*', (c) => c.json(as.metadonnees(origine(c))));
+  app.get('/.well-known/oauth-protected-resource', (c) => c.json(as.metadonneesRessource(origine(c))));
+  app.get('/.well-known/oauth-protected-resource/*', (c) => c.json(as.metadonneesRessource(origine(c))));
+  app.options('/.well-known/*', (c) => c.body(null, 204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }));
+  app.post('/oauth/register', async (c) => {
+    try { const client = await as.inscrireClient(await c.req.json().catch(() => ({}))); await as.indexerClient({ client_id: client.client_id, client_name: client.client_name }); return c.json(client, 201); }
+    catch (e) { return c.json({ error: e.code || 'invalid_client_metadata', error_description: e.message }, 400); }
+  });
+  app.get('/oauth/authorize', async (c) => {
+    const q = Object.fromEntries(new URL(c.req.url).searchParams);
+    let client;
+    try { client = await as.validerAutorisation(q); } catch (e) { return c.text(`Demande d'autorisation invalide : ${e.message}`, 400); }
+    if (!estConnecte(c)) return c.redirect(`/login?next=${encodeURIComponent(new URL(c.req.url).pathname + new URL(c.req.url).search)}`);
+    const champs = ['client_id', 'redirect_uri', 'code_challenge', 'state', 'scope'].map((k) => `<input type="hidden" name="${k}" value="${(q[k] || '').replace(/"/g, '&quot;')}">`).join('');
+    const nom = client.client_name.replace(/[<>&]/g, '');
+    return c.html(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Autoriser ${nom}</title><link rel="stylesheet" href="/styles.css"><style>body{overflow:auto}main{max-width:480px;margin:0 auto;padding:40px var(--gouttiere);display:flex;flex-direction:column;gap:14px}</style></head><body><main>
+      <img src="/icons/icon.svg" alt="" width="56" height="56"><h1 style="margin:0">Autoriser « ${nom} » ?</h1>
+      <p>Cette application pourra utiliser votre assistant : lire et envoyer vos e-mails, vous notifier, programmer des rappels et lui confier des demandes. Vous pourrez retirer cet accès à tout moment dans « Mes outils ».</p>
+      <form method="post" action="/oauth/authorize">${champs}<button class="btn btn-primaire" name="decision" value="oui">Autoriser</button> <button class="btn btn-secondaire" name="decision" value="non">Refuser</button></form>
+    </main></body></html>`);
+  });
+  app.post('/oauth/authorize', async (c) => {
+    if (!estConnecte(c)) return c.redirect('/login');
+    const f = Object.fromEntries((await c.req.formData()).entries());
+    let client;
+    try { client = await as.validerAutorisation({ ...f, response_type: 'code', code_challenge_method: 'S256' }); } catch (e) { return c.text(`Demande invalide : ${e.message}`, 400); }
+    const retour = new URL(f.redirect_uri);
+    if (f.state) retour.searchParams.set('state', f.state);
+    if (f.decision !== 'oui') { retour.searchParams.set('error', 'access_denied'); return c.redirect(retour.toString()); }
+    retour.searchParams.set('code', await as.emettreCode({ client_id: client.client_id, redirect_uri: f.redirect_uri, code_challenge: f.code_challenge, scope: f.scope }));
+    return c.redirect(retour.toString());
+  });
+  app.post('/oauth/token', async (c) => {
+    const type = c.req.header('content-type') || '';
+    const params = type.includes('json') ? new URLSearchParams(await c.req.json().catch(() => ({}))) : new URLSearchParams(await c.req.text());
+    try { return c.json(await as.echangerJeton(params, c.req.header('authorization')), 200, { 'Cache-Control': 'no-store' }); }
+    catch (e) { return c.json({ error: e.code || 'invalid_request', error_description: e.message }, e.code === 'invalid_client' ? 401 : 400); }
+  });
+  app.post('/oauth/revoke', async (c) => { const p = new URLSearchParams(await c.req.text()); await as.revoquer(p.get('token')); return c.body(null, 200); });
+
+  const nonAutorise = (c) => c.json({ jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Non autorisé' } }, 401, { 'WWW-Authenticate': `Bearer resource_metadata="${origine(c)}/.well-known/oauth-protected-resource/mcp"` });
+  app.options('/mcp', (c) => c.body(null, 204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS' }));
+  app.get('/mcp', async (c) => ((await as.verifierAcces(c.req.header('authorization'))) ? c.body(null, 405) : nonAutorise(c)));
+  app.delete('/mcp', (c) => c.body(null, 204));
+  app.post('/mcp', async (c) => {
+    if (!(await as.verifierAcces(c.req.header('authorization')))) return nonAutorise(c);
+    const corps = await c.req.json().catch(() => null);
+    if (!corps) return c.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'JSON invalide' } }, 400);
+    const contexte = { client: leClient, serveurs: lesServeurs };
+    const messages = Array.isArray(corps) ? corps : [corps];
+    const reponses = (await Promise.all(messages.map((m) => traiterRequeteJsonRpc(m, contexte)))).filter(Boolean);
+    const entetes = { 'MCP-Protocol-Version': VERSION_PROTOCOLE };
+    if (!reponses.length) return c.body(null, 202, entetes);
+    return c.json(Array.isArray(corps) ? reponses : reponses[0], 200, entetes);
+  });
+  // Gestion des clients autorisés (depuis l'application)
+  app.get('/api/mcp-serveur/clients', async (c) => c.json({ url: `${origine(c)}/mcp`, clients: await as.listerClients() }));
+  app.delete('/api/mcp-serveur/clients/:id', async (c) => { await as.supprimerClient(c.req.param('id')); return c.json({ ok: true }); });
 
   // Retour OAuth automatique (quand le serveur MCP autorise l'adresse du Worker). Le state identifie le serveur.
   app.get('/oauth/callback', async (c) => {

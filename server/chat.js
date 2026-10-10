@@ -76,6 +76,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
     }
 
     const reponse = await stream.finalMessage();
+    if (!texteIteration) { const t = texteDe(reponse.content); if (t) { texteIteration = t; yield { type: 'text', text: t }; } } // sécurité : texte final sans delta streamé
     conversation.messages.push({ role: 'assistant', content: nettoyerPourHistorique(reponse.content) });
     texteFinal += texteIteration;
 
