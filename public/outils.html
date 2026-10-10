@@ -508,10 +508,17 @@
       $('#trajets-position').checked = Boolean(t.partagerPosition);
     }
     chargerTrajets().catch(() => {});
-    $('#btn-trajets-cle').addEventListener('click', async () => {
-      try { await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ cle: $('#trajets-cle').value.trim() }) }); $('#etat-trajets-cle').textContent = 'Clé enregistrée ✓'; chargerTrajets(); }
+    async function enregistrerCleTrajets() {
+      const cle = $('#trajets-cle').value.trim();
+      if (!cle) { $('#etat-trajets-cle').textContent = 'Collez d’abord la clé dans le champ.'; return; }
+      $('#etat-trajets-cle').textContent = 'Enregistrement…';
+      try { await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ cle }) }); $('#etat-trajets-cle').textContent = 'Clé enregistrée ✓'; chargerTrajets(); }
       catch (e) { $('#etat-trajets-cle').textContent = `Erreur : ${e.message}`; }
-    });
+    }
+    // La clé s'enregistre au clic, à la touche Entrée et dès qu'on quitte le champ (collage puis navigation).
+    $('#btn-trajets-cle').addEventListener('click', enregistrerCleTrajets);
+    $('#trajets-cle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enregistrerCleTrajets(); } });
+    $('#trajets-cle').addEventListener('change', () => { if ($('#trajets-cle').value.trim()) enregistrerCleTrajets(); });
     async function enregistrerTrajets() {
       try {
         const t = await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ domicile: $('#trajets-domicile').value, bureau: $('#trajets-bureau').value, partagerPosition: $('#trajets-position').checked }) });
