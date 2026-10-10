@@ -177,3 +177,63 @@ test('position jointe à /api/chat et /api/voice/ask : consigne « Position actu
   assert.ok(!client.requetes[2].messages.some((m) => m.role === 'system'), 'sans position : pas de consigne');
   assert.equal(definirPositionCourante(undefined), null);
 });
+
+// ---------- Brief enrichi et rappels de départ ----------
+import { genererBrief } from '../server/brief.js';
+import { programmerDeparts, extraireRendezVous } from '../server/scheduler.js';
+import { listerRappels, sauverRappels, lireValeur } from '../server/store.js';
+
+test('brief : la consigne demande les heures de départ seulement quand une clé Routes est configurée', async () => {
+  const serveurs = [{ name: 'agenda-hub', url: 'https://x.invalid/agenda', description: 'Agenda unifié', authorization_token: 'jeton' }];
+  await enregistrerConfigTrajets({ cle: CLE });
+  let client = clientSimule([reponseTexte('Brief avec trajets.')]);
+  await genererBrief({ client, serveurs });
+  assert.match(client.requetes[0].messages.at(-1).content, /trajet_calculer depuis le domicile .*arriveeA/);
+  await retirerConfigTrajets();
+  client = clientSimule([reponseTexte('Brief sans trajets.')]);
+  await genererBrief({ client, serveurs });
+  assert.ok(!client.requetes[0].messages.at(-1).content.includes('trajet_calculer'));
+});
+
+test('programmerDeparts : un rappel « Partez pour … » par rendez-vous avec adresse, une fois par jour, sans doublon', async () => {
+  process.env.VAPID_PUBLIC_KEY = 'pub-test'; process.env.VAPID_PRIVATE_KEY = 'priv-test';
+  await sauverRappels([]); await ecrireValeur('departs-du-jour', {}); await modifierReglages({ domicile: DOMICILE }); definirPositionCourante(null);
+  const serveurs = [{ name: 'agenda-hub', url: 'https://x.invalid/agenda', description: 'Agenda unifié', authorization_token: 'jeton' }];
+  const maintenant = new Date('2026-10-10T08:00:00Z'); // 10 h à Paris
+  const rdv = JSON.stringify([
+    { id: 'evt-dentiste', titre: 'Dentiste', debut: '2026-10-10T14:00:00+02:00', adresse: '5 avenue Vauban, Toulon' },
+    { id: 'evt-passe', titre: 'Réunion passée', debut: '2026-10-10T09:00:00+02:00', adresse: 'Marseille' },
+    { id: 'evt-sans-adresse', titre: 'Visio', debut: '2026-10-10T16:00:00+02:00', adresse: '' },
+    { id: 'evt-trop-proche', titre: 'Café', debut: '2026-10-10T10:20:00+02:00', adresse: 'Place Puget, Toulon' },
+  ]);
+  const journal = []; const f = routesSimule(journal);
+  assert.deepEqual(extraireRendezVous('Voici la liste : ' + rdv).map((e) => e.id), ['evt-dentiste', 'evt-passe', 'evt-trop-proche']);
+  assert.deepEqual(extraireRendezVous('pas de json'), []);
+
+  await retirerConfigTrajets();
+  assert.equal(await programmerDeparts({ client: clientSimule([reponseTexte(rdv)]), serveurs, maintenant, fetchImpl: f }), 0, 'sans clé Routes : rien');
+  await enregistrerConfigTrajets({ cle: CLE });
+  assert.equal(await programmerDeparts({ client: clientSimule([reponseTexte(rdv)]), serveurs: [], maintenant, fetchImpl: f }), 0, 'sans agenda : rien');
+  assert.equal(await programmerDeparts({ client: clientSimule([reponseTexte(rdv)]), serveurs, maintenant: new Date('2026-10-10T03:00:00Z'), fetchImpl: f }), 0, 'avant 7 h : rien');
+  assert.equal(await listerRappels().then((r) => r.length), 0);
+
+  const client = clientSimule([reponseTexte(rdv)]);
+  assert.equal(await programmerDeparts({ client, serveurs, maintenant, fetchImpl: f }), 1, 'un seul rendez-vous futur avec adresse et départ à venir');
+  assert.match(client.requetes[0].messages.at(-1).content, /agenda-hub/);
+  assert.match(client.requetes[0].messages.at(-1).content, /tableau JSON/);
+  const rappels = await listerRappels();
+  assert.equal(rappels.length, 1);
+  assert.equal(rappels[0].titre, 'Partez pour Dentiste');
+  assert.equal(rappels[0].quand, '2026-10-10T11:10:00.000Z', '14 h − 45 min de trafic − 5 min de marge');
+  assert.match(rappels[0].corps, /^45 min de trajet pour arriver à 14 h 00 \(5 avenue Vauban, Toulon\)\. Plans : https:\/\/maps\.apple\.com\//);
+  assert.equal(journal.filter((j) => j.corps.destination.address === 'Place Puget, Toulon').length, 2, 'le café a été calculé puis écarté (départ déjà passé)');
+  const etat = await lireValeur('departs-du-jour');
+  assert.equal(etat.jour, '2026-10-10'); assert.deepEqual(Object.keys(etat.programmes), ['evt-dentiste']);
+
+  assert.equal(await programmerDeparts({ client: clientSimule([reponseTexte(rdv)]), serveurs, maintenant: new Date('2026-10-10T09:00:00Z'), fetchImpl: f }), 0, 'déjà fait aujourd\'hui');
+  await ecrireValeur('departs-du-jour', { ...etat, fait: false });
+  assert.equal(await programmerDeparts({ client: clientSimule([reponseTexte(rdv)]), serveurs, maintenant, fetchImpl: f }), 0, 'relance forcée : pas de doublon par événement');
+  assert.equal((await listerRappels()).length, 1);
+  await sauverRappels([]); await ecrireValeur('reglages', {}); await retirerConfigTrajets();
+  delete process.env.VAPID_PUBLIC_KEY; delete process.env.VAPID_PRIVATE_KEY;
+});
