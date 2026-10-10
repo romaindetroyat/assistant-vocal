@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v3 « Mobilité iPhone » livrée (phases 16 à 19) le 2026-10-10 ; tests réels iPhone à faire par Romain
-- Last action: fusion des phases 16, 18, 19 (worktrees parallèles), cache SW v21 — 2026-10-10
+- Last action: cinq tâches rapides post-v3 (anti-bruit vocal, iPhone en mode voiture, latence ÷2 et coût ÷18, suivi de consommation), cache SW v28 — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 77 (`npm test`)
+- Tests : 79 (`npm test`)
 
 ## Decisions Log
 
@@ -36,8 +36,9 @@
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
 - Décision : Opus 5.5 conservé partout, suivi de consommation dans Mes outils pour juger sur pièces
-- Romain : coller la clé Routes (Mes outils › Trajets), créer un jeton d'appareil et les raccourcis iOS (partage, Siri, voiture), tester en voiture
+- Clé Routes collée et trajets vérifiés ✓ ; reste à Romain : jeton d'appareil + raccourcis iOS (partage, Siri), test en voiture
 - Retours d'usage → corrections en `/gsd-quick` ; prochaine version à définir d'après l'usage
 - Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone
-- iPhone = cible principale : vérifier la veille « écoute locale » (app ouverte à l'écran) et le vocal 🎙️ désormais actif
+- iPhone = cible principale : s'ouvre en mode voiture ; vérifier la veille « écoute locale » et le filtre anti-bruit en conditions réelles
+- Lire la section « Consommation Claude » dans 3-4 jours ; si trop cher, basculer la voix et Siri sur Haiku 5.5 (tâche rapide)
 - Toute nouvelle demande passe par une phase GSD (voir CLAUDE.md), y compris via `demander_developpement`
