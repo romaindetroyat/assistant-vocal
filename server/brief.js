@@ -1,4 +1,4 @@
-// Brief du matin : agenda du jour, tâches, e-mails importants, courses — un seul push à 8 h, et à la demande.
+// Brief du matin : météo, agenda du jour, tâches, e-mails importants, courses — un seul push à 8 h, et à la demande.
 import { config } from './config.js';
 import { lireValeur, ecrireValeur } from './store.js';
 import { resumeDuJour } from './taches.js';
@@ -27,6 +27,7 @@ export function tronquer(texte, max = LONGUEUR_PUSH) {
 function consigneBrief({ serveurs, comptesGmail, trajets = false }) {
   const agenda = serveurs.find((s) => /agenda|calendar|calendrier/i.test(`${s.name} ${s.description || ''}`));
   const etapes = [
+    "Appelle l'outil meteo (lieu vide, quand = aujourdhui) : le brief commence par une phrase météo du jour (ciel, températures, pluie, conseil).",
     agenda
       ? `Lis obligatoirement l'agenda du jour avec les outils du serveur « ${agenda.name} » (rendez-vous d'aujourd'hui, heures et lieux).`
       : "Aucun serveur d'agenda n'est connecté : ne cherche pas d'agenda, signale-le en quelques mots.",
@@ -37,7 +38,7 @@ function consigneBrief({ serveurs, comptesGmail, trajets = false }) {
     "Si des listes de courses sont disponibles (outils courses_*) et que c'est utile aujourd'hui, mentionne-les en une phrase, sinon ignore-les.",
     ...(trajets ? ["Pour chaque rendez-vous ayant une adresse, appelle trajet_calculer depuis le domicile (origine vide) avec arriveeA = heure de début du rendez-vous, et indique l'heure de départ conseillée dans le brief (sans recopier les liens)."] : []),
   ];
-  return `Tu prépares le brief du matin de l'utilisateur ; il sera lu à voix haute ou affiché en notification. Étapes obligatoires : ${etapes.map((e, i) => `${i + 1}) ${e}`).join(' ')} Ensuite rédige le brief : un texte lisible en vingt secondes, quatre à huit phrases maximum, sans aucune mise en forme (ni titre, ni liste, ni gras), qui commence par la date du jour en toutes lettres. Donne les faits (heures, noms, objets), pas de commentaires. N'utilise pas l'outil brief_du_jour.`;
+  return `Tu prépares le brief du matin de l'utilisateur ; il sera lu à voix haute ou affiché en notification. Étapes obligatoires : ${etapes.map((e, i) => `${i + 1}) ${e}`).join(' ')} Ensuite rédige le brief : un texte lisible en vingt secondes, quatre à huit phrases maximum, sans aucune mise en forme (ni titre, ni liste, ni gras), qui commence par la date du jour en toutes lettres puis une phrase météo du jour tirée de l'outil meteo. Donne les faits (heures, noms, objets), pas de commentaires. N'utilise pas l'outil brief_du_jour.`;
 }
 
 // Tour Claude éphémère (conversation non sauvegardée) avec une consigne : utilisé par le brief et les rappels de départ.
