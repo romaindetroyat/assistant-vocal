@@ -18,6 +18,7 @@ import * as as from './oauth-server.js';
 import * as bring from './bring.js';
 import { lireConsignes, remplacerConsignes } from './consignes.js';
 import { lireMemoire, remplacerMemoire } from './memoire.js';
+import { consoliderMemoire, lireJournalMemoire } from './memoire-consolidation.js';
 import * as taches from './taches.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
@@ -193,6 +194,9 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   // --- Mémoire de personnalisation ---
   app.get('/api/memoire', async (c) => c.json(await lireMemoire()));
   app.put('/api/memoire', async (c) => { const { entrees } = await c.req.json().catch(() => ({})); await remplacerMemoire(Array.isArray(entrees) ? entrees.filter((e) => e?.texte) : []); return c.json(await lireMemoire()); });
+  // Consolidation à la demande (fusion des doublons, obsolescence) : renvoie l'entrée de journal, ou null si trop peu d'entrées.
+  app.post('/api/memoire/consolider', async (c) => { try { return c.json(await consoliderMemoire({ client: leClient() })); } catch (e) { return c.json({ erreur: e.message }, 500); } });
+  app.get('/api/memoire/journal', async (c) => c.json(await lireJournalMemoire()));
 
   // --- Tâches ---
   app.get('/api/taches', async (c) => c.json(await taches.listerTaches({ filtre: c.req.query('filtre') || 'a_faire', projet: c.req.query('projet') || '' })));
