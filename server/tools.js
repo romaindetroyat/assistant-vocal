@@ -11,6 +11,7 @@ import { definitionsOutilsTaches, nomsOutilsTaches, executerOutilTaches } from '
 import { definitionOutilBrief, executerOutilBrief } from './brief.js';
 import { definitionsOutilsTrajets, nomsOutilsTrajets, executerOutilTrajets } from './trajets.js';
 import { definitionOutilMeteo, executerOutilMeteo } from './meteo.js';
+import { definitionOutilLieux, executerOutilLieux } from './lieux.js';
 
 export const definitionsOutilsLocaux = [
   {
@@ -61,7 +62,7 @@ export const definitionsOutilsLocaux = [
   },
 ];
 
-export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, ...nomsOutilsTrajets, definitionOutilMeteo.name, definitionOutilBrief.name, definitionOutilDev.name]);
+export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, ...nomsOutilsTrajets, definitionOutilMeteo.name, definitionOutilLieux.name, definitionOutilBrief.name, definitionOutilDev.name]);
 
 // Mode strict désactivé partout : l'API compile une grammaire pour l'ensemble des outils, recompilée à chaque
 // changement de jeu d'outils (serveur MCP activé, outil différé chargé…), ce qui coûtait 20 à 30 s de latence.
@@ -80,7 +81,7 @@ const differer = (outils) => outils.map((t) => (DIFFERES.has(t.name) ? { ...t, d
 export async function outilsLocauxDisponibles() {
   const comptes = await listerComptes().catch(() => []);
   const bring = await bringDisponible().catch(() => false);
-  return differer(limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsTrajets, definitionOutilMeteo, definitionOutilBrief, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]));
+  return differer(limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsTrajets, definitionOutilMeteo, definitionOutilLieux, definitionOutilBrief, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]));
 }
 
 function texte(s, max) {
@@ -97,6 +98,7 @@ export async function executerOutilLocal(nom, entree) {
   if (nom === definitionOutilBrief.name) return executerOutilBrief();
   if (nomsOutilsTrajets.has(nom)) return executerOutilTrajets(nom, entree);
   if (nom === definitionOutilMeteo.name) return executerOutilMeteo(entree);
+  if (nom === definitionOutilLieux.name) return executerOutilLieux(entree);
   switch (nom) {
     case 'notify_me': {
       const titre = texte(entree.title, 60);

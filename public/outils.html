@@ -258,7 +258,7 @@
     </section>
     <section class="carte">
       <h2>Trajets (Google Routes)</h2>
-      <p class="discret">Temps de trajet avec le trafic, heure de départ conseillée, liens Plans et Google Maps. Il faut une clé Google Maps Platform restreinte à l'API Routes (console.cloud.google.com → API Routes activée → Identifiants → Clé API).</p>
+      <p class="discret">Temps de trajet avec le trafic, heure de départ conseillée, liens Plans et Google Maps, et recherche de bonnes adresses (restaurants, commerces, médecins…). Il faut une clé Google Maps Platform avec les API <strong>Routes</strong> et <strong>Places API (New)</strong> activées (console.cloud.google.com → Bibliothèque → activer les deux → Identifiants → Clé API, restreinte à ces deux API).</p>
       <label>Clé API Routes <input id="trajets-cle" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="AIza…"></label>
       <div class="actions"><button id="btn-trajets-cle" class="btn btn-secondaire btn-petit">Enregistrer la clé</button><span id="etat-trajets-cle" class="discret"></span></div>
       <label>Adresse du domicile <input id="trajets-domicile" type="text" maxlength="200" autocomplete="street-address" placeholder="12 rue …, 83000 Toulon"></label>
