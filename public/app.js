@@ -779,8 +779,14 @@ let surchargeDelaiInactivite = null; // lu par `delaiInactivite` de l'appel (nul
 const voiture = { actif: false, wakeLock: null, sauvegarde: null, observateur: null, premierTap: false };
 const uiVoiture = { ecran: $('#ecran-voiture'), etat: $('#voiture-etat'), bouton: $('#btn-voiture'), reponse: $('#voiture-reponse'), quitter: $('#btn-quitter-voiture'), menu: $('#btn-mode-voiture') };
 
+// Sur iPhone (réglage « iphoneVoiture », actif par défaut), l'app s'ouvre toujours en mode voiture, sauf si l'on vient
+// de le quitter volontairement (bouton « Quitter ») : on retrouve alors l'interface complète jusqu'au prochain lancement.
+const estIphone = /iP(hone|od)/.test(navigator.userAgent);
 function activerModeVoitureDepuisUrl() {
-  if (new URLSearchParams(location.search).get('mode') === 'voiture') activerModeVoiture({ geste: false });
+  const parametres = new URLSearchParams(location.search);
+  if (parametres.get('mode') === 'voiture') { activerModeVoiture({ geste: false }); return; }
+  if (parametres.get('mode') === 'complet') return;
+  if (estIphone && etat.reglages.iphoneVoiture !== false && sessionStorage.getItem('voitureQuitte') !== '1') activerModeVoiture({ geste: false });
 }
 
 function activerModeVoiture({ geste = false } = {}) {
@@ -804,6 +810,7 @@ function activerModeVoiture({ geste = false } = {}) {
 function quitterModeVoiture() {
   if (!voiture.actif) return;
   voiture.actif = false;
+  try { sessionStorage.setItem('voitureQuitte', '1'); } catch { /* ignoré */ }
   surchargeDelaiInactivite = null;
   const s = voiture.sauvegarde || {}; voiture.sauvegarde = null;
   etat.reglages.mainsLibres = Boolean(s.mainsLibres); etat.voix = Boolean(s.voix); // réglages d'origine restaurés avant la fin de l'appel

@@ -246,6 +246,7 @@
       <p id="etat-reglages" class="discret">Appliqué au prochain appel 📞.</p>
       <h3 style="margin:14px 0 6px;font-size:14px">Mode voiture 🚗</h3>
       <p class="discret">Un seul gros bouton, conversation permanente avec reprise mains libres, réponses très courtes, rappels et notifications lus à voix haute, écran sombre maintenu allumé. Ces réglages ne sont forcés que pendant le mode voiture.</p>
+      <label class="case"><input id="iphone-voiture" type="checkbox"> Sur iPhone, ouvrir directement en mode voiture (le bouton « Quitter » rend l'interface complète jusqu'au prochain lancement)</label>
       <label class="case"><input id="voiture-auto-appel" type="checkbox"> Mode voiture : lancer la conversation au premier tap (sinon, seul le bouton « Parler » la lance)</label>
       <p class="discret"><a id="lien-voiture" href="/app?mode=voiture">Ajouter le mode voiture à l'écran d'accueil</a> — sur iPhone : ouvrez ce lien dans Safari, touchez <strong>Partager</strong> puis <strong>Sur l'écran d'accueil</strong> et nommez l'icône « Voiture ». Le raccourci Siri « Dis Siri, mode voiture » (section Appareils et raccourcis) peut ouvrir la même adresse : <code id="url-voiture"></code>. La luminosité de l'écran n'est pas pilotable par le web : réglez-la dans iOS.</p>
     </section>
@@ -534,7 +535,14 @@
       $('#voix').value = r.voix; $('#concision').value = r.concision;
       $('#mains-libres').checked = Boolean(r.mainsLibres); $('#mot-activation').value = r.motActivation || 'assistant';
       $('#voiture-auto-appel').checked = r.voitureAutoAppel !== false;
+      $('#iphone-voiture').checked = r.iphoneVoiture !== false;
     }).catch(() => {});
+    $('#iphone-voiture').addEventListener('change', async () => {
+      try {
+        const r = await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ iphoneVoiture: $('#iphone-voiture').checked }) });
+        $('#etat-reglages').textContent = r.iphoneVoiture ? 'Enregistré ✓ Sur iPhone, l’app s’ouvre en mode voiture.' : 'Enregistré ✓ Sur iPhone, l’app s’ouvre sur l’interface complète.';
+      } catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }
+    });
     $('#url-voiture').textContent = `${location.origin}/app?mode=voiture`;
     $('#voiture-auto-appel').addEventListener('change', async () => {
       try {

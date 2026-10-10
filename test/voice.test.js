@@ -166,6 +166,12 @@ test('réglage voitureAutoAppel : vrai par défaut, booléen exigé, modifiable 
   assert.equal(r.voitureAutoAppel, false);
   assert.equal((await (await app.request('/api/reglages', { headers: { cookie } })).json()).voitureAutoAppel, false);
   await modifierReglages({ voitureAutoAppel: true });
+  // iphoneVoiture : l'app s'ouvre en mode voiture sur iPhone, vrai par défaut, booléen exigé.
+  assert.equal((await lireReglages()).iphoneVoiture, true);
+  await assert.rejects(() => modifierReglages({ iphoneVoiture: 'oui' }), /booléen/);
+  const r2 = await (await app.request('/api/reglages', { method: 'PUT', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ iphoneVoiture: false }) })).json();
+  assert.equal(r2.iphoneVoiture, false);
+  await modifierReglages({ iphoneVoiture: true });
 });
 
 test('aperçu de voix : généré une fois puis servi depuis le cache', async () => {
