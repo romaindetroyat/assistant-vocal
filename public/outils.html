@@ -114,6 +114,17 @@
     </section>
 
     <section class="carte">
+      <h2>Trajets (Google Routes)</h2>
+      <p class="discret">Temps de trajet avec le trafic, heure de départ conseillée, liens Plans et Google Maps. Il faut une clé Google Maps Platform restreinte à l'API Routes (console.cloud.google.com → API Routes activée → Identifiants → Clé API).</p>
+      <label>Clé API Routes <input id="trajets-cle" autocomplete="off" type="password" placeholder="AIza…"></label>
+      <div class="actions"><button id="btn-trajets-cle" class="btn btn-secondaire btn-petit">Enregistrer la clé</button><span id="etat-trajets-cle" class="discret"></span></div>
+      <label>Adresse du domicile <input id="trajets-domicile" type="text" maxlength="200" autocomplete="street-address" placeholder="12 rue …, 83000 Toulon"></label>
+      <label>Adresse du bureau <input id="trajets-bureau" type="text" maxlength="200" autocomplete="off" placeholder="facultatif"></label>
+      <label class="case"><input id="trajets-position" type="checkbox"> Partager ma position : l'application joint votre position GPS à chaque message pour les trajets « depuis ici »</label>
+      <p id="etat-trajets" class="discret"></p>
+    </section>
+
+    <section class="carte">
       <h2>Réglages de la voix</h2>
       <label>Voix de la conversation en direct
         <select id="voix"></select>
@@ -337,6 +348,26 @@
     }
     api('/api/catalogue').then((liste) => { catalogue = liste; afficherCatalogue(); }).catch(() => {});
     $('#filtre').addEventListener('input', afficherCatalogue);
+
+    // --- Trajets ---
+    async function chargerTrajets() {
+      const t = await api('/api/trajets/config');
+      $('#trajets-cle').value = ''; $('#trajets-cle').placeholder = t.configure ? `${t.cle} (enregistrée${t.source === 'env' ? ' en secret' : ''})` : 'AIza…';
+      $('#trajets-domicile').value = t.domicile || ''; $('#trajets-bureau').value = t.bureau || '';
+      $('#trajets-position').checked = Boolean(t.partagerPosition);
+    }
+    chargerTrajets().catch(() => {});
+    $('#btn-trajets-cle').addEventListener('click', async () => {
+      try { await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ cle: $('#trajets-cle').value.trim() }) }); $('#etat-trajets-cle').textContent = 'Clé enregistrée ✓'; chargerTrajets(); }
+      catch (e) { $('#etat-trajets-cle').textContent = `Erreur : ${e.message}`; }
+    });
+    async function enregistrerTrajets() {
+      try {
+        const t = await api('/api/trajets/config', { method: 'PUT', body: JSON.stringify({ domicile: $('#trajets-domicile').value, bureau: $('#trajets-bureau').value, partagerPosition: $('#trajets-position').checked }) });
+        $('#etat-trajets').textContent = t.partagerPosition ? 'Enregistré ✓ Le navigateur demandera l’accès à la position au prochain message.' : 'Enregistré ✓';
+      } catch (e) { $('#etat-trajets').textContent = `Erreur : ${e.message}`; }
+    }
+    for (const id of ['#trajets-domicile', '#trajets-bureau', '#trajets-position']) $(id).addEventListener('change', enregistrerTrajets);
 
     const NOMS_VOIX = { marin: 'Marin (féminine, naturelle)', cedar: 'Cedar (masculine, naturelle)', alloy: 'Alloy', ash: 'Ash', ballad: 'Ballad', coral: 'Coral', echo: 'Echo', sage: 'Sage', shimmer: 'Shimmer', verse: 'Verse' };
     api('/api/reglages').then((r) => {
