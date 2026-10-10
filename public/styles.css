@@ -109,6 +109,12 @@ button { font: inherit; color: inherit; }
 .app { grid-template-rows: auto auto 1fr auto; }
 #btn-appel[aria-pressed="true"] { background: var(--ok); color: #0b1020; }
 
+/* Mains libres : veille à mot d'activation (phase 15) */
+.bandeau-veille { display: flex; align-items: center; gap: 8px; padding: 4px 4px 8px; font-size: 13px; color: var(--texte-2); }
+.bandeau-veille span:nth-child(2) { flex: 1; }
+.bandeau-veille .btn { padding: 4px 10px; font-size: 13px; }
+.point-veille { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: clignote 2s infinite; flex: 0 0 auto; }
+
 /* Compaction : messages système et résumé de l'historique */
 .msg.systeme { align-self: center; background: transparent; color: var(--texte-2); font-size: 13px; padding: 2px 10px; }
 .resume-historique { align-self: stretch; max-width: 720px; margin: 0 auto; width: 100%; font-size: 14px; color: var(--texte-2); background: var(--fond-2); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 8px 12px; }
