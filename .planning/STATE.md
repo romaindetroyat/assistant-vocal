@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v3 « Mobilité iPhone » planifiée (phases 16 trajets, 17 partage, 18 raccourcis Siri, 19 mode voiture) ; aucune commencée
-- Last action: planification v3 (ROADMAP, REQUIREMENTS, quatre PLAN.md) — 2026-10-10
+- Milestone: v3 « Mobilité iPhone » livrée (phases 16 à 19) le 2026-10-10 ; tests réels iPhone à faire par Romain
+- Last action: fusion des phases 16, 18, 19 (worktrees parallèles), cache SW v21 — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 57 (`npm test`)
+- Tests : 77 (`npm test`)
 
 ## Decisions Log
 
@@ -35,7 +35,8 @@
 ## Next
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
-- Lancer `/gsd-execute-phase 16` (trajets) dès que la clé Google Maps est saisie ; 17 et 18 peuvent s'enchaîner sans prérequis ; 19 après 18
+- Romain : coller la clé Routes (Mes outils › Trajets), créer un jeton d'appareil et les raccourcis iOS (partage, Siri, voiture), tester en voiture
+- Retours d'usage → corrections en `/gsd-quick` ; prochaine version à définir d'après l'usage
 - Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone
 - iPhone = cible principale : vérifier la veille « écoute locale » (app ouverte à l'écran) et le vocal 🎙️ désormais actif
 - Toute nouvelle demande passe par une phase GSD (voir CLAUDE.md), y compris via `demander_developpement`

@@ -56,24 +56,24 @@
 ## v3 Requirements — Mobilité iPhone (planifiées)
 
 ### Trajets (TRA)
-- **TRA-01** Durée de trajet avec trafic et itinéraire (voiture, transports, marche, vélo) via Google Routes, lien Plans / Google Maps
-- **TRA-02** Adresses domicile et bureau, position actuelle partagée sur demande
-- **TRA-03** Heure de départ des rendez-vous dans le brief du matin et rappel push « Partez maintenant »
+- [x] **TRA-01** Durée de trajet avec trafic et itinéraire (voiture, transports, marche, vélo) via Google Routes, lien Plans / Google Maps
+- [x] **TRA-02** Adresses domicile et bureau, position actuelle partagée sur demande
+- [x] **TRA-03** Heure de départ des rendez-vous dans le brief du matin et rappel push « Partez maintenant »
 
 ### Partage (PAR)
-- **PAR-01** Jetons d'appareil (création, révocation, hachage) pour les appels depuis Raccourcis iOS
-- **PAR-02** `POST /api/partage` : texte, URL, image + consigne → action de l'assistant, réponse + push
-- **PAR-03** Web Share Target (Android, ordinateur) et guide du raccourci iOS de partage
+- [x] **PAR-01** Jetons d'appareil (création, révocation, hachage) pour les appels depuis Raccourcis iOS
+- [x] **PAR-02** `POST /api/partage` : texte, URL, image + consigne → action de l'assistant, réponse + push
+- [x] **PAR-03** Web Share Target (Android, ordinateur) et guide du raccourci iOS de partage
 
 ### Raccourcis Siri (SIRI)
-- **SIRI-01** `POST /api/raccourci` : question dictée → réponse courte énoncée par Siri (< 15 s, repli push)
-- **SIRI-02** Liens profonds `/app?action=appel|brief`, `/app?dire=…`, `/app?mode=voiture`
-- **SIRI-03** Guides pas à pas des raccourcis dans « Mes outils »
+- [x] **SIRI-01** `POST /api/raccourci` : question dictée → réponse courte énoncée par Siri (< 15 s, repli push)
+- [x] **SIRI-02** Liens profonds `/app?action=appel|brief`, `/app?dire=…`, `/app?mode=voiture`
+- [x] **SIRI-03** Guides pas à pas des raccourcis dans « Mes outils »
 
 ### Mode voiture (VOI)
-- **VOI-01** Affichage voiture : un bouton, grandes lettres, sombre, écran maintenu allumé
-- **VOI-02** Conversation permanente avec reprise mains libres, concision renforcée, contexte « conducteur »
-- **VOI-03** Rappels et notifications lus à voix haute pendant le mode voiture
+- [x] **VOI-01** Affichage voiture : un bouton, grandes lettres, sombre, écran maintenu allumé
+- [x] **VOI-02** Conversation permanente avec reprise mains libres, concision renforcée, contexte « conducteur »
+- [x] **VOI-03** Rappels et notifications lus à voix haute pendant le mode voiture
 
 ## Out of Scope
 
@@ -106,10 +106,10 @@
 | PER-04 | 14 | Validated |
 | IN-07, ORC-09 | 15 | Validated |
 | INT-06 | backlog | Pending |
-| TRA-01..03 | 16 | Planned |
-| PAR-01..03 | 17 | Planned |
-| SIRI-01..03 | 18 | Planned |
-| VOI-01..03 | 19 | Planned |
+| TRA-01..03 | 16 | Validated (tests) |
+| PAR-01..03 | 17 | Validated (tests) |
+| SIRI-01..03 | 18 | Validated (tests) |
+| VOI-01..03 | 19 | Validated (tests) |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*
