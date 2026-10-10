@@ -80,10 +80,43 @@ async function demarrer() {
     ui.btnMicro.disabled = true; ui.btnMicro.title = 'Dictée non disponible dans ce navigateur : écrivez ou enregistrez un vocal';
   }
   await chargerListe();
+  const params = new URLSearchParams(location.search);
+  const existe = (id) => id && [...ui.liste.querySelectorAll('li')].some((li) => li.dataset.id === id);
+  const demandee = params.get('conversation'); // lien d'une notification (« Partage traité »)
   const dernier = localStorage.getItem('conversationId');
-  const existe = dernier && [...ui.liste.querySelectorAll('li')].some((li) => li.dataset.id === dernier);
-  await ouvrirConversation(existe ? dernier : null);
+  await ouvrirConversation(existe(demandee) ? demandee : existe(dernier) ? dernier : null);
+  if (demandee) history.replaceState(null, '', '/app');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(verifierAbonnementPush).catch(() => {});
+  if (params.get('partage') === '1') await recevoirPartage();
+}
+
+// ---------- Partage reçu via le menu « Partager » (share_target, voir sw.js) ----------
+const TITRE_PARTAGES = 'Partages';
+const CONSIGNE_PARTAGE = "Fais ce qui est le plus utile : résumé en trois phrases ; si une date ou un rendez-vous apparaît, propose de le créer ; si c'est une chose à faire, ajoute la tâche.";
+async function recevoirPartage() {
+  history.replaceState(null, '', '/app');
+  if (!('caches' in window)) return;
+  let form = null;
+  try {
+    const cache = await caches.open('partage');
+    const r = await cache.match('/partage/attente');
+    if (r) { form = await r.formData(); await cache.delete('/partage/attente'); }
+  } catch { form = null; }
+  if (!form) return;
+  const texte = [form.get('title'), form.get('text')].map((v) => String(v || '').trim()).filter(Boolean).join('\n');
+  const url = String(form.get('url') || '').trim();
+  const fichiers = form.getAll('fichiers').filter((f) => f instanceof File && f.type.startsWith('image/'));
+  if (!texte && !url && !fichiers.length) return;
+  // Même conversation « Partages » que le raccourci iPhone, si elle existe déjà.
+  const partages = [...ui.liste.querySelectorAll('li')].find((li) => li.querySelector('button')?.textContent === TITRE_PARTAGES);
+  if (partages && partages.dataset.id !== etat.conversationId) await ouvrirConversation(partages.dataset.id);
+  for (const f of fichiers) await ajouterImage(f).catch(() => {});
+  const lignes = ["Contenu partagé depuis l'iPhone."];
+  if (url) lignes.push(`URL : ${url}`);
+  if (texte) lignes.push(`Texte : ${texte}`);
+  lignes.push(`Consigne : ${CONSIGNE_PARTAGE}`);
+  ui.saisie.value = lignes.join('\n'); redimensionnerSaisie();
+  await envoyer();
 }
 
 // ---------- Outils (serveurs MCP) ----------

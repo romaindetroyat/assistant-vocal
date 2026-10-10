@@ -1,5 +1,7 @@
 // Service worker : app shell en cache, réseau pour l'API, notifications push.
-const CACHE = 'assistant-v17';
+const CACHE = 'assistant-v18';
+const CACHE_PARTAGE = 'partage';
+const CLE_PARTAGE = '/partage/attente';
 const SHELL = ['/app', '/login', '/styles.css', '/app.js', '/conversation.js', '/taches.html', '/outils.html', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -12,8 +14,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Menu « Partager » (Android, ordinateur) : le formulaire est mis de côté dans le Cache API, puis l'app l'envoie comme un message.
+async function recevoirPartage(request) {
+  const form = await request.formData();
+  const cache = await caches.open(CACHE_PARTAGE);
+  await cache.put(CLE_PARTAGE, new Response(form));
+  return Response.redirect('/app?partage=1', 303);
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+  if (event.request.method === 'POST' && url.pathname === '/partage') { event.respondWith(recevoirPartage(event.request)); return; }
   if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
   // Réseau d'abord, cache en secours (l'app reste ouvrable hors ligne).
   event.respondWith(
