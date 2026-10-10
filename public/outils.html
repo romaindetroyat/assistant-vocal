@@ -87,6 +87,13 @@
     </section>
 
     <section class="carte">
+      <h2>Brief du matin</h2>
+      <p class="discret">Envoyé en notification chaque jour à 8 h : agenda, tâches, e-mails importants. Dites aussi « fais-moi le brief » à l'assistant.</p>
+      <p id="brief-texte" style="margin:0;white-space:pre-wrap"></p>
+      <div class="actions"><button id="btn-brief" class="btn btn-secondaire btn-petit">Générer maintenant</button><span id="etat-brief" class="discret"></span></div>
+    </section>
+
+    <section class="carte">
       <h2>Consignes personnelles</h2>
       <p class="discret">Une consigne par ligne. L'assistant les respecte en priorité. Vous pouvez aussi lui dire « retiens que… » ou « oublie… ».</p>
       <textarea id="consignes" rows="6" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--bordure);background:var(--fond);color:var(--texte);font:inherit;font-size:14px" placeholder="Quand je parle de liste de courses, il s'agit de Bring!"></textarea>
@@ -198,6 +205,19 @@
       catch (e) { $('#etat-google').textContent = `Erreur : ${e.message}`; }
     });
     chargerGoogle().catch(() => {});
+
+    function afficherBrief(b) {
+      if (!b || !b.texte) { $('#brief-texte').textContent = 'Aucun brief pour l\'instant.'; $('#etat-brief').textContent = ''; return; }
+      $('#brief-texte').textContent = b.texte;
+      $('#etat-brief').textContent = b.genereLe ? `Généré le ${new Date(b.genereLe).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' })}` : '';
+    }
+    api('/api/brief').then(afficherBrief).catch(() => {});
+    $('#btn-brief').addEventListener('click', async () => {
+      $('#btn-brief').disabled = true; $('#etat-brief').textContent = 'Génération en cours (quelques dizaines de secondes)…';
+      try { afficherBrief(await api('/api/brief', { method: 'POST' })); }
+      catch (e) { $('#etat-brief').textContent = `Erreur : ${e.message}`; }
+      finally { $('#btn-brief').disabled = false; }
+    });
 
     async function chargerClientsMcp() {
       const r = await api('/api/mcp-serveur/clients');
