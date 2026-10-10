@@ -30,6 +30,9 @@
     details summary { cursor: pointer; font-weight: 600; }
     .guide { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.45; }
     .guide ul { padding-left: 18px; margin: 4px 0; }
+    .raccourci { border: 1px solid var(--bordure); border-radius: 10px; padding: 10px 12px; background: var(--fond); }
+    .raccourci summary { font-size: 14px; }
+    .raccourci code { overflow-wrap: anywhere; }
     .pied-version { margin: 0; text-align: center; font-size: 12px; opacity: 0.8; overflow-wrap: anywhere; }
   </style>
 </head>
@@ -133,6 +136,56 @@
           <li>Testez : dans Safari, Partager → <strong>Partager avec l'assistant</strong> → répondez à « Que faire ? » (ou laissez vide). Siri lit la réponse et une notification « Partage traité » ouvre la conversation « Partages ».</li>
         </ol>
         <p class="discret">En cas d'erreur 401, le jeton est faux ou révoqué ; 415 : image HEIC non convertie ; 413 : image de plus de 8 Mo.</p>
+      </details>
+
+      <h3 style="margin:10px 0 0;font-size:15px">Raccourcis Siri</h3>
+      <p class="discret">Quatre raccourcis à créer dans l'app <strong>Raccourcis</strong>. Le nom du raccourci est la phrase à dire à Siri (« Dis Siri, demande à l'assistant »). Adresse de l'assistant : <code class="hote-raccourci"></code>. Créez d'abord un jeton ci-dessus : il est injecté dans les exemples.</p>
+      <details class="raccourci">
+        <summary>« Demande à l'assistant » — question dictée, réponse énoncée écran verrouillé</summary>
+        <p class="discret">Siri énonce la réponse sans ouvrir l'app. Le fil est gardé 30 minutes (conversation « Siri ») : vous pouvez enchaîner « et demain ? ». Si l'assistant a besoin de plus de 20 s, Siri dit « Je continue… » et la réponse arrive en notification.</p>
+        <ol class="guide">
+          <li>Nouveau raccourci, nommez-le <strong>Demande à l'assistant</strong> (c'est la phrase Siri).</li>
+          <li>Ajoutez <strong>Dicter le texte</strong> (langue : français ; arrêt : « après une pause »).</li>
+          <li>Ajoutez <strong>Obtenir le contenu de l'URL</strong> :
+            <ul>
+              <li>URL : <code class="url-raccourci"></code></li>
+              <li>Méthode : <strong>POST</strong></li>
+              <li>En-têtes : <code>Authorization</code> = <code>Bearer <span class="jeton-exemple">&lt;votre jeton&gt;</span></code></li>
+              <li>Corps de la requête : <strong>JSON</strong>, champ <code>texte</code> (Texte) = <em>Texte dicté</em>. Facultatif : champ <code>position</code> (Dictionnaire) avec <code>lat</code> et <code>lng</code> issus de l'action <strong>Obtenir la position actuelle</strong>.</li>
+            </ul>
+          </li>
+          <li>Ajoutez <strong>Obtenir la valeur du dictionnaire</strong> : clé <code>texte</code> dans <em>Contenu de l'URL</em>.</li>
+          <li>Ajoutez <strong>Énoncer le texte</strong> avec la <em>Valeur du dictionnaire</em> (option « Attendre la fin »).</li>
+          <li>Dans <strong>Détails</strong> (ⓘ), vous pouvez l'ajouter à l'écran d'accueil. Testez : « Dis Siri, demande à l'assistant » → dictez votre question.</li>
+        </ol>
+        <div class="actions" style="flex-wrap:wrap">
+          <button id="btn-tester-raccourci" class="btn btn-secondaire btn-petit" type="button">Tester (« Dis bonjour en trois mots »)</button>
+          <span id="resultat-raccourci" class="discret"></span>
+        </div>
+      </details>
+      <details class="raccourci">
+        <summary>« Appelle l'assistant » — conversation vocale en direct</summary>
+        <ol class="guide">
+          <li>Nouveau raccourci nommé <strong>Appelle l'assistant</strong>.</li>
+          <li>Ajoutez <strong>Ouvrir l'URL</strong> : <code class="url-app" data-suffixe="?action=appel"></code></li>
+          <li>L'app s'ouvre sur un écran « Appuyez pour parler » : un tap (obligatoire sur iOS pour le micro) lance la conversation vocale.</li>
+        </ol>
+      </details>
+      <details class="raccourci">
+        <summary>« Mon brief » — le brief du jour dans la conversation</summary>
+        <ol class="guide">
+          <li>Nouveau raccourci nommé <strong>Mon brief</strong>.</li>
+          <li>Ajoutez <strong>Ouvrir l'URL</strong> : <code class="url-app" data-suffixe="?action=brief"></code></li>
+          <li>L'app envoie « Fais-moi le brief du jour » ; activez 🔈 pour l'entendre. Variante : <code class="url-app" data-suffixe="?dire=Quelle%20heure%20est-il"></code> envoie n'importe quel texte.</li>
+        </ol>
+      </details>
+      <details class="raccourci">
+        <summary>« Mode voiture » — disponible après la phase 19</summary>
+        <ol class="guide">
+          <li>Nouveau raccourci nommé <strong>Mode voiture</strong>.</li>
+          <li>Ajoutez <strong>Ouvrir l'URL</strong> : <code class="url-app" data-suffixe="?mode=voiture"></code></li>
+          <li>Conversation permanente, tout lu à voix haute, écran maintenu allumé : <em>disponible après la phase 19</em> (pour l'instant l'app s'ouvre normalement).</li>
+        </ol>
       </details>
     </section>
 
@@ -309,6 +362,17 @@
     // --- Appareils et raccourcis (jetons d'appareil) ---
     $('#hote-partage').textContent = location.origin;
     for (const el of document.querySelectorAll('.url-partage')) el.textContent = `${location.origin}/api/partage`;
+    for (const el of document.querySelectorAll('.hote-raccourci')) el.textContent = location.origin;
+    for (const el of document.querySelectorAll('.url-raccourci')) el.textContent = `${location.origin}/api/raccourci`;
+    for (const el of document.querySelectorAll('.url-app')) el.textContent = `${location.origin}/app${el.dataset.suffixe || ''}`;
+    $('#btn-tester-raccourci').addEventListener('click', async () => {
+      const out = $('#resultat-raccourci'); out.textContent = 'Réflexion…'; $('#btn-tester-raccourci').disabled = true;
+      try {
+        const r = await api('/api/raccourci', { method: 'POST', body: JSON.stringify({ texte: 'Dis bonjour en trois mots' }) });
+        out.textContent = `Réponse : ${r.texte}${r.enAttente ? ' (suite en notification)' : ''}`;
+      } catch (err) { out.textContent = `Erreur : ${err.message}`; }
+      finally { $('#btn-tester-raccourci').disabled = false; }
+    });
     const dateCourte = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : 'jamais');
     async function chargerJetons() {
       const liste = await api('/api/jetons');

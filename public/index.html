@@ -82,6 +82,15 @@
     </footer>
   </section>
 
+  <!-- Lien profond /app?action=appel (raccourci Siri) : un tap lance la conversation vocale -->
+  <div id="ecran-tap" class="ecran-tap" hidden>
+    <button id="btn-tap" class="btn-tap" type="button" aria-label="Appuyez pour parler">
+      <span class="btn-tap-icone" aria-hidden="true">🎙️</span>
+      <span>Appuyez pour parler</span>
+    </button>
+    <button id="btn-tap-annuler" class="btn btn-secondaire" type="button">Annuler</button>
+  </div>
+
   <script src="/app.js" type="module"></script>
 </body>
 </html>

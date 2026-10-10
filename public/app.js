@@ -7,6 +7,7 @@ const ui = {
   tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'), listeOutils: $('#liste-outils'),
   btnMicro: $('#btn-micro'), btnVocal: $('#btn-vocal'), btnEnvoyer: $('#btn-envoyer'), btnVoix: $('#btn-voix'),
   btnMainsLibres: $('#btn-mains-libres'), btnNotifs: $('#btn-notifs'), btnAppel: $('#btn-appel'), bandeauAppel: $('#bandeau-appel'), appelEtat: $('#appel-etat'),
+  ecranTap: $('#ecran-tap'), btnTap: $('#btn-tap'), btnTapAnnuler: $('#btn-tap-annuler'),
   bandeauVeille: $('#bandeau-veille'), veilleEtat: $('#veille-etat'), btnQuitterVeille: $('#btn-quitter-veille'),
 };
 
@@ -111,13 +112,41 @@ async function demarrer() {
   await chargerListe();
   const params = new URLSearchParams(location.search);
   const existe = (id) => id && [...ui.liste.querySelectorAll('li')].some((li) => li.dataset.id === id);
-  const demandee = params.get('conversation'); // lien d'une notification (« Partage traité »)
+  const demandee = params.get('conversation'); // lien d'une notification (« Partage traité », « Réponse de l'assistant »)
+  const lien = lireLienProfond(params); // raccourcis Siri : ?action=appel|brief, ?dire=<texte>
   const dernier = localStorage.getItem('conversationId');
   await ouvrirConversation(existe(demandee) ? demandee : existe(dernier) ? dernier : null);
-  if (demandee) history.replaceState(null, '', '/app');
+  if (demandee || lien) history.replaceState(null, '', '/app');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(verifierAbonnementPush).catch(() => {});
   if (params.get('partage') === '1') await recevoirPartage();
+  if (lien) await suivreLienProfond(lien);
 }
+
+// ---------- Liens profonds (raccourcis Siri « Ouvrir l'URL », signets) ----------
+// /app?action=appel → écran « Appuyez pour parler » (un geste reste obligatoire pour le micro sur iOS) ;
+// /app?action=brief → demande le brief du jour ; /app?dire=<texte> → envoie ce texte.
+// mode=voiture : phase 19 (paramètre volontairement non intercepté ici).
+function lireLienProfond(params) {
+  const action = (params.get('action') || '').trim().toLowerCase();
+  const dire = (params.get('dire') || '').trim().slice(0, 2000);
+  if (action === 'appel' || action === 'brief') return { action };
+  if (dire) return { action: 'dire', texte: dire };
+  return null;
+}
+async function suivreLienProfond(lien) {
+  if (lien.action === 'appel') {
+    if (!etat.moi.voix) { setEtat('Conversation vocale non configurée sur le serveur'); return; }
+    if (appel.actif) return;
+    ui.ecranTap.hidden = false;
+    return;
+  }
+  if (etat.envoiEnCours) return;
+  ui.saisie.value = lien.action === 'brief' ? 'Fais-moi le brief du jour' : lien.texte;
+  redimensionnerSaisie();
+  await envoyer();
+}
+ui.btnTap.addEventListener('click', () => { ui.ecranTap.hidden = true; demarrerAppel(); });
+ui.btnTapAnnuler.addEventListener('click', () => { ui.ecranTap.hidden = true; });
 
 // ---------- Partage reçu via le menu « Partager » (share_target, voir sw.js) ----------
 const TITRE_PARTAGES = 'Partages';

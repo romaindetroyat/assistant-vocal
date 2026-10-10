@@ -35,6 +35,20 @@ button { font: inherit; color: inherit; }
 .carte-login label { text-align: left; color: var(--texte-2); font-size: 14px; }
 .carte-login input { padding: 12px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--fond-2); color: var(--texte); font-size: 16px; }
 
+/* Écran « Appuyez pour parler » (lien profond ?action=appel) */
+.ecran-tap {
+  position: fixed; inset: 0; z-index: 50; background: var(--fond); display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 28px; padding: calc(24px + env(safe-area-inset-top)) var(--gouttiere) calc(24px + env(safe-area-inset-bottom));
+}
+.btn-tap {
+  border: 0; cursor: pointer; width: min(80vw, 320px); aspect-ratio: 1; border-radius: 50%; background: var(--accent); color: var(--accent-texte);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 22px; font-weight: 600;
+  box-shadow: 0 0 0 16px color-mix(in srgb, var(--accent) 22%, transparent); animation: pulse-tap 1.8s ease-in-out infinite;
+}
+.btn-tap:active { transform: scale(0.97); }
+.btn-tap-icone { font-size: 64px; line-height: 1; }
+@keyframes pulse-tap { 0%, 100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 22%, transparent); } 50% { box-shadow: 0 0 0 28px color-mix(in srgb, var(--accent) 10%, transparent); } }
+
 /* Application */
 .app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; height: 100dvh; }
 .barre {
