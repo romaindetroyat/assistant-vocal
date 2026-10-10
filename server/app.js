@@ -292,6 +292,41 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     }
   });
 
+  // Diagnostic de latence (session requise) : mesure le délai avant le premier événement selon les outils envoyés.
+  app.post('/api/diag/latence', async (c) => {
+    const { parametresMcp } = await import('./mcp.js');
+    const { outilsLocauxDisponibles } = await import('./tools.js');
+    const { prets } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
+    const { mcp_servers, tools: toolsMcp } = parametresMcp(prets);
+    const locaux = await outilsLocauxDisponibles();
+    const web = { type: 'web_search_20260209', name: 'web_search', max_uses: 3 };
+    const recherche = { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' };
+    const variantes = {
+      complet: { tools: [recherche, ...locaux, ...toolsMcp, web], mcp_servers },
+      sans_mcp: { tools: [recherche, ...locaux, web] },
+      sans_mcp_sans_web: { tools: [recherche, ...locaux] },
+      locaux_seuls: { tools: locaux.map((t) => ({ ...t, defer_loading: undefined })) },
+      sans_outils: { tools: [] },
+      sans_fallback: { tools: [recherche, ...locaux, ...toolsMcp, web], mcp_servers, fallbacks: null },
+    };
+    const resultats = {};
+    for (const [nom, v] of Object.entries(variantes)) {
+      const debut = Date.now(); let premier = 0;
+      try {
+        const stream = leClient().beta.messages.stream({
+          model: config.model, max_tokens: 200, betas: ['mcp-client-2025-11-20', 'server-side-fallback-2026-07-01'],
+          ...(v.fallbacks === null ? {} : { fallbacks: 'default' }), thinking: { type: 'adaptive' }, output_config: { effort: 'low' },
+          system: 'Réponds en trois mots.', tools: v.tools, ...(v.mcp_servers?.length ? { mcp_servers: v.mcp_servers } : {}),
+          messages: [{ role: 'user', content: `Dis bonjour (${nom}).` }],
+        });
+        for await (const ev of stream) { if (!premier) premier = Date.now() - debut; }
+        const m = await stream.finalMessage();
+        resultats[nom] = { premierMs: premier, totalMs: Date.now() - debut, entree: m.usage?.input_tokens, cache: m.usage?.cache_read_input_tokens, creation: m.usage?.cache_creation_input_tokens };
+      } catch (e) { resultats[nom] = { erreur: e.message.slice(0, 200), totalMs: Date.now() - debut }; }
+    }
+    return c.json(resultats);
+  });
+
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);
     const f = form?.get('file');
