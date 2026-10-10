@@ -301,14 +301,19 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     const locaux = await outilsLocauxDisponibles();
     const web = { type: 'web_search_20260209', name: 'web_search', max_uses: 3 };
     const recherche = { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' };
-    const variantes = {
+    const sansStrict = (l) => l.map((t) => (t.strict ? { ...t, strict: false } : t));
+    const demande = await c.req.json().catch(() => ({}));
+    const toutes = {
       complet: { tools: [recherche, ...locaux, ...toolsMcp, web], mcp_servers },
-      sans_mcp: { tools: [recherche, ...locaux, web] },
-      sans_mcp_sans_web: { tools: [recherche, ...locaux] },
-      locaux_seuls: { tools: locaux.map((t) => ({ ...t, defer_loading: undefined })) },
+      complet_bis: { tools: [recherche, ...locaux, ...toolsMcp, web], mcp_servers },
+      complet_sans_strict: { tools: [recherche, ...sansStrict(locaux), ...toolsMcp, web], mcp_servers },
+      complet_sans_strict_bis: { tools: [recherche, ...sansStrict(locaux), ...toolsMcp, web], mcp_servers },
+      locaux_seuls: { tools: locaux },
+      locaux_sans_strict: { tools: sansStrict(locaux) },
+      locaux_sans_strict_bis: { tools: sansStrict(locaux) },
       sans_outils: { tools: [] },
-      sans_fallback: { tools: [recherche, ...locaux, ...toolsMcp, web], mcp_servers, fallbacks: null },
     };
+    const variantes = Array.isArray(demande.variantes) ? Object.fromEntries(demande.variantes.filter((n) => toutes[n]).map((n) => [n, toutes[n]])) : toutes;
     const resultats = {};
     for (const [nom, v] of Object.entries(variantes)) {
       const debut = Date.now(); let premier = 0;
