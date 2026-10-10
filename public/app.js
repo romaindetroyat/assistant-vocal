@@ -49,8 +49,9 @@ function texteALire(texte) {
 function setEtat(texte) { ui.etat.textContent = texte || ''; ui.etat.hidden = !texte; }
 
 // ---------- Position (réglage « partager ma position ») ----------
-// Jointe aux messages et aux délégations vocales pour les trajets « depuis ici » ; cache de 5 min ; échec silencieux.
-const POSITION_CACHE_MS = 5 * 60_000;
+// Jointe aux messages et aux délégations vocales pour les trajets « depuis ici » ; cache de 60 min (phase 21 : la
+// position n'est demandée au navigateur qu'une fois par heure au plus) ; échec silencieux.
+const POSITION_CACHE_MS = 60 * 60_000;
 const position = { valeur: null, obtenueLe: 0, enCours: null };
 async function obtenirPosition() {
   if (!etat.reglages.partagerPosition || !navigator.geolocation) return null;
@@ -60,7 +61,7 @@ async function obtenirPosition() {
       navigator.geolocation.getCurrentPosition(
         (p) => { position.valeur = { lat: p.coords.latitude, lng: p.coords.longitude, precision: Math.round(p.coords.accuracy || 0) }; position.obtenueLe = Date.now(); resolve(position.valeur); },
         () => resolve(position.valeur), // refus ou échec : dernière position connue, sinon rien
-        { enableHighAccuracy: false, timeout: 4000, maximumAge: POSITION_CACHE_MS },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: POSITION_CACHE_MS },
       );
     }).finally(() => { position.enCours = null; });
   }
@@ -76,6 +77,29 @@ async function apiAvecPosition(chemin, options = {}) {
 }
 function defiler() { ui.messages.scrollTop = ui.messages.scrollHeight; }
 
+// ---------- Micro partagé (phase 21) ----------
+// Un seul flux `MediaStream` pour le vocal enregistré, la conversation en direct et la veille mains libres : demandé au
+// premier besoin, puis conservé (plus de nouvelle demande d'autorisation ni de délai d'ouverture). Il est fermé quand
+// l'onglet reste caché plus de MICRO_FERMETURE_MS (sauf appel ou enregistrement en cours) et à la déconnexion.
+// La dictée (SpeechRecognition) gère son propre micro : on ne lui passe rien.
+const MICRO_FERMETURE_MS = 2 * 60_000;
+const micro = { flux: null, minuteur: null };
+function microVivant() { return Boolean(micro.flux && micro.flux.getAudioTracks().some((t) => t.readyState === 'live')); }
+async function obtenirMicro() {
+  if (microVivant()) return micro.flux;
+  micro.flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  for (const piste of micro.flux.getTracks()) piste.addEventListener('ended', () => { if (micro.flux && !microVivant()) micro.flux = null; });
+  return micro.flux;
+}
+function fermerMicro() {
+  clearTimeout(micro.minuteur); micro.minuteur = null;
+  if (micro.flux) { micro.flux.getTracks().forEach((t) => t.stop()); micro.flux = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(micro.minuteur); micro.minuteur = null;
+  if (document.hidden) micro.minuteur = setTimeout(() => { micro.minuteur = null; if (document.hidden && !appel.actif && !etat.enregistreur) fermerMicro(); }, MICRO_FERMETURE_MS);
+});
+
 // ---------- Connexion ----------
 function afficherLogin() { ui.app.hidden = true; ui.login.hidden = false; setTimeout(() => ui.motDePasse.focus(), 50); }
 ui.formLogin.addEventListener('submit', async (e) => {
@@ -89,7 +113,7 @@ ui.formLogin.addEventListener('submit', async (e) => {
     await demarrer();
   } catch (err) { ui.loginErreur.textContent = err.message; }
 });
-$('#btn-logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); location.href = '/login'; });
+$('#btn-logout').addEventListener('click', async () => { fermerMicro(); await fetch('/api/logout', { method: 'POST' }); location.href = '/login'; });
 
 // ---------- Démarrage ----------
 async function demarrer() {
@@ -476,11 +500,10 @@ async function demarrerEnregistrement() {
   if (!etat.moi.transcription) { setEtat('Vocal indisponible : service de transcription non configuré. Utilisez la dictée 🎤.'); return; }
   arreterVeille();
   try {
-    const flux = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const flux = await obtenirMicro(); // micro partagé : conservé après l'enregistrement
     const rec = new MediaRecorder(flux); const morceaux = [];
     rec.ondataavailable = (e) => morceaux.push(e.data);
     rec.onstop = async () => {
-      flux.getTracks().forEach((t) => t.stop());
       ui.btnVocal.classList.remove('enregistre'); setEtat('Transcription…');
       const blob = new Blob(morceaux, { type: rec.mimeType || 'audio/webm' });
       const form = new FormData(); form.append('file', blob, 'vocal.webm');
@@ -559,22 +582,24 @@ const appel = creerConversationVocale({
     ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false');
     if (raison) setEtat(raison);
     chargerListe();
-    // Mains libres : après la fin de l'appel (automatique, erreur, coupure ou raccrochage), on repasse en veille
-    // en récupérant le micro de l'appel (pas de nouvelle demande de permission sur iPhone).
-    if (etat.reglages.mainsLibres) { veille.flux = appel.recupererFlux() || veille.flux; setTimeout(demarrerVeille, 600); }
-    else appel.recupererFlux()?.getTracks().forEach((t) => t.stop());
+    // Le micro de l'appel revient à l'app (micro partagé, pas de nouvelle demande de permission sur iPhone) ;
+    // mains libres : on repasse en veille.
+    micro.flux = appel.recupererFlux() || micro.flux;
+    if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
   },
   delaiInactivite: () => surchargeDelaiInactivite ?? (etat.reglages.mainsLibres ? INACTIVITE_APPEL_MS : 0), // mode voiture : 120 s
-  conserverFlux: () => Boolean(etat.reglages.mainsLibres),
+  conserverFlux: () => true, // le flux appartient à l'app (micro partagé), jamais fermé par l'appel
   contexte: () => (voiture.actif ? 'voiture' : ''),
 });
 async function demarrerAppel() {
   if (appel.actif) return;
-  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false }); arreterVeille({ garderFlux: true });
+  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false }); arreterVeille();
   if (etat.reglages.mainsLibres) preparerContexteAudio(); // geste utilisateur : débloque Web Audio pour la veille (Safari)
   ui.bandeauAppel.hidden = false; ui.btnAppel.setAttribute('aria-pressed', 'true');
+  let flux = null;
+  try { flux = await obtenirMicro(); } // micro partagé, demandé pendant le geste (iOS) puis conservé
+  catch (e) { ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false'); setEtat(`Micro refusé : ${e.message}`); return; }
   try {
-    const flux = veille.flux; veille.flux = null;
     const id = await appel.demarrer(etat.conversationId, { flux });
     if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
   } catch { /* état déjà affiché */ }
@@ -588,7 +613,7 @@ $('#btn-raccrocher').addEventListener('click', () => appel.arreter());
 //  - « reconnaissance » : SpeechRecognition continue du navigateur (Chrome ordinateur / Android) ;
 //  - « ecoute » : détection locale de voix (niveau sonore, Web Audio) + court extrait transcrit par le serveur
 //    (/api/transcribe). C'est le moteur de l'iPhone, où SpeechRecognition s'interrompt sans cesse, et le repli
-//    automatique des autres navigateurs après 5 échecs. Le micro de l'appel est conservé pour éviter une nouvelle demande.
+//    automatique des autres navigateurs après 5 échecs. Il utilise le micro partagé (`micro.flux`, voir plus haut).
 // Garde-fous : au plus un redémarrage par seconde, un extrait à la fois, 60 extraits par veille, veille suspendue
 // quand l'onglet est caché (batterie), jamais pendant un appel, une dictée ou un vocal.
 const veille = { actif: false, moteur: null, rec: null, dernierDemarrage: 0, echecs: 0, minuteur: null, suspendue: false,
@@ -630,7 +655,7 @@ function demarrerVeille() {
 }
 
 function declencher() {
-  arreterVeille({ garderFlux: true });
+  arreterVeille();
   setEtat(`« ${etat.reglages.motActivation || 'assistant'} » entendu : je vous appelle`);
   demarrerAppel();
 }
@@ -674,9 +699,7 @@ async function lancerEcouteLocale() {
   try {
     preparerContexteAudio();
     if (!veille.ctx) throw new Error('Web Audio indisponible');
-    if (!veille.flux || !veille.flux.getTracks().some((t) => t.readyState === 'live')) {
-      veille.flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-    }
+    veille.flux = await obtenirMicro(); // micro partagé (celui de l'appel précédent, le plus souvent)
     if (!veille.actif) return;
     const source = veille.ctx.createMediaStreamSource(veille.flux);
     const analyseur = veille.ctx.createAnalyser(); analyseur.fftSize = 1024; source.connect(analyseur);
@@ -739,7 +762,8 @@ async function transcrireExtrait(blob) {
 async function demanderWakeLock() {
   try { if (navigator.wakeLock && !veille.wakeLock) { veille.wakeLock = await navigator.wakeLock.request('screen'); veille.wakeLock.addEventListener('release', () => { veille.wakeLock = null; }); } } catch { /* refusé : l'écran pourra s'éteindre */ }
 }
-function arreterVeille({ garderFlux = false } = {}) {
+// Le micro partagé n'est jamais fermé ici (voir `fermerMicro`) : la veille ne fait que relâcher sa référence.
+function arreterVeille() {
   clearTimeout(veille.minuteur); veille.minuteur = null;
   clearInterval(veille.boucle); veille.boucle = null;
   ui.bandeauVeille.hidden = true;
@@ -748,13 +772,13 @@ function arreterVeille({ garderFlux = false } = {}) {
   if (veille.enregistreur) { const e = veille.enregistreur; veille.enregistreur = null; e.onstop = null; try { e.stop(); } catch { /* ignoré */ } }
   try { veille.analyseur?.disconnect(); } catch { /* ignoré */ }
   veille.analyseur = null; veille.debutParole = 0;
-  if (!garderFlux && veille.flux) { veille.flux.getTracks().forEach((t) => t.stop()); veille.flux = null; }
+  veille.flux = null;
   try { veille.wakeLock?.release(); } catch { /* ignoré */ } veille.wakeLock = null;
   veille.actif = false;
 }
 ui.btnQuitterVeille.addEventListener('click', () => { arreterVeille(); veille.suspendue = false; setEtat('Veille quittée'); });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { if (veille.actif) { arreterVeille({ garderFlux: true }); veille.suspendue = true; } }
+  if (document.hidden) { if (veille.actif) { arreterVeille(); veille.suspendue = true; } }
   else if (veille.suspendue && etat.reglages.mainsLibres) { veille.suspendue = false; demarrerVeille(); }
 });
 
