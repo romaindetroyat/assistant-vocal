@@ -1,8 +1,10 @@
 // Mode conversation : WebRTC vers GPT-Realtime (voix), délégation des demandes à Claude via /api/voice/ask.
 // Fiabilité : les états WebRTC « disconnected » sont tolérés quelques secondes, puis reconnexion automatique
 // (nouvelle session, même conversation) ; une réponse de Claude arrivée pendant une coupure est rejouée.
-// Mains libres : `delaiInactivite()` (ms, 0 = jamais) raccroche automatiquement après un silence sans parole ni réponse.
-export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0 }) {
+// Mains libres : `delaiInactivite()` (ms, 0 = jamais) raccroche automatiquement après un silence sans parole ni réponse ;
+// `conserverFlux()` (booléen) garde le micro ouvert à la fin de l'appel pour que la veille le réutilise sans nouvelle
+// permission (indispensable sur iPhone) ; `recupererFlux()` transfère ce flux à l'appelant, `demarrer(id, { flux })` le rend.
+export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false }) {
   let pc = null; let canal = null; let flux = null; let audioEl = null; let conversationId = null;
   let actif = false; let reconnexions = 0; let minuteurDeco = null; let minuteurInactivite = null;
   const enCours = new Set(); const resultatsEnAttente = [];
@@ -16,8 +18,9 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     minuteurInactivite = setTimeout(() => { if (actif && !enCours.size) arreter('Fin automatique après un silence'); }, delai);
   }
 
-  async function demarrer(idConversation) {
+  async function demarrer(idConversation, { flux: fluxFourni = null } = {}) {
     if (actif) return conversationId;
+    if (fluxFourni && fluxFourni.getTracks().some((t) => t.readyState === 'live')) flux = fluxFourni;
     actif = true; reconnexions = 0;
     conversationId = idConversation || null;
     try { await connecter(); return conversationId; }
@@ -125,11 +128,15 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     if (!actif) return;
     actif = false;
     fermerPc();
-    flux?.getTracks().forEach((t) => t.stop()); flux = null;
-    audioEl?.remove(); audioEl = null;
+    if (!conserverFlux()) { flux?.getTracks().forEach((t) => t.stop()); flux = null; }
+    // L'élément audio est conservé : « débloqué » par le premier appel (geste), il peut rejouer sans geste sur Safari (veille).
+    if (audioEl) audioEl.srcObject = null;
     resultatsEnAttente.length = 0;
     surFin(raison || null);
   }
 
-  return { demarrer, arreter, get actif() { return actif; }, get conversationId() { return conversationId; } };
+  // Transfère le micro conservé (ou null) : l'appelant en devient responsable.
+  function recupererFlux() { const f = flux; flux = null; return f; }
+
+  return { demarrer, arreter, recupererFlux, get actif() { return actif; }, get conversationId() { return conversationId; } };
 }

@@ -467,17 +467,22 @@ const appel = creerConversationVocale({
     ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false');
     if (raison) setEtat(raison);
     chargerListe();
-    // Mains libres : après la fin de l'appel (automatique, erreur, coupure ou raccrochage), on repasse en veille.
-    if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
+    // Mains libres : après la fin de l'appel (automatique, erreur, coupure ou raccrochage), on repasse en veille
+    // en récupérant le micro de l'appel (pas de nouvelle demande de permission sur iPhone).
+    if (etat.reglages.mainsLibres) { veille.flux = appel.recupererFlux() || veille.flux; setTimeout(demarrerVeille, 600); }
+    else appel.recupererFlux()?.getTracks().forEach((t) => t.stop());
   },
   delaiInactivite: () => (etat.reglages.mainsLibres ? INACTIVITE_APPEL_MS : 0),
+  conserverFlux: () => Boolean(etat.reglages.mainsLibres),
 });
 async function demarrerAppel() {
   if (appel.actif) return;
-  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false }); arreterVeille();
+  window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false }); arreterVeille({ garderFlux: true });
+  if (etat.reglages.mainsLibres) preparerContexteAudio(); // geste utilisateur : débloque Web Audio pour la veille (Safari)
   ui.bandeauAppel.hidden = false; ui.btnAppel.setAttribute('aria-pressed', 'true');
   try {
-    const id = await appel.demarrer(etat.conversationId);
+    const flux = veille.flux; veille.flux = null;
+    const id = await appel.demarrer(etat.conversationId, { flux });
     if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
   } catch { /* état déjà affiché */ }
 }
@@ -485,24 +490,59 @@ ui.btnAppel.addEventListener('click', () => { if (appel.actif) appel.arreter(); 
 $('#btn-raccrocher').addEventListener('click', () => appel.arreter());
 
 // ---------- Mains libres : veille à mot d'activation ----------
-// Après un appel, une reconnaissance vocale continue n'écoute que le mot d'activation et relance l'appel.
-// Anti-boucle : au plus un redémarrage par seconde, arrêt après 5 échecs consécutifs. Pas de veille pendant un
-// appel ou une dictée ; suspendue quand l'onglet est caché (batterie), reprise quand il redevient visible.
-const veille = { actif: false, rec: null, dernierDemarrage: 0, echecs: 0, minuteur: null, suspendue: false };
+// Après un appel, l'application reste en veille et relance l'appel quand elle entend le mot d'activation.
+// Deux moteurs :
+//  - « reconnaissance » : SpeechRecognition continue du navigateur (Chrome ordinateur / Android) ;
+//  - « ecoute » : détection locale de voix (niveau sonore, Web Audio) + court extrait transcrit par le serveur
+//    (/api/transcribe). C'est le moteur de l'iPhone, où SpeechRecognition s'interrompt sans cesse, et le repli
+//    automatique des autres navigateurs après 5 échecs. Le micro de l'appel est conservé pour éviter une nouvelle demande.
+// Garde-fous : au plus un redémarrage par seconde, un extrait à la fois, 60 extraits par veille, veille suspendue
+// quand l'onglet est caché (batterie), jamais pendant un appel, une dictée ou un vocal.
+const veille = { actif: false, moteur: null, rec: null, dernierDemarrage: 0, echecs: 0, minuteur: null, suspendue: false,
+  flux: null, ctx: null, analyseur: null, boucle: null, enregistreur: null, extraits: 0, transcriptionEnCours: false, wakeLock: null, debutParole: 0, dernierSon: 0, plancher: 0.01 };
+const EXTRAITS_MAX = 60; const EXTRAIT_MAX_MS = 3000; const SILENCE_FIN_MS = 700; const PAROLE_MIN_MS = 250;
 const normaliser = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 function motActivation() { return normaliser(etat.reglages.motActivation || 'assistant').trim() || 'assistant'; }
 function speechRecognitionDisponible() { return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition); }
+const estSafari = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Safari/.test(navigator.userAgent) && !/Chrom/.test(navigator.userAgent));
+// Le contexte audio doit être créé lors d'un geste de l'utilisateur (Safari) : on le prépare au clic d'appel.
+function preparerContexteAudio() {
+  try {
+    if (!veille.ctx) veille.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (veille.ctx.state === 'suspended') veille.ctx.resume().catch(() => {});
+  } catch { /* pas de Web Audio : le moteur « ecoute » sera indisponible */ }
+}
+function contientMot(texte) {
+  const t = normaliser(texte); const mot = motActivation();
+  if (t.includes(mot)) return true;
+  // Tolérance aux variantes de transcription (« assistante », « assistants ») : préfixe de 6 lettres minimum.
+  return mot.length >= 6 && t.split(/[^a-z0-9]+/).some((m) => m.startsWith(mot.slice(0, Math.max(6, mot.length - 2))));
+}
+function choisirMoteur() {
+  if (etat.moi?.transcription && (estSafari || !speechRecognitionDisponible())) return 'ecoute';
+  if (speechRecognitionDisponible()) return 'reconnaissance';
+  return etat.moi?.transcription ? 'ecoute' : null;
+}
 
 function demarrerVeille() {
   if (veille.actif || !etat.reglages.mainsLibres || appel.actif || dictee.actif || etat.enregistreur) return;
   if (document.hidden) { veille.suspendue = true; return; }
-  if (!speechRecognitionDisponible()) { setEtat('Mains libres non pris en charge par ce navigateur'); return; }
-  veille.actif = true; veille.suspendue = false; veille.echecs = 0;
+  const moteur = choisirMoteur();
+  if (!moteur) { setEtat('Mains libres non pris en charge par ce navigateur'); return; }
+  veille.actif = true; veille.suspendue = false; veille.echecs = 0; veille.extraits = 0; veille.moteur = moteur;
   ui.veilleEtat.textContent = `En veille · dites « ${etat.reglages.motActivation || 'assistant'} »`;
   ui.bandeauVeille.hidden = false;
-  lancerEcouteVeille();
+  demanderWakeLock();
+  if (moteur === 'ecoute') lancerEcouteLocale(); else lancerEcouteVeille();
 }
 
+function declencher() {
+  arreterVeille({ garderFlux: true });
+  setEtat(`« ${etat.reglages.motActivation || 'assistant'} » entendu : je vous appelle`);
+  demarrerAppel();
+}
+
+// Moteur « reconnaissance » (SpeechRecognition continue).
 function lancerEcouteVeille() {
   if (!veille.actif || veille.rec) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -512,11 +552,8 @@ function lancerEcouteVeille() {
   let erreur = null; let declenche = false;
   rec.onresult = (e) => {
     if (declenche) return;
-    const mot = motActivation();
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (normaliser(e.results[i][0]?.transcript).includes(mot)) { declenche = true; break; }
-    }
-    if (declenche) { arreterVeille(); setEtat(`« ${etat.reglages.motActivation || 'assistant' } » entendu : je vous appelle`); demarrerAppel(); }
+    for (let i = e.resultIndex; i < e.results.length; i++) if (contientMot(e.results[i][0]?.transcript)) { declenche = true; break; }
+    if (declenche) declencher();
   };
   rec.onerror = (e) => { erreur = e.error; };
   rec.onend = () => {
@@ -526,7 +563,10 @@ function lancerEcouteVeille() {
     // Échec = session morte en moins de 1,5 s ou sur erreur réseau/audio ; « no-speech » et « aborted » sont normaux.
     const echec = (erreur && erreur !== 'no-speech' && erreur !== 'aborted') || Date.now() - debut < 1500;
     veille.echecs = echec ? veille.echecs + 1 : 0;
-    if (veille.echecs >= 5) { arreterVeille(); setEtat('La reconnaissance vocale s\'interrompt sans cesse : veille mains libres arrêtée'); return; }
+    if (veille.echecs >= 5) {
+      if (etat.moi?.transcription) { veille.moteur = 'ecoute'; veille.echecs = 0; lancerEcouteLocale(); return; } // repli : écoute locale
+      arreterVeille(); setEtat('La reconnaissance vocale s\'interrompt sans cesse : veille mains libres arrêtée'); return;
+    }
     const attente = Math.max(250, 1000 - (Date.now() - veille.dernierDemarrage)); // au plus un redémarrage par seconde
     clearTimeout(veille.minuteur);
     veille.minuteur = setTimeout(() => { if (veille.actif && !veille.rec) { try { lancerEcouteVeille(); } catch (err) { arreterVeille(); setEtat(`Veille impossible : ${err.message}`); } } }, attente);
@@ -535,17 +575,93 @@ function lancerEcouteVeille() {
   try { rec.start(); } catch (e) { veille.rec = null; arreterVeille(); setEtat(`Veille impossible : ${e.message}`); }
 }
 
-function arreterVeille() {
+// Moteur « ecoute » : détection de voix locale puis transcription d'un court extrait.
+async function lancerEcouteLocale() {
+  if (!veille.actif || veille.boucle) return;
+  try {
+    preparerContexteAudio();
+    if (!veille.ctx) throw new Error('Web Audio indisponible');
+    if (!veille.flux || !veille.flux.getTracks().some((t) => t.readyState === 'live')) {
+      veille.flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    }
+    if (!veille.actif) return;
+    const source = veille.ctx.createMediaStreamSource(veille.flux);
+    const analyseur = veille.ctx.createAnalyser(); analyseur.fftSize = 1024; source.connect(analyseur);
+    veille.analyseur = analyseur; veille.debutParole = 0; veille.dernierSon = 0; veille.plancher = 0.01;
+    const tampon = new Float32Array(analyseur.fftSize);
+    ui.veilleEtat.textContent = `En veille (écoute locale) · dites « ${etat.reglages.motActivation || 'assistant'} »`;
+    veille.boucle = setInterval(() => mesurerNiveau(tampon), 60);
+  } catch (e) {
+    arreterVeille(); setEtat(`Veille impossible : ${e.message}`);
+  }
+}
+function mesurerNiveau(tampon) {
+  if (!veille.actif || !veille.analyseur) return;
+  veille.analyseur.getFloatTimeDomainData(tampon);
+  let somme = 0; for (let i = 0; i < tampon.length; i++) somme += tampon[i] * tampon[i];
+  const rms = Math.sqrt(somme / tampon.length);
+  const maintenant = Date.now();
+  // Plancher de bruit adaptatif : descend vite, remonte lentement ; la parole dépasse 3 × le plancher (et un minimum absolu).
+  veille.plancher = rms < veille.plancher ? rms : veille.plancher * 0.995 + rms * 0.005;
+  const parle = rms > Math.max(0.015, veille.plancher * 3);
+  if (parle) veille.dernierSon = maintenant;
+  if (veille.enregistreur) {
+    if (maintenant - veille.dernierSon > SILENCE_FIN_MS || maintenant - veille.debutParole > EXTRAIT_MAX_MS) terminerExtrait();
+    return;
+  }
+  if (parle) {
+    if (!veille.debutParole) veille.debutParole = maintenant;
+    else if (maintenant - veille.debutParole >= PAROLE_MIN_MS && !veille.transcriptionEnCours) commencerExtrait();
+  } else if (maintenant - veille.dernierSon > SILENCE_FIN_MS) veille.debutParole = 0;
+}
+function commencerExtrait() {
+  if (veille.extraits >= EXTRAITS_MAX) { arreterVeille(); setEtat('Veille arrêtée après une longue période sans activation (économie)'); return; }
+  const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || '';
+  let rec;
+  try { rec = new MediaRecorder(veille.flux, type ? { mimeType: type } : undefined); } catch (e) { arreterVeille(); setEtat(`Veille impossible : ${e.message}`); return; }
+  const morceaux = [];
+  rec.ondataavailable = (e) => { if (e.data?.size) morceaux.push(e.data); };
+  rec.onstop = () => { veille.enregistreur = null; veille.debutParole = 0; transcrireExtrait(new Blob(morceaux, { type: rec.mimeType || type || 'audio/webm' })); };
+  veille.enregistreur = rec; veille.extraits++;
+  try { rec.start(); } catch { veille.enregistreur = null; }
+}
+function terminerExtrait() {
+  const rec = veille.enregistreur; if (!rec) return;
+  try { if (rec.state !== 'inactive') rec.stop(); } catch { veille.enregistreur = null; }
+}
+async function transcrireExtrait(blob) {
+  if (!veille.actif || veille.transcriptionEnCours || blob.size < 1000) return;
+  veille.transcriptionEnCours = true;
+  try {
+    const ext = /mp4/.test(blob.type) ? 'mp4' : 'webm';
+    const form = new FormData(); form.append('file', blob, `veille.${ext}`); form.append('indice', etat.reglages.motActivation || 'assistant');
+    const r = await fetch('/api/transcribe', { method: 'POST', body: form });
+    const json = await r.json().catch(() => ({}));
+    if (r.status === 401) { arreterVeille(); afficherLogin(); return; }
+    if (r.ok && veille.actif && contientMot(json.text)) declencher();
+  } catch { /* extrait perdu : on continue d'écouter */ }
+  finally { veille.transcriptionEnCours = false; }
+}
+
+async function demanderWakeLock() {
+  try { if (navigator.wakeLock && !veille.wakeLock) { veille.wakeLock = await navigator.wakeLock.request('screen'); veille.wakeLock.addEventListener('release', () => { veille.wakeLock = null; }); } } catch { /* refusé : l'écran pourra s'éteindre */ }
+}
+function arreterVeille({ garderFlux = false } = {}) {
   clearTimeout(veille.minuteur); veille.minuteur = null;
+  clearInterval(veille.boucle); veille.boucle = null;
   ui.bandeauVeille.hidden = true;
-  if (!veille.actif) return;
-  veille.actif = false;
   const rec = veille.rec; veille.rec = null;
   if (rec) { rec.onend = null; rec.onresult = null; try { rec.abort(); } catch { /* ignoré */ } }
+  if (veille.enregistreur) { const e = veille.enregistreur; veille.enregistreur = null; e.onstop = null; try { e.stop(); } catch { /* ignoré */ } }
+  try { veille.analyseur?.disconnect(); } catch { /* ignoré */ }
+  veille.analyseur = null; veille.debutParole = 0;
+  if (!garderFlux && veille.flux) { veille.flux.getTracks().forEach((t) => t.stop()); veille.flux = null; }
+  try { veille.wakeLock?.release(); } catch { /* ignoré */ } veille.wakeLock = null;
+  veille.actif = false;
 }
 ui.btnQuitterVeille.addEventListener('click', () => { arreterVeille(); veille.suspendue = false; setEtat('Veille quittée'); });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { if (veille.actif) { arreterVeille(); veille.suspendue = true; } }
+  if (document.hidden) { if (veille.actif) { arreterVeille({ garderFlux: true }); veille.suspendue = true; } }
   else if (veille.suspendue && etat.reglages.mainsLibres) { veille.suspendue = false; demarrerVeille(); }
 });
 

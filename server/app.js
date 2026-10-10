@@ -220,7 +220,8 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     const form = await c.req.formData().catch(() => null);
     const f = form?.get('file');
     if (!(f instanceof File)) return c.json({ erreur: 'Fichier audio manquant' }, 400);
-    try { return c.json({ text: await transcrire(f) }); }
+    const indice = String(form.get('indice') || '').slice(0, 200);
+    try { return c.json({ text: await transcrire(f, { indice }) }); }
     catch (e) { return c.json({ erreur: e.message }, e.status || 500); }
   });
 

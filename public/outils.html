@@ -348,7 +348,7 @@
       try {
         const r = await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ mainsLibres: $('#mains-libres').checked, motActivation: $('#mot-activation').value.trim() || 'assistant' }) });
         $('#mot-activation').value = r.motActivation;
-        $('#etat-reglages').textContent = r.mainsLibres ? `Enregistré ✓ Après un appel, dites « ${r.motActivation} » pour relancer la conversation.` : 'Enregistré ✓ Mains libres désactivé.';
+        $('#etat-reglages').textContent = r.mainsLibres ? `Enregistré ✓ Après un appel, dites « ${r.motActivation} » pour relancer la conversation (sur iPhone, laissez l’app ouverte à l’écran).` : 'Enregistré ✓ Mains libres désactivé.';
       } catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }
     }
     $('#mains-libres').addEventListener('change', enregistrerMainsLibres);
