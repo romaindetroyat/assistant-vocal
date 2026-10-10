@@ -27,7 +27,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN_ASSISTANT: ${{ secrets.GH_TOKEN_ASSISTANT }}
+          GH_TOKEN_ASSISTANT: ${{ secrets.GH_TOKEN_ASSISTANT }}
           ASSISTANT_PASSWORD: ${{ secrets.ASSISTANT_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -40,6 +40,7 @@ jobs:
           node -e '
             const noms = ["ANTHROPIC_API_KEY","ANTHROPIC_WORKSPACE_ID","OPENAI_API_KEY","ASSISTANT_PASSWORD","SESSION_SECRET","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","MCP_CONFIG_JSON","TRANSCRIBE_URL","TRANSCRIBE_API_KEY","TRANSCRIBE_MODEL"];
             const secrets = Object.fromEntries(noms.filter((n) => process.env[n]).map((n) => [n, process.env[n]]));
+            if (process.env.GH_TOKEN_ASSISTANT) secrets.GITHUB_TOKEN = process.env.GH_TOKEN_ASSISTANT; // GitHub interdit les secrets nommés GITHUB_*
             require("fs").writeFileSync("secrets.json", JSON.stringify(secrets));
             console.log("Secrets poussés :", Object.keys(secrets).join(", ") || "(aucun)");
           '
