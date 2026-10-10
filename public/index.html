@@ -51,6 +51,7 @@
       <div class="tiroir-pied">
         <a href="/taches" class="btn btn-secondaire" style="text-align:center;text-decoration:none">Mes tâches</a>
         <a href="/outils" class="btn btn-secondaire" style="text-align:center;text-decoration:none">Mes outils</a>
+        <button id="btn-mode-voiture" class="btn btn-secondaire" type="button" title="Un seul bouton, conversation permanente, tout lu à voix haute">🚗 Mode voiture</button>
         <ul id="liste-outils" class="liste-outils"></ul>
         <button id="btn-logout" class="btn btn-secondaire">Se déconnecter</button>
       </div>
@@ -80,6 +81,16 @@
         <button id="btn-envoyer" class="btn-icone btn-envoyer" aria-label="Envoyer" title="Envoyer">➤</button>
       </div>
     </footer>
+
+    <!-- Mode voiture (phase 19) : écran sombre à fort contraste, un seul bouton géant, tout est lu à voix haute -->
+    <section id="ecran-voiture" class="voiture" hidden aria-label="Mode voiture">
+      <header class="voiture-barre">
+        <span id="voiture-etat" class="voiture-etat" aria-live="polite">Touchez pour parler</span>
+        <button id="btn-quitter-voiture" class="btn btn-secondaire" type="button">Quitter</button>
+      </header>
+      <button id="btn-voiture" class="voiture-bouton" type="button">Parler</button>
+      <p id="voiture-reponse" class="voiture-reponse" aria-live="polite"></p>
+    </section>
   </section>
 
   <!-- Lien profond /app?action=appel (raccourci Siri) : un tap lance la conversation vocale -->

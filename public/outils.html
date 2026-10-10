@@ -244,6 +244,10 @@
       </label>
       <p class="discret">La veille utilise la reconnaissance vocale du navigateur (Chrome, Edge, Safari récent) et s'arrête quand l'onglet est caché.</p>
       <p id="etat-reglages" class="discret">Appliqué au prochain appel 📞.</p>
+      <h3 style="margin:14px 0 6px;font-size:14px">Mode voiture 🚗</h3>
+      <p class="discret">Un seul gros bouton, conversation permanente avec reprise mains libres, réponses très courtes, rappels et notifications lus à voix haute, écran sombre maintenu allumé. Ces réglages ne sont forcés que pendant le mode voiture.</p>
+      <label class="case"><input id="voiture-auto-appel" type="checkbox"> Mode voiture : lancer la conversation au premier tap (sinon, seul le bouton « Parler » la lance)</label>
+      <p class="discret"><a id="lien-voiture" href="/app?mode=voiture">Ajouter le mode voiture à l'écran d'accueil</a> — sur iPhone : ouvrez ce lien dans Safari, touchez <strong>Partager</strong> puis <strong>Sur l'écran d'accueil</strong> et nommez l'icône « Voiture ». Le raccourci Siri « Dis Siri, mode voiture » (section Appareils et raccourcis) peut ouvrir la même adresse : <code id="url-voiture"></code>. La luminosité de l'écran n'est pas pilotable par le web : réglez-la dans iOS.</p>
     </section>
 
     <p><a href="/app">← Retour à l'assistant</a></p>
@@ -521,7 +525,15 @@
       for (const v of r.voixDisponibles) { const o = document.createElement('option'); o.value = v; o.textContent = NOMS_VOIX[v] || v; $('#voix').append(o); }
       $('#voix').value = r.voix; $('#concision').value = r.concision;
       $('#mains-libres').checked = Boolean(r.mainsLibres); $('#mot-activation').value = r.motActivation || 'assistant';
+      $('#voiture-auto-appel').checked = r.voitureAutoAppel !== false;
     }).catch(() => {});
+    $('#url-voiture').textContent = `${location.origin}/app?mode=voiture`;
+    $('#voiture-auto-appel').addEventListener('change', async () => {
+      try {
+        const r = await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voitureAutoAppel: $('#voiture-auto-appel').checked }) });
+        $('#etat-reglages').textContent = r.voitureAutoAppel ? 'Enregistré ✓ En mode voiture, le premier tap sur l’écran lance la conversation.' : 'Enregistré ✓ En mode voiture, seul le bouton « Parler » lance la conversation.';
+      } catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }
+    });
     async function enregistrerMainsLibres() {
       try {
         const r = await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ mainsLibres: $('#mains-libres').checked, motActivation: $('#mot-activation').value.trim() || 'assistant' }) });

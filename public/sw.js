@@ -1,5 +1,5 @@
 // Service worker : app shell en cache, réseau pour l'API, notifications push.
-const CACHE = 'assistant-v20';
+const CACHE = 'assistant-v21';
 const CACHE_PARTAGE = 'partage';
 const CLE_PARTAGE = '/partage/attente';
 const SHELL = ['/app', '/login', '/styles.css', '/app.js', '/conversation.js', '/taches.html', '/outils.html', '/manifest.webmanifest', '/icons/icon.svg'];
@@ -40,10 +40,16 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Relais d'une notification aux pages ouvertes : en mode voiture, l'app la lit à voix haute (ignorée sinon).
+async function relayerNotification(m) {
+  const fenetres = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const w of fenetres) w.postMessage({ type: 'notification', titre: m.titre || 'Assistant', corps: m.corps || '', url: m.url || '/app' });
+}
+
 self.addEventListener('push', (event) => {
   let m = {};
   try { m = event.data ? event.data.json() : {}; } catch { m = {}; }
-  event.waitUntil(
+  event.waitUntil(Promise.all([
     self.registration.showNotification(m.titre || 'Assistant', {
       body: m.corps || '',
       icon: '/icons/icon-192.png',
@@ -51,7 +57,8 @@ self.addEventListener('push', (event) => {
       tag: m.tag || 'assistant',
       data: { url: m.url || '/app' },
     }),
-  );
+    relayerNotification(m).catch(() => {}),
+  ]));
 });
 
 self.addEventListener('notificationclick', (event) => {

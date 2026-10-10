@@ -98,6 +98,7 @@ async function demarrer() {
   document.title = etat.moi.assistantName;
   afficherOutils(etat.moi.serveurs);
   etat.reglages = await api('/api/reglages').catch(() => ({}));
+  activerModeVoitureDepuisUrl(); // ?mode=voiture (phase 19)
   const connecte = new URLSearchParams(location.search).get('connecte');
   if (connecte) { history.replaceState(null, '', '/app'); setEtat(`${connecte} connecté ✓`); }
   ui.btnVoix.setAttribute('aria-pressed', String(etat.voix));
@@ -563,8 +564,9 @@ const appel = creerConversationVocale({
     if (etat.reglages.mainsLibres) { veille.flux = appel.recupererFlux() || veille.flux; setTimeout(demarrerVeille, 600); }
     else appel.recupererFlux()?.getTracks().forEach((t) => t.stop());
   },
-  delaiInactivite: () => (etat.reglages.mainsLibres ? INACTIVITE_APPEL_MS : 0),
+  delaiInactivite: () => surchargeDelaiInactivite ?? (etat.reglages.mainsLibres ? INACTIVITE_APPEL_MS : 0), // mode voiture : 120 s
   conserverFlux: () => Boolean(etat.reglages.mainsLibres),
+  contexte: () => (voiture.actif ? 'voiture' : ''),
 });
 async function demarrerAppel() {
   if (appel.actif) return;
@@ -763,6 +765,137 @@ $('#btn-menu').addEventListener('click', ouvrirTiroir);
 $('#btn-fermer-tiroir').addEventListener('click', fermerTiroir);
 ui.voile.addEventListener('click', fermerTiroir);
 $('#btn-nouvelle').addEventListener('click', async () => { await ouvrirConversation(null); fermerTiroir(); ui.saisie.focus(); });
+
+// ---------- Mode voiture ----------
+// Un seul bouton géant, conversation permanente, tout lu à voix haute, écran sombre maintenu allumé (phase 19).
+// Activation : `?mode=voiture` (icône d'écran d'accueil, raccourci Siri) ou bouton « Mode voiture » du tiroir.
+// Pendant le mode, les réglages sont surchargés localement, jamais écrits sur le serveur : mains libres forcé (après
+// chaque appel, la veille au mot d'activation reprend d'elle-même), délai d'inactivité de l'appel 120 s, concision
+// « très court » et consignes « conducteur » via `contexte: 'voiture'` (session Realtime et délégation à Claude).
+// L'écran se met à jour en observant le DOM existant (bandeaux d'appel et de veille, état, bulles) : aucune dépendance
+// vers le reste du fichier en dehors des trois lignes marquées « phase 19 » / « mode voiture ».
+const INACTIVITE_VOITURE_MS = 120_000;
+let surchargeDelaiInactivite = null; // lu par `delaiInactivite` de l'appel (null = comportement normal)
+const voiture = { actif: false, wakeLock: null, sauvegarde: null, observateur: null, premierTap: false };
+const uiVoiture = { ecran: $('#ecran-voiture'), etat: $('#voiture-etat'), bouton: $('#btn-voiture'), reponse: $('#voiture-reponse'), quitter: $('#btn-quitter-voiture'), menu: $('#btn-mode-voiture') };
+
+function activerModeVoitureDepuisUrl() {
+  if (new URLSearchParams(location.search).get('mode') === 'voiture') activerModeVoiture({ geste: false });
+}
+
+function activerModeVoiture({ geste = false } = {}) {
+  if (voiture.actif || !etat.moi) return;
+  voiture.actif = true; voiture.premierTap = false;
+  voiture.sauvegarde = { mainsLibres: etat.reglages.mainsLibres, voix: etat.voix };
+  etat.reglages.mainsLibres = true; // surcharge locale : veille après chaque appel, micro conservé
+  etat.voix = true; // les réponses écrites (repli sans conversation en direct) sont lues aussi
+  surchargeDelaiInactivite = INACTIVITE_VOITURE_MS;
+  document.body.classList.add('mode-voiture');
+  uiVoiture.ecran.hidden = false; uiVoiture.reponse.textContent = '';
+  fermerTiroir();
+  demanderWakeLockVoiture();
+  observerVoiture();
+  rafraichirVoiture();
+  // Lancement de la conversation : tout de suite si l'activation vient d'un geste (bouton du menu) ; depuis un lien,
+  // iOS exige un geste → au premier tap sur l'écran (réglage voitureAutoAppel) ou sur le bouton « Parler ».
+  if (geste && etat.reglages.voitureAutoAppel !== false) lancerParoleVoiture();
+}
+
+function quitterModeVoiture() {
+  if (!voiture.actif) return;
+  voiture.actif = false;
+  surchargeDelaiInactivite = null;
+  const s = voiture.sauvegarde || {}; voiture.sauvegarde = null;
+  etat.reglages.mainsLibres = Boolean(s.mainsLibres); etat.voix = Boolean(s.voix); // réglages d'origine restaurés avant la fin de l'appel
+  if (appel.actif) appel.arreter('Mode voiture quitté');
+  if (!etat.reglages.mainsLibres) { arreterVeille(); veille.suspendue = false; }
+  window.speechSynthesis?.cancel();
+  voiture.observateur?.disconnect(); voiture.observateur = null;
+  try { voiture.wakeLock?.release(); } catch { /* ignoré */ } voiture.wakeLock = null;
+  document.body.classList.remove('mode-voiture'); uiVoiture.ecran.hidden = true;
+  if (new URLSearchParams(location.search).get('mode') === 'voiture') history.replaceState(null, '', '/app');
+}
+
+// Premier tap (geste iOS) : conversation en direct si elle est configurée, sinon dictée mains libres lue à voix haute.
+function lancerParoleVoiture() {
+  voiture.premierTap = true;
+  if (appel.actif) return;
+  if (etat.moi?.voix) { preparerContexteAudio(); demarrerAppel(); }
+  else demarrerDictee();
+}
+
+async function demanderWakeLockVoiture() {
+  try {
+    if (!navigator.wakeLock || voiture.wakeLock || document.hidden) return;
+    voiture.wakeLock = await navigator.wakeLock.request('screen');
+    voiture.wakeLock.addEventListener('release', () => { voiture.wakeLock = null; });
+  } catch { /* refusé : l'écran pourra s'éteindre (réglage iOS « Verrouillage automatique ») */ }
+}
+document.addEventListener('visibilitychange', () => { if (voiture.actif && !document.hidden) demanderWakeLockVoiture(); });
+
+// Observation du DOM existant : l'état de l'appel, de la veille et les bulles de réponse pilotent l'écran voiture.
+function observerVoiture() {
+  if (voiture.observateur) return;
+  const o = new MutationObserver(rafraichirVoiture);
+  o.observe(ui.bandeauAppel, { attributes: true, attributeFilter: ['hidden'] });
+  o.observe(ui.bandeauVeille, { attributes: true, attributeFilter: ['hidden'] });
+  o.observe(ui.appelEtat, { childList: true, characterData: true, subtree: true });
+  o.observe(ui.etat, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  o.observe(ui.btnMicro, { attributes: true, attributeFilter: ['aria-pressed'] });
+  o.observe(ui.messages, { childList: true, characterData: true, subtree: true });
+  voiture.observateur = o;
+}
+function rafraichirVoiture() {
+  if (!voiture.actif) return;
+  let libelle = 'Parler'; let classe = ''; let texteEtat = 'Touchez pour parler';
+  if (appel.actif) {
+    const e = ui.appelEtat.textContent || '';
+    if (/je parle/i.test(e)) { libelle = 'Je réponds…'; classe = 'parle'; }
+    else if (/réfléchis/i.test(e)) { libelle = 'Je réfléchis…'; classe = 'reflechit'; }
+    else if (/connexion/i.test(e)) { libelle = 'Connexion…'; classe = 'reflechit'; }
+    else if (/erreur/i.test(e)) { libelle = 'Réessayer'; }
+    else { libelle = 'En écoute'; classe = 'ecoute'; }
+    texteEtat = e || 'Conversation en cours';
+  } else if (dictee.actif) { libelle = 'En écoute'; classe = 'ecoute'; texteEtat = 'Je vous écoute…'; }
+  else if (etat.envoiEnCours) { libelle = 'Je réfléchis…'; classe = 'reflechit'; texteEtat = 'Je réfléchis…'; }
+  else if (veille.actif) { classe = 'veille'; texteEtat = `En veille · dites « ${etat.reglages.motActivation || 'assistant'} »`; }
+  else if (!ui.etat.hidden && ui.etat.textContent) texteEtat = ui.etat.textContent;
+  uiVoiture.bouton.textContent = libelle;
+  uiVoiture.bouton.className = `voiture-bouton${classe ? ` ${classe}` : ''}`;
+  uiVoiture.etat.textContent = texteEtat;
+  const bulles = ui.messages.querySelectorAll('.msg.assistant:not(.vide)');
+  const derniere = bulles[bulles.length - 1];
+  if (derniere) { const t = derniere.textContent.trim(); if (t && t !== uiVoiture.reponse.textContent) uiVoiture.reponse.textContent = t; }
+}
+
+// Rappels et notifications (push relayé par sw.js) : lus par la voix de l'appel en cours, sinon par la synthèse vocale.
+function annoncerVoiture(texte) {
+  const t = String(texte || '').trim();
+  if (!t) return;
+  uiVoiture.reponse.textContent = t;
+  if (appel.actif && appel.dire(t)) return;
+  lire(t);
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const m = e.data || {};
+    if (m.type !== 'notification' || !voiture.actif) return; // hors mode voiture, la notification système suffit
+    annoncerVoiture([m.titre, m.corps].map((v) => String(v || '').trim()).filter(Boolean).join('. '));
+  });
+}
+
+uiVoiture.bouton.addEventListener('click', () => {
+  if (appel.actif) appel.arreter(); // raccrocher : la veille reprend (mains libres forcé)
+  else if (dictee.actif) arreterDictee({ envoyer: true });
+  else lancerParoleVoiture();
+});
+uiVoiture.ecran.addEventListener('pointerdown', (e) => {
+  if (!voiture.actif || voiture.premierTap || etat.reglages.voitureAutoAppel === false) return;
+  if (e.target.closest('button')) return; // les boutons gèrent leur propre clic
+  lancerParoleVoiture();
+});
+uiVoiture.quitter.addEventListener('click', quitterModeVoiture);
+uiVoiture.menu.addEventListener('click', () => activerModeVoiture({ geste: true }));
 
 // ---------- Lancement ----------
 demarrer().then(() => { if (ui.app.hidden) afficherLogin(); });

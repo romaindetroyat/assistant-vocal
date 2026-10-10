@@ -4,7 +4,9 @@
 // Mains libres : `delaiInactivite()` (ms, 0 = jamais) raccroche automatiquement après un silence sans parole ni réponse ;
 // `conserverFlux()` (booléen) garde le micro ouvert à la fin de l'appel pour que la veille le réutilise sans nouvelle
 // permission (indispensable sur iPhone) ; `recupererFlux()` transfère ce flux à l'appelant, `demarrer(id, { flux })` le rend.
-export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false }) {
+// Contexte : `contexte()` (chaîne, '' = aucun) est joint aux corps JSON de /api/voice/session et /api/voice/ask ('voiture' en
+// mode voiture) ; `dire(texte)` fait annoncer un texte par la voix en cours (rappel, notification) sans passer par Claude.
+export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false, contexte = () => '' }) {
   let pc = null; let canal = null; let flux = null; let audioEl = null; let conversationId = null;
   let actif = false; let reconnexions = 0; let minuteurDeco = null; let minuteurInactivite = null;
   const enCours = new Set(); const resultatsEnAttente = [];
@@ -29,7 +31,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
 
   async function connecter() {
     surEtat(reconnexions ? `Reconnexion (${reconnexions})…` : 'Connexion…');
-    const session = await api('/api/voice/session', { method: 'POST', body: JSON.stringify({ conversationId }) });
+    const session = await api('/api/voice/session', { method: 'POST', body: JSON.stringify({ conversationId, contexte: contexte() || undefined }) });
     conversationId = session.conversationId;
     if (!flux) flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -107,7 +109,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     clearTimeout(minuteurInactivite); // pas de raccrochage pendant que Claude travaille
     let texte;
     try {
-      const r = await api('/api/voice/ask', { method: 'POST', body: JSON.stringify({ conversationId, message }) });
+      const r = await api('/api/voice/ask', { method: 'POST', body: JSON.stringify({ conversationId, message, contexte: contexte() || undefined }) });
       if (r.outils?.length) surOutils(r.outils);
       texte = r.text;
     } catch (e) { texte = `Désolé, une erreur est survenue : ${e.message}`; }
@@ -138,5 +140,14 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   // Transfère le micro conservé (ou null) : l'appelant en devient responsable.
   function recupererFlux() { const f = flux; flux = null; return f; }
 
-  return { demarrer, arreter, recupererFlux, get actif() { return actif; }, get conversationId() { return conversationId; } };
+  // Fait annoncer un texte par la voix de l'appel (message système + réponse) ; renvoie false si le canal n'est pas ouvert.
+  function dire(texte) {
+    const t = String(texte || '').trim();
+    if (!t || !actif) return false;
+    const livre = envoyer({ type: 'conversation.item.create', item: { type: 'message', role: 'system', content: [{ type: 'input_text', text: `Annonce à l'utilisateur : ${t}` }] } }) && envoyer({ type: 'response.create' });
+    if (livre) armerInactivite();
+    return livre;
+  }
+
+  return { demarrer, arreter, recupererFlux, dire, get actif() { return actif; }, get conversationId() { return conversationId; } };
 }

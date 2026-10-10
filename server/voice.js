@@ -1,6 +1,6 @@
 // Mode conversation : GPT-Realtime (OpenAI) comme voix, Claude comme cerveau (délégation par appel de fonction).
 import { config } from './config.js';
-import { lireReglages, consigneConcision } from './reglages.js';
+import { lireReglages, consigneConcision, CONTEXTE_VOITURE } from './reglages.js';
 
 const env = () => (typeof process !== 'undefined' && process.env) || {};
 export const voixDisponible = () => Boolean(env().OPENAI_API_KEY);
@@ -17,17 +17,22 @@ export const OUTIL_DELEGATION = {
   },
 };
 
-export function instructionsVoix(reglages = { concision: 'court' }) {
+// Instructions Realtime ajoutées en mode voiture (phase 19) : la concision y est forcée au niveau « très court ».
+export const CONSIGNE_VOITURE_REALTIME = "L'utilisateur conduit : phrases très courtes, confirme chaque action en trois mots, jamais de liste, pas de liens.";
+
+export function instructionsVoix(reglages = { concision: 'court' }, { contexte = null } = {}) {
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
+  const voiture = contexte === CONTEXTE_VOITURE;
+  const concision = voiture ? 'tres_court' : reglages.concision;
   return `Tu es la voix de ${config.assistantName}, un assistant personnel.${prenom} Tu parles français, naturellement, de façon brève et chaleureuse.
 Règle principale : dès que l'utilisateur demande une information, une action, ou quelque chose qui touche à son agenda, ses mails, ses messages, ses fichiers, ses rappels, ses projets ou l'actualité, appelle l'outil demander_assistant avec sa demande complète. Avant d'appeler l'outil, dis un mot court comme « je regarde » ou « d'accord ». Ne devine jamais une information que l'outil peut fournir.
 Quand l'outil répond, restitue la réponse à l'oral, fidèlement, sans lire de symboles ni de mise en forme.
-Longueur de tes réponses : ${consigneConcision(reglages.concision)}
+Longueur de tes réponses : ${consigneConcision(concision)}
 Tu peux répondre directement, sans outil, aux salutations, remerciements et bavardages simples.
-Si l'utilisateur t'interrompt, arrête-toi et écoute.`;
+Si l'utilisateur t'interrompt, arrête-toi et écoute.${voiture ? `\n${CONSIGNE_VOITURE_REALTIME}` : ''}`;
 }
 
-export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VOICE || 'marin', concision: 'court' }) {
+export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VOICE || 'marin', concision: 'court' }, { contexte = null } = {}) {
   return {
     type: 'realtime',
     model: modeleVoix(),
@@ -36,19 +41,19 @@ export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VO
       input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, turn_detection: { type: 'semantic_vad', eagerness: 'medium' } },
       output: { voice: reglages.voix || env().OPENAI_REALTIME_VOICE || 'marin' },
     },
-    instructions: instructionsVoix(reglages),
+    instructions: instructionsVoix(reglages, { contexte }),
     tools: [OUTIL_DELEGATION],
     tool_choice: 'auto',
   };
 }
 
 // Crée un jeton éphémère pour que le navigateur se connecte directement à OpenAI en WebRTC.
-export async function creerJetonEphemere(fetchImpl = fetch) {
+export async function creerJetonEphemere(fetchImpl = fetch, { contexte = null } = {}) {
   const reglages = await lireReglages();
   const r = await fetchImpl('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env().OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session: configurationSession(reglages) }),
+    body: JSON.stringify({ session: configurationSession(reglages, { contexte }) }),
   });
   const json = await r.json().catch(() => ({}));
   if (!r.ok || !json.value) throw new Error(json.error?.message || `OpenAI : HTTP ${r.status}`);

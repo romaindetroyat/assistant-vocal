@@ -11,7 +11,7 @@ import * as store from './store.js';
 import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
 import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './voice.js';
-import { lireReglages, modifierReglages, consigneConcision, VOIX, CONCISIONS } from './reglages.js';
+import { lireReglages, modifierReglages, consigneConcision, contexteValide, CONSIGNE_VOITURE_CLAUDE, VOIX, CONCISIONS } from './reglages.js';
 import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
 import * as trajets from './trajets.js';
@@ -120,7 +120,8 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     const conversation = corps.conversationId ? await store.lireConversation(corps.conversationId).catch(() => null) : await store.creerConversation();
     if (!conversation) return c.json({ erreur: 'Conversation introuvable' }, 404);
     if (!corps.conversationId) { conversation.titre = 'Conversation vocale'; await store.sauverConversation(conversation); }
-    try { return c.json({ ...(await creerJetonEphemere()), conversationId: conversation.id }); }
+    const contexte = contexteValide(corps.contexte); // 'voiture' : instructions Realtime renforcées (phase 19)
+    try { return c.json({ ...(await creerJetonEphemere(fetch, { contexte })), conversationId: conversation.id }); }
     catch (e) { return c.json({ erreur: e.message }, 502); }
   });
   // Délégation : la voix transmet la demande, Claude répond avec ses outils, l'historique est partagé avec le mode texte.
@@ -132,10 +133,14 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     if (!conversation) return c.json({ erreur: 'Conversation introuvable' }, 404);
     const outils = [];
     let texte = ''; let erreur = null;
+    // Mode voiture (phase 19) : concision « très court » forcée et aucun lien, quel que soit le réglage enregistré.
+    const voiture = contexteValide(corps.contexte) === 'voiture';
+    const concision = consigneConcision(voiture ? 'tres_court' : (await lireReglages()).concision);
+    const consigne = `Réponse destinée à être lue à voix haute. ${concision} Pas de mise en forme.${voiture ? ` ${CONSIGNE_VOITURE_CLAUDE}` : ''}`;
     try {
       const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
       const position = trajets.consignePosition(corps.position);
-      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: `Réponse destinée à être lue à voix haute. ${consigneConcision((await lireReglages()).concision)} Pas de mise en forme.${position ? ` ${position}` : ''}` })) {
+      for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: position ? `${consigne} ${position}` : consigne })) {
         if (ev.type === 'tool_use') outils.push(ev.name);
         else if (ev.type === 'done') texte = ev.text;
         else if (ev.type === 'error') erreur = ev.message;
