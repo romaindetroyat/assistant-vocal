@@ -24,7 +24,7 @@ export async function executerOutilDev(e, fetchImpl = fetch) {
   const titre = String(e.titre || '').trim().slice(0, 120);
   const description = String(e.description || '').trim().slice(0, 6000);
   if (!titre || !description) throw new Error('titre et description obligatoires');
-  const corps = `@claude Merci d'implémenter cette demande avec les tests correspondants (\`npm test\` doit rester vert), de pousser une branche, puis d'ouvrir la pull request toi-même avec \`gh pr create --base main\` (titre : le titre de cette issue, corps commençant par « Closes #<numéro> »).\n\n## Demande\n\n${description}\n\n_Demande transmise par l'assistant vocal._`;
+  const corps = `@claude Merci de traiter cette demande en suivant la méthode GSD décrite dans CLAUDE.md : lire .planning/STATE.md et ROADMAP.md, créer le plan de phase (ou une tâche rapide dans .planning/quick/), implémenter avec les tests (\`npm test\` doit rester vert), écrire le SUMMARY et mettre à jour STATE.md/ROADMAP.md, pousser une branche, puis ouvrir la pull request toi-même avec \`gh pr create --base main\` (titre : le titre de cette issue, corps commençant par « Closes #<numéro> »).\n\n## Demande\n\n${description}\n\n_Demande transmise par l'assistant vocal._`;
   const r = await fetchImpl(`https://api.github.com/repos/${depot()}/issues`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${env().GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': 'assistant-vocal' },
