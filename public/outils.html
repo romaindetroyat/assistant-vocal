@@ -94,6 +94,12 @@
     </section>
 
     <section class="carte">
+      <h2>Mémoire de personnalisation</h2>
+      <p class="discret">Ce que l'assistant a retenu de vous au fil des échanges (préférences, personnes, projets, habitudes). Il l'enrichit seul ; vous pouvez corriger ou effacer.</p>
+      <div id="memoire"></div>
+    </section>
+
+    <section class="carte">
       <h2>Réglages de la voix</h2>
       <label>Voix de la conversation en direct
         <select id="voix"></select>
@@ -228,6 +234,22 @@
       catch (e) { $('#etat-bring').textContent = `Échec : ${e.message}`; }
     });
     chargerBring().catch(() => {});
+
+    const LIB = { preference: 'Préférence', personne: 'Personne', projet: 'Projet', habitude: 'Habitude', fait: 'À savoir' };
+    async function chargerMemoire() {
+      const l = await api('/api/memoire');
+      const el = $('#memoire'); el.innerHTML = '';
+      if (!l.length) { el.innerHTML = '<p class="discret">Rien encore : parlez-lui de vos habitudes, il notera.</p>'; return; }
+      for (const m of l) {
+        const ligne = document.createElement('div'); ligne.className = 'outil';
+        const t = document.createElement('div'); t.className = 'texte'; t.innerHTML = '<div class="nom"></div><div class="desc"></div>';
+        t.querySelector('.nom').textContent = m.texte; t.querySelector('.desc').textContent = `${LIB[m.categorie] || m.categorie}${m.cle ? ' · ' + m.cle : ''}`;
+        const x = document.createElement('button'); x.className = 'btn btn-secondaire btn-petit'; x.textContent = 'Effacer';
+        x.onclick = async () => { await api('/api/memoire', { method: 'PUT', body: JSON.stringify({ entrees: l.filter((e) => e.id !== m.id) }) }); chargerMemoire(); };
+        ligne.append(t, x); el.append(ligne);
+      }
+    }
+    chargerMemoire().catch(() => {});
 
     api('/api/consignes').then((l) => { $('#consignes').value = l.map((c) => c.texte).join('\n'); }).catch(() => {});
     let minuteurConsignes;

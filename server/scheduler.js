@@ -1,5 +1,6 @@
 // Livraison des rappels programmés (vérification périodique).
-import { listerRappels, sauverRappels } from './store.js';
+import { listerRappels, sauverRappels, lireValeur, ecrireValeur } from './store.js';
+import { resumeDuJour } from './taches.js';
 import { envoyerNotification, pushDisponible } from './push.js';
 
 export async function livrerRappelsDus(maintenant = Date.now()) {
@@ -24,8 +25,24 @@ export async function livrerRappelsDus(maintenant = Date.now()) {
   return livres;
 }
 
+// Point du matin : tâches du jour, envoyé en push une fois par jour à partir de 8 h (Europe/Paris).
+export async function pointDuMatin(maintenant = new Date()) {
+  if (!pushDisponible()) return false;
+  const paris = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).formatToParts(maintenant);
+  const v = (t) => paris.find((p) => p.type === t)?.value;
+  const jour = `${v('year')}-${v('month')}-${v('day')}`; const heure = Number(v('hour'));
+  if (heure < 8) return false;
+  const etat = (await lireValeur('point-du-matin')) || {};
+  if (etat.jour === jour) return false;
+  await ecrireValeur('point-du-matin', { jour });
+  const r = await resumeDuJour();
+  if (!r) return false;
+  await envoyerNotification({ titre: r.titre, corps: r.corps, url: '/taches', tag: 'point-du-matin' });
+  return true;
+}
+
 export function demarrerPlanificateur(intervalleMs = 20_000) {
-  const t = setInterval(() => livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)), intervalleMs);
+  const t = setInterval(() => { livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)); pointDuMatin().catch((e) => console.warn('[matin]', e.message)); }, intervalleMs);
   t.unref();
   return t;
 }

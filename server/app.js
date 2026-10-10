@@ -17,6 +17,8 @@ import * as google from './google.js';
 import * as as from './oauth-server.js';
 import * as bring from './bring.js';
 import { lireConsignes, remplacerConsignes } from './consignes.js';
+import { lireMemoire, remplacerMemoire } from './memoire.js';
+import * as taches from './taches.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
 
@@ -188,6 +190,16 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   app.get('/api/consignes', async (c) => c.json(await lireConsignes()));
   app.put('/api/consignes', async (c) => { const { textes } = await c.req.json().catch(() => ({})); return c.json(await remplacerConsignes(Array.isArray(textes) ? textes : [])); });
 
+  // --- Mémoire de personnalisation ---
+  app.get('/api/memoire', async (c) => c.json(await lireMemoire()));
+  app.put('/api/memoire', async (c) => { const { entrees } = await c.req.json().catch(() => ({})); await remplacerMemoire(Array.isArray(entrees) ? entrees.filter((e) => e?.texte) : []); return c.json(await lireMemoire()); });
+
+  // --- Tâches ---
+  app.get('/api/taches', async (c) => c.json(await taches.listerTaches({ filtre: c.req.query('filtre') || 'a_faire', projet: c.req.query('projet') || '' })));
+  app.post('/api/taches', async (c) => { try { return c.json(await taches.ajouterTache(await c.req.json().catch(() => ({}))), 201); } catch (e) { return c.json({ erreur: e.message }, 400); } });
+  app.put('/api/taches/:id', async (c) => { try { return c.json(await taches.modifierTache(c.req.param('id'), await c.req.json().catch(() => ({})))); } catch (e) { return c.json({ erreur: e.message }, 400); } });
+  app.delete('/api/taches/:id', async (c) => { try { await taches.supprimerTache(c.req.param('id')); return c.json({ ok: true }); } catch (e) { return c.json({ erreur: e.message }, 404); } });
+
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);
     const f = form?.get('file');
@@ -340,6 +352,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   app.get('/app', (c) => fichier(c, '/index.html'));
   app.get('/connect/:nom', (c) => (estConnecte(c) ? fichier(c, '/connect.html') : c.redirect('/login')));
   app.get('/outils', (c) => (estConnecte(c) ? fichier(c, '/outils.html') : c.redirect('/login')));
+  app.get('/taches', (c) => (estConnecte(c) ? fichier(c, '/taches.html') : c.redirect('/login')));
   app.get('/sw.js', async (c) => { const r = await fichier(c, '/sw.js'); const h = new Headers(r.headers); h.set('Cache-Control', 'no-cache'); return new Response(r.body, { status: r.status, headers: h }); });
   app.get('/*', (c) => fichier(c, new URL(c.req.url).pathname));
 

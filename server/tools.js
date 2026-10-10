@@ -6,6 +6,8 @@ import { listerComptes } from './google.js';
 import { definitionOutilDev, executerOutilDev, devDisponible } from './dev.js';
 import { definitionsOutilsBring, nomsOutilsBring, executerOutilBring, bringDisponible } from './bring.js';
 import { definitionsOutilsConsignes, nomsOutilsConsignes, executerOutilConsignes } from './consignes.js';
+import { definitionsOutilsMemoire, nomsOutilsMemoire, executerOutilMemoire } from './memoire.js';
+import { definitionsOutilsTaches, nomsOutilsTaches, executerOutilTaches } from './taches.js';
 
 export const definitionsOutilsLocaux = [
   {
@@ -56,13 +58,13 @@ export const definitionsOutilsLocaux = [
   },
 ];
 
-export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, definitionOutilDev.name]);
+export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, definitionOutilDev.name]);
 
 // Outils disponibles pour une requête : outils de base + Gmail si au moins un compte Google est connecté.
 export async function outilsLocauxDisponibles() {
   const comptes = await listerComptes().catch(() => []);
   const bring = await bringDisponible().catch(() => false);
-  return [...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])];
+  return [...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])];
 }
 
 function texte(s, max) {
@@ -74,6 +76,8 @@ export async function executerOutilLocal(nom, entree) {
   if (nom === definitionOutilDev.name) return executerOutilDev(entree);
   if (nomsOutilsBring.has(nom)) return executerOutilBring(nom, entree);
   if (nomsOutilsConsignes.has(nom)) return executerOutilConsignes(nom, entree);
+  if (nomsOutilsMemoire.has(nom)) return executerOutilMemoire(nom, entree);
+  if (nomsOutilsTaches.has(nom)) return executerOutilTaches(nom, entree);
   switch (nom) {
     case 'notify_me': {
       const titre = texte(entree.title, 60);

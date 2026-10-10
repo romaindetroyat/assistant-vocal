@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mes tâches</title>
+  <meta name="theme-color" content="#0f1115">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body { overflow: auto; }
+    main { max-width: 600px; margin: 0 auto; padding: 20px var(--gouttiere) 48px; display: flex; flex-direction: column; gap: 14px; }
+    .onglets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .onglets button { border: 1px solid var(--bordure); background: var(--fond-2); color: var(--texte); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    .onglets button[aria-pressed="true"] { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); }
+    .tache { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--bordure); }
+    .tache input[type=checkbox] { width: 22px; height: 22px; margin-top: 2px; flex: 0 0 auto; }
+    .tache .texte { flex: 1; min-width: 0; }
+    .tache .titre { font-weight: 600; }
+    .tache.fait .titre { text-decoration: line-through; color: var(--texte-2); }
+    .tache .meta { font-size: 13px; color: var(--texte-2); }
+    .tache .meta.retard { color: var(--erreur); }
+    .tache .haute { color: var(--erreur); font-weight: 600; }
+    .ajout { display: flex; gap: 6px; }
+    .ajout input { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--fond-2); color: var(--texte); font: inherit; }
+    .suppr { border: 0; background: transparent; color: var(--texte-2); cursor: pointer; font-size: 18px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 style="margin:0">Mes tâches</h1>
+    <form class="ajout" id="form-ajout"><input id="nouvelle" placeholder="Nouvelle tâche (ou dites-la à l'assistant)" autocomplete="off"><button class="btn btn-primaire" type="submit">+</button></form>
+    <div class="onglets">
+      <button data-filtre="aujourdhui">Aujourd'hui</button><button data-filtre="a_faire" aria-pressed="true">À faire</button><button data-filtre="semaine">7 jours</button><button data-filtre="faites">Faites</button>
+    </div>
+    <div id="liste"></div>
+    <p><a href="/app">← Retour à l'assistant</a></p>
+  </main>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    let filtre = 'a_faire';
+    async function api(chemin, options = {}) {
+      const r = await fetch(chemin, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if (r.status === 401) { location.href = '/login'; throw new Error('Session expirée'); }
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json.erreur || `HTTP ${r.status}`);
+      return json;
+    }
+    const auj = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    function quand(t) { if (!t.echeance) return 'sans date'; const d = t.echeance === auj ? "aujourd'hui" : new Date(t.echeance + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }); return d + (t.heure ? ' ' + t.heure : ''); }
+    async function charger() {
+      const l = await api(`/api/taches?filtre=${filtre}`);
+      const el = $('#liste'); el.innerHTML = '';
+      if (!l.length) { el.innerHTML = '<p class="discret">Rien ici.</p>'; return; }
+      for (const t of l) {
+        const d = document.createElement('div'); d.className = 'tache' + (t.statut === 'fait' ? ' fait' : '');
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.statut === 'fait';
+        cb.onchange = async () => { await api(`/api/taches/${t.id}`, { method: 'PUT', body: JSON.stringify({ statut: cb.checked ? 'fait' : 'a_faire' }) }); charger(); };
+        const tx = document.createElement('div'); tx.className = 'texte';
+        const retard = t.statut === 'a_faire' && t.echeance && t.echeance < auj;
+        tx.innerHTML = `<div class="titre"></div><div class="meta${retard ? ' retard' : ''}"></div>`;
+        tx.querySelector('.titre').textContent = t.titre;
+        tx.querySelector('.meta').innerHTML = `${retard ? 'En retard · ' : ''}${quand(t)}${t.priorite === 'haute' ? ' · <span class="haute">priorité haute</span>' : t.priorite === 'basse' ? ' · basse' : ''}${t.projet ? ' · ' + t.projet.replace(/[<>&]/g, '') : ''}`;
+        const x = document.createElement('button'); x.className = 'suppr'; x.textContent = '🗑'; x.title = 'Supprimer';
+        x.onclick = async () => { if (confirm(`Supprimer « ${t.titre} » ?`)) { await api(`/api/taches/${t.id}`, { method: 'DELETE' }); charger(); } };
+        d.append(cb, tx, x); el.append(d);
+      }
+    }
+    for (const b of document.querySelectorAll('.onglets button')) b.addEventListener('click', () => { filtre = b.dataset.filtre; document.querySelectorAll('.onglets button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); charger(); });
+    $('#form-ajout').addEventListener('submit', async (e) => { e.preventDefault(); const titre = $('#nouvelle').value.trim(); if (!titre) return; await api('/api/taches', { method: 'POST', body: JSON.stringify({ titre }) }); $('#nouvelle').value = ''; filtre = 'a_faire'; charger(); });
+    charger().catch((e) => { $('#liste').textContent = e.message; });
+  </script>
+</body>
+</html>

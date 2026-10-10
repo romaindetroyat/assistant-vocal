@@ -4,7 +4,7 @@ import { creerApplication } from './app.js';
 import { serveursDepuisEnv } from './mcp.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendKv } from './store-kv.js';
-import { livrerRappelsDus } from './scheduler.js';
+import { livrerRappelsDus, pointDuMatin } from './scheduler.js';
 import { fichiersInline, infosBuild } from './assets-inline.js';
 
 function preparer(env) {
@@ -48,6 +48,6 @@ export default {
   },
   async scheduled(_event, env, ctx) {
     preparer(env);
-    ctx.waitUntil(livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)));
+    ctx.waitUntil(Promise.all([livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)), pointDuMatin().catch((e) => console.warn('[matin]', e.message))]));
   },
 };

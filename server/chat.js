@@ -5,6 +5,7 @@ import { construirePromptSysteme } from './prompt.js';
 import { definitionsOutilsLocaux, nomsOutilsLocaux, executerOutilLocal, outilsLocauxDisponibles } from './tools.js';
 import { listerComptes } from './google.js';
 import { lireConsignes } from './consignes.js';
+import { lireMemoire } from './memoire.js';
 import { pushDisponible } from './push.js';
 import { listerRappels } from './store.js';
 
@@ -35,12 +36,13 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   if (!outilsLocaux) outilsLocaux = await outilsLocauxDisponibles();
   const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
   const consignes = await lireConsignes().catch(() => []);
+  const memoire = await lireMemoire().catch(() => []);
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
   const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);
   const rappelsActifs = (await listerRappels()).filter((r) => !r.livreLe).length;
   const system = [
-    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes }) },
+    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire }) },
   ];
   const tools = [
     ...outilsLocaux,

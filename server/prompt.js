@@ -1,7 +1,8 @@
 // Prompt système : identité, contexte temporel, carte des outils.
 import { config } from './config.js';
+import { blocProfil } from './memoire.js';
 
-export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [] } = {}) {
+export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [], memoire = [] } = {}) {
   const maintenant = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' });
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
 
@@ -27,8 +28,10 @@ Outils locaux :
 - demander_developpement (si présent) : quand l'utilisateur demande une évolution de l'assistant lui-même, décris-la précisément et transmets-la ; ne promets pas de délai.
 ${comptesGmail.length ? `- gmail_rechercher / gmail_lire / gmail_repondre / gmail_envoyer / gmail_brouillon : e-mails des comptes connectés (${comptesGmail.join(', ')}). Pour un envoi ou une réponse, confirme le texte à l'utilisateur sauf s'il l'a dicté précisément. La signature du compte est ajoutée automatiquement : n'en écris pas dans le corps. gmail_signature permet de la définir à la voix.` : '- (aucun compte Gmail connecté : pour les e-mails, utilise un serveur MCP mail s\'il existe, sinon dis-le)'}
 ${pushDisponible ? '' : '\nLes notifications push ne sont pas encore configurées : préviens l\'utilisateur si on te demande une notification ou un rappel.\n'}
-${consignes.length ? `## Consignes de l'utilisateur (à respecter en priorité)\n${consignes.map((c) => `- ${c.texte}`).join('\n')}\n` : ''}
+${blocProfil(memoire)}${consignes.length ? `## Consignes de l'utilisateur (à respecter en priorité)\n${consignes.map((c) => `- ${c.texte}`).join('\n')}\n` : ''}
 - retenir / oublier : mémorise ou retire une consigne durable quand l'utilisateur le demande.
+- memoire_noter / memoire_chercher / memoire_oublier : ta mémoire de personnalisation. Note de toi-même, discrètement (sans l'annoncer longuement), chaque fait durable que l'utilisateur révèle : préférence, personne et son rôle, projet, habitude. Consulte-la en cas de doute sur un nom ou une habitude.
+- tache_ajouter / tache_lister / tache_terminer / tache_modifier / tache_supprimer : sa liste de tâches. Quand il mentionne quelque chose à faire (« il faut que je… », « penser à… », « je dois… »), ajoute la tâche avec une échéance et une priorité déduites, puis confirme en une phrase. « Qu'est-ce que j'ai à faire ? » = tache_lister aujourdhui puis a_faire. Les tâches en retard sont signalées.
 
 ## Comment travailler
 
