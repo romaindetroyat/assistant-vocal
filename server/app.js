@@ -315,6 +315,11 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
       locaux_web: { tools: [recherche, ...locaux, web] },
       locaux_mcp: { tools: [recherche, ...locaux, ...toolsMcp], mcp_servers },
       locaux_agenda: { tools: [recherche, ...locaux, ...toolsMcp.filter((t) => /agenda/.test(t.mcp_server_name))], mcp_servers: mcp_servers.filter((m) => /agenda/.test(m.name)) },
+      agenda_sans_strict: { tools: [recherche, ...sansStrict(locaux), ...toolsMcp.filter((t) => /agenda/.test(t.mcp_server_name))], mcp_servers: mcp_servers.filter((m) => /agenda/.test(m.name)) },
+      agenda_sans_strict_bis: { tools: [recherche, ...sansStrict(locaux), ...toolsMcp.filter((t) => /agenda/.test(t.mcp_server_name))], mcp_servers: mcp_servers.filter((m) => /agenda/.test(m.name)) },
+      locaux_agenda_bis: { tools: [recherche, ...locaux, ...toolsMcp.filter((t) => /agenda/.test(t.mcp_server_name))], mcp_servers: mcp_servers.filter((m) => /agenda/.test(m.name)) },
+      locaux_mcp_sans_strict: { tools: [recherche, ...sansStrict(locaux), ...toolsMcp], mcp_servers },
+      locaux_mcp_sans_strict_bis: { tools: [recherche, ...sansStrict(locaux), ...toolsMcp], mcp_servers },
       locaux_agenda_web: { tools: [recherche, ...locaux, ...toolsMcp.filter((t) => /agenda/.test(t.mcp_server_name)), web], mcp_servers: mcp_servers.filter((m) => /agenda/.test(m.name)) },
     };
     const variantes = Array.isArray(demande.variantes) ? Object.fromEntries(demande.variantes.filter((n) => toutes[n]).map((n) => [n, toutes[n]])) : toutes;
