@@ -73,11 +73,16 @@ export function serveursDepuisEnv(env = (typeof process !== 'undefined' ? proces
 }
 
 // Paramètres à passer à client.beta.messages.stream(...)
-export function parametresMcp(serveurs) {
+// Serveurs dont les outils sont chargés d'emblée (les plus utilisés) ; les autres sont chargés à la demande par la
+// recherche d'outils (defer_loading), ce qui évite d'envoyer des dizaines de milliers de tokens à chaque requête.
+export const SERVEURS_PRIORITAIRES = /agenda|calendar|calendrier|mail/i;
+export function parametresMcp(serveurs, { differer = true } = {}) {
   const mcp_servers = serveurs.map((s) => ({ type: 'url', url: s.url, name: s.name, ...(s.authorization_token ? { authorization_token: s.authorization_token } : {}) }));
   const tools = serveurs.map((s) => {
     const toolset = { type: 'mcp_toolset', mcp_server_name: s.name };
-    if (s.allowed_tools) { toolset.default_config = { enabled: false }; toolset.configs = Object.fromEntries(s.allowed_tools.map((n) => [n, { enabled: true }])); }
+    const differe = differer && !SERVEURS_PRIORITAIRES.test(`${s.name} ${s.description || ''}`);
+    if (differe) toolset.default_config = { defer_loading: true };
+    if (s.allowed_tools) { toolset.default_config = { ...(toolset.default_config || {}), enabled: false }; toolset.configs = Object.fromEntries(s.allowed_tools.map((n) => [n, { enabled: true }])); }
     return toolset;
   });
   return { mcp_servers, tools };

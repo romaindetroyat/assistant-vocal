@@ -74,11 +74,15 @@ export function limiterStricts(outils) {
   });
 }
 
+// Outils locaux rarement utilisés : chargés à la demande par la recherche d'outils (moins de tokens par requête).
+const DIFFERES = new Set(['list_reminders', 'cancel_reminder', 'gmail_brouillon', 'gmail_signature', 'courses_listes', 'courses_cocher', 'courses_retirer', 'memoire_oublier', 'oublier', 'tache_supprimer', 'tache_modifier', 'trajet_adresse_definir', 'demander_developpement']);
+const differer = (outils) => outils.map((t) => (DIFFERES.has(t.name) ? { ...t, defer_loading: true } : t));
+
 // Outils disponibles pour une requête : outils de base + Gmail si au moins un compte Google est connecté.
 export async function outilsLocauxDisponibles() {
   const comptes = await listerComptes().catch(() => []);
   const bring = await bringDisponible().catch(() => false);
-  return limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsTrajets, definitionOutilBrief, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]);
+  return differer(limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsTrajets, definitionOutilBrief, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]));
 }
 
 function texte(s, max) {

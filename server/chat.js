@@ -1,7 +1,7 @@
 // Un tour de conversation : appel Claude en streaming, outils MCP (côté Anthropic) + outils locaux (ici).
 import { config } from './config.js';
 import { parametresMcp } from './mcp.js';
-import { construirePromptSysteme } from './prompt.js';
+import { blocsPromptSysteme } from './prompt.js';
 import { definitionsOutilsLocaux, nomsOutilsLocaux, executerOutilLocal, outilsLocauxDisponibles } from './tools.js';
 import { listerComptes } from './google.js';
 import { lireConsignes } from './consignes.js';
@@ -45,10 +45,10 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
 
   const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);
   const rappelsActifs = (await listerRappels()).filter((r) => !r.livreLe).length;
-  const system = [
-    { type: 'text', text: construirePromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire }) },
-  ];
+  const system = blocsPromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire });
+  // Recherche d'outils en tête (jamais différée) : les serveurs MCP secondaires sont chargés à la demande.
   const tools = [
+    { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' },
     ...outilsLocaux,
     ...toolsMcp,
     { type: 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
@@ -65,6 +65,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
       fallbacks: 'default',
       thinking: { type: 'adaptive' },
       output_config: { effort },
+      cache_control: { type: 'ephemeral' }, // cache automatique de la fin de conversation (le bloc système stable a son propre point)
       system,
       tools,
       ...(mcp_servers.length ? { mcp_servers } : {}),

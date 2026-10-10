@@ -49,6 +49,11 @@ test('tour simple : texte streamé, historique enrichi, requête bien formée', 
   assert.deepEqual(req.output_config, { effort: 'medium' });
   assert.deepEqual(req.mcp_servers, [{ type: 'url', url: 'https://x.invalid/gmail', name: 'gmail', authorization_token: 'jeton-secret-xyz' }]);
   assert.ok(req.tools.some((t) => t.type === 'mcp_toolset' && t.mcp_server_name === 'gmail'));
+  // Latence : recherche d'outils en tête, bloc système stable mis en cache, date dans le bloc volatil, cache automatique.
+  assert.equal(req.tools[0].type, 'tool_search_tool_bm25_20251119');
+  assert.deepEqual(req.system[0].cache_control, { type: 'ephemeral' });
+  assert.ok(!/Nous sommes le/.test(req.system[0].text) && /Nous sommes le/.test(req.system[1].text));
+  assert.deepEqual(req.cache_control, { type: 'ephemeral' });
   assert.ok(req.tools.some((t) => t.type === 'web_search_20260209'));
   assert.match(req.system[0].text, /gmail : Mail/);
   assert.ok(!req.system[0].text.includes('jeton-secret-xyz'), 'le jeton ne doit pas apparaître dans le prompt');

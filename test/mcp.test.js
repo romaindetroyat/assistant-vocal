@@ -16,6 +16,10 @@ test('config MCP → mcp_servers et un mcp_toolset par serveur', () => {
   assert.deepEqual(mcp_servers[0], { type: 'url', url: 'https://x.invalid/gmail', name: 'gmail', authorization_token: 'jeton' });
   assert.deepEqual(mcp_servers[1], { type: 'url', url: 'https://x.invalid/agenda', name: 'agenda' });
   assert.deepEqual(tools[0], { type: 'mcp_toolset', mcp_server_name: 'gmail' });
+  // Un serveur secondaire est chargé à la demande (defer_loading), un serveur d'agenda ou de courrier d'emblée.
+  const { tools: t2 } = parametresMcp([{ name: 'vercel', url: 'https://v.test/mcp' }, { name: 'agenda', url: 'https://a.test/mcp' }]);
+  assert.deepEqual(t2[0].default_config, { defer_loading: true });
+  assert.equal(t2[1].default_config, undefined);
   assert.deepEqual(tools[1], { type: 'mcp_toolset', mcp_server_name: 'agenda', default_config: { enabled: false }, configs: { lister_evenements: { enabled: true } } });
 });
 

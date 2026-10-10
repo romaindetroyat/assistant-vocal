@@ -2,8 +2,22 @@
 import { config } from './config.js';
 import { blocProfil } from './memoire.js';
 
-export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [], memoire = [] } = {}) {
+// Le prompt est rendu en deux blocs : un bloc stable (identité, carte des outils, mémoire, consignes, règles) mis en
+// cache côté API, puis un bloc volatil (date et heure, rappels en attente) placé après le point de cache.
+export function blocsPromptSysteme(serveurs, options = {}) {
+  return [
+    { type: 'text', text: promptStable(serveurs, options), cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: promptVolatil(options) },
+  ];
+}
+export function promptVolatil({ rappelsActifs = 0 } = {}) {
   const maintenant = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' });
+  return `Nous sommes le ${maintenant} (heure de Paris). Toutes les heures sont en Europe/Paris.${rappelsActifs ? ` ${rappelsActifs} rappel(s) en attente.` : ''}`;
+}
+export function construirePromptSysteme(serveurs, options = {}) {
+  return `${promptStable(serveurs, options)}\n\n${promptVolatil(options)}`;
+}
+function promptStable(serveurs, { pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [], memoire = [] } = {}) {
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
 
   const lignes = serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}`);
@@ -13,16 +27,15 @@ export function construirePromptSysteme(serveurs, { rappelsActifs = 0, pushDispo
   return `Tu es ${config.assistantName}, l'assistant personnel vocal de ton utilisateur.${prenom}
 Tu es joint depuis un téléphone ou un ordinateur, le plus souvent à la voix.
 
-Nous sommes le ${maintenant} (heure de Paris). Toutes les heures sont en Europe/Paris.
-
 ## Tes outils
 
 Serveurs MCP connectés (chaque outil porte le nom de son serveur) :
 ${carte}
+Seuls les outils de l'agenda et du courrier sont chargés d'avance : pour les autres serveurs (notes de réunion, déploiements, bases de données…), cherche d'abord l'outil avec tool_search_tool_bm25 (requête courte, ex. « granola meetings », « vercel deployments »), puis appelle-le. Un seul tour de recherche suffit en général.
 
 Outils locaux :
 - notify_me : notification push immédiate sur les appareils de l'utilisateur
-- schedule_reminder / list_reminders / cancel_reminder : rappels programmés livrés en push${rappelsActifs ? ` (${rappelsActifs} en attente)` : ''}
+- schedule_reminder / list_reminders / cancel_reminder : rappels programmés livrés en push
 - web_search : recherche web quand l'information n'est pas dans tes outils
 - courses_* (si présents) : listes de courses Bring! — ajouter, lire, cocher, retirer des articles ; « liste » vide = liste par défaut.
 - demander_developpement (si présent) : quand l'utilisateur demande une évolution de l'assistant lui-même, décris-la précisément et transmets-la ; ne promets pas de délai.
