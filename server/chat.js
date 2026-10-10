@@ -55,7 +55,9 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   ];
 
   let texteFinal = '';
+  const debutTour = Date.now();
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    const debutIteration = Date.now(); let premierEvenement = 0;
     const stream = client.beta.messages.stream({
       model: config.model,
       max_tokens: 16000,
@@ -71,6 +73,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
 
     let texteIteration = '';
     for await (const event of stream) {
+      if (!premierEvenement) premierEvenement = Date.now();
       if (event.type === 'content_block_start') {
         const bloc = event.content_block;
         if (bloc.type === 'tool_use') yield { type: 'tool_use', name: bloc.name, server: 'local' };
@@ -84,6 +87,8 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
     }
 
     const reponse = await stream.finalMessage();
+    // Chronométrage (journal) : latence avant le premier événement, durée de l'itération, outils appelés.
+    console.log(`[chat] itération ${iteration + 1} : premier événement ${premierEvenement ? premierEvenement - debutIteration : '-'} ms, durée ${Date.now() - debutIteration} ms, arrêt ${reponse.stop_reason}, outils ${reponse.content.filter((b) => b.type === 'tool_use' || b.type === 'mcp_tool_use' || b.type === 'server_tool_use').map((b) => b.name).join(',') || '-'}, cache ${reponse.usage?.cache_read_input_tokens ?? 0}/${reponse.usage?.input_tokens ?? 0}`);
     if (!texteIteration) { const t = texteDe(reponse.content); if (t) { texteIteration = t; yield { type: 'text', text: t }; } } // sécurité : texte final sans delta streamé
     conversation.messages.push({ role: 'assistant', content: nettoyerPourHistorique(reponse.content) });
     texteFinal += texteIteration;
@@ -122,5 +127,6 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
     const premier = texteDe(Array.isArray(contenuUtilisateur) ? contenuUtilisateur : [{ type: 'text', text: String(contenuUtilisateur) }]);
     conversation.titre = (premier || 'Image').slice(0, 60);
   }
+  console.log(`[chat] tour terminé en ${Date.now() - debutTour} ms`);
   yield { type: 'done', text: texteFinal };
 }
