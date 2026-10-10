@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v2 en cours — phases 13 (brief), 14 (mémoire consolidée), 15 (mains libres + compaction) exécutées en parallèle ; Google Agenda direct abandonné (Agenda Hub suffit)
-- Last action: passage complet en mode GSD (docs, CLAUDE.md, boucle de dev alignée) — 2026-10-10
+- Milestone: v2 livré (phases 13, 14, 15) le 2026-10-10 ; v3 à définir d'après l'usage
+- Last action: fusion des trois phases v2 exécutées en parallèle (worktrees), cache SW v16 — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 39 (`npm test`)
+- Tests : 56 (`npm test`)
 
 ## Decisions Log
 
@@ -22,6 +22,8 @@
 | 2026-10-10 | Mode strict limité à 6 outils | Limite API (20 stricts, complexité globale) |
 | 2026-10-10 | Mémoire alimentée par l'assistant via outil | Simple, visible, corrigeable |
 | 2026-10-10 | Abandon de Google Agenda en direct (ex-phase 15) | Agenda Hub couvre les quatre comptes |
+| 2026-10-10 | Phases v2 exécutées en parallèle dans des worktrees, fusion manuelle | Rapidité ; conflits limités à scheduler/worker/index |
+| 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
 ## Blockers
 
@@ -30,5 +32,6 @@
 ## Next
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
-- Fusionner les trois phases v2, vérifier en production
+- Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone
+- Point d'attention : SpeechRecognition peu fiable sur iOS Safari (veille coupée) ; alternative VAD local si besoin
 - Toute nouvelle demande passe par une phase GSD (voir CLAUDE.md), y compris via `demander_developpement`

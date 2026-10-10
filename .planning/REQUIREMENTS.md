@@ -47,11 +47,11 @@
 
 ## v2 Requirements (backlog)
 
-- **PER-04** Synthèse périodique de la mémoire (fusion, obsolescence) par Claude
-- **PER-05** Brief du matin complet (agenda + tâches + mails importants) en push et à la voix
+- [x] **PER-04** Synthèse périodique de la mémoire (fusion, obsolescence) par Claude
+- [x] **PER-05** Brief du matin complet (agenda + tâches + mails importants) en push et à la voix
 - **INT-06** Element/Matrix TakeOff si un MCP OAuth standard est exposé
-- **IN-07** Mot d'activation mains libres
-- **ORC-09** Compaction serveur des longues conversations
+- [x] **IN-07** Mot d'activation mains libres
+- [x] **ORC-09** Compaction serveur des longues conversations
 
 ## Out of Scope
 
@@ -78,9 +78,9 @@
 | INT-04 | 10 | Validated |
 | INT-02 | 11 | Validated |
 | PER-01..03 | 12 | Validated |
-| PER-05 | 13 | Pending |
-| PER-04 | 14 | Pending |
-| IN-07, ORC-09 | 15 | Pending |
+| PER-05 | 13 | Validated |
+| PER-04 | 14 | Validated |
+| IN-07, ORC-09 | 15 | Validated |
 | INT-06 | v2 backlog | Pending |
 
 ---

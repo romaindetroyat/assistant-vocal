@@ -17,7 +17,15 @@
 | 11 — Bring! | Complete | Listes de courses à la voix |
 | 12 — Personnalisation | Complete | Consignes, mémoire auto-alimentée, tâches intelligentes, point du matin |
 
-## Milestone v2 — en cours (phases 13, 14, 15 lancées en parallèle le 2026-10-10)
+## Milestone v2 — livré (2026-10-10, trois phases exécutées en parallèle)
+
+| Phase | Status | Summary |
+|-------|--------|---------|
+| 13 — Brief du matin complet | Complete | brief.js, outil brief_du_jour, un seul push à 8 h, /api/brief, section « Mes outils » |
+| 14 — Mémoire consolidée | Complete | memoire-consolidation.js, consolidation hebdo par Claude, journal visible, plafond 60 |
+| 15 — Mains libres et compaction | Complete | mot d'activation + veille, raccrochage après 45 s de silence, compaction serveur > 120 k caractères, résumé visible |
+
+### Détail des phases v2
 
 ### Phase 13 — Brief du matin complet
 **Goal**: à 8 h, un push et un résumé vocal : agenda du jour (Agenda Hub), tâches, mails importants.
@@ -35,4 +43,4 @@
 
 ## Progress
 
-12 phases livrées sur 12 (v1). v2 : phases 13, 14, 15 en cours (exécution parallèle).
+15 phases livrées sur 15 (v1 + v2). v3 à définir d'après l'usage (reste au backlog : INT-06 Element/Matrix).
