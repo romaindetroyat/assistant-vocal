@@ -24,6 +24,7 @@ import * as brief from './brief.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
 import * as jetons from './jetons.js';
+import * as partage from './partage.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
@@ -232,6 +233,19 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
       const enregistre = await brief.enregistrerBrief(texte);
       return c.json({ texte, jour: enregistre.jour, genereLe: enregistre.genereLe });
     } catch (e) { return c.json({ erreur: e.message }, 500); }
+  });
+
+  // --- Partage depuis l'iPhone (raccourci avec jeton d'appareil) ou la PWA (share_target, cookie) ---
+  app.post('/api/partage', async (c) => {
+    try {
+      const corps = await partage.lireCorpsPartage(c.req);
+      const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
+      return c.json(await partage.traiterPartage({ client: leClient(), serveurs: prets, nonConnectes, ...corps }));
+    } catch (e) {
+      if (!e.status) console.error('[partage]', e);
+      const message = e instanceof Anthropic.APIError ? `Erreur API (${e.status}) : ${e.message}` : e.message;
+      return c.json({ erreur: message }, e instanceof Anthropic.APIError ? 502 : (e.status && e.status < 500 ? e.status : 500));
+    }
   });
 
   app.post('/api/transcribe', async (c) => {
