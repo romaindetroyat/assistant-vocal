@@ -82,10 +82,19 @@ function defiler() { ui.messages.scrollTop = ui.messages.scrollHeight; }
 // premier besoin, puis conservé (plus de nouvelle demande d'autorisation ni de délai d'ouverture). Il est fermé quand
 // l'onglet reste caché plus de MICRO_FERMETURE_MS (sauf appel ou enregistrement en cours) et à la déconnexion.
 // La dictée (SpeechRecognition) gère son propre micro : on ne lui passe rien.
-const MICRO_FERMETURE_MS = 2 * 60_000;
+// Règle commune : SILENCE_MAX_MS (1 min) sans s'adresser à l'assistant → l'appel raccroche, la veille s'arrête et le
+// micro est fermé. Il est redemandé au prochain geste (Espace, bouton, raccourci) sans nouvelle autorisation.
+const SILENCE_MAX_MS = 60_000;
+const MICRO_FERMETURE_MS = SILENCE_MAX_MS;
 const micro = { flux: null, minuteur: null };
+// Programme la fermeture du micro si plus rien ne l'utilise d'ici SILENCE_MAX_MS (appelé à la fin de chaque usage).
+function planifierFermetureMicro() {
+  clearTimeout(micro.minuteur);
+  micro.minuteur = setTimeout(() => { micro.minuteur = null; if (!appel.actif && !etat.enregistreur && !veille.actif) fermerMicro(); }, SILENCE_MAX_MS);
+}
 function microVivant() { return Boolean(micro.flux && micro.flux.getAudioTracks().some((t) => t.readyState === 'live')); }
 async function obtenirMicro() {
+  clearTimeout(micro.minuteur); micro.minuteur = null;
   if (microVivant()) return micro.flux;
   micro.flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   for (const piste of micro.flux.getTracks()) piste.addEventListener('ended', () => { if (micro.flux && !microVivant()) micro.flux = null; });
@@ -504,6 +513,7 @@ async function demarrerEnregistrement() {
     const rec = new MediaRecorder(flux); const morceaux = [];
     rec.ondataavailable = (e) => morceaux.push(e.data);
     rec.onstop = async () => {
+      planifierFermetureMicro();
       ui.btnVocal.classList.remove('enregistre'); setEtat('Transcription…');
       const blob = new Blob(morceaux, { type: rec.mimeType || 'audio/webm' });
       const form = new FormData(); form.append('file', blob, 'vocal.webm');
@@ -571,7 +581,7 @@ ui.btnNotifs.addEventListener('click', async () => {
 });
 
 // ---------- Conversation vocale en direct (GPT-Realtime + Claude) ----------
-const INACTIVITE_APPEL_MS = 45_000; // mains libres : raccrochage automatique après ce silence, retour en veille
+const INACTIVITE_APPEL_MS = SILENCE_MAX_MS; // raccrochage automatique après ce silence (retour en veille si mains libres)
 const appel = creerConversationVocale({
   api: apiAvecPosition,
   surEtat: (t) => { ui.appelEtat.textContent = t; },
@@ -586,8 +596,9 @@ const appel = creerConversationVocale({
     // mains libres : on repasse en veille.
     micro.flux = appel.recupererFlux() || micro.flux;
     if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
+    else planifierFermetureMicro();
   },
-  delaiInactivite: () => surchargeDelaiInactivite ?? (etat.reglages.mainsLibres ? INACTIVITE_APPEL_MS : 0), // mode voiture : 120 s
+  delaiInactivite: () => surchargeDelaiInactivite ?? INACTIVITE_APPEL_MS, // même règle d'une minute partout
   conserverFlux: () => true, // le flux appartient à l'app (micro partagé), jamais fermé par l'appel
   contexte: () => (voiture.actif ? 'voiture' : ''),
 });
@@ -616,7 +627,7 @@ $('#btn-raccrocher').addEventListener('click', () => appel.arreter());
 //    automatique des autres navigateurs après 5 échecs. Il utilise le micro partagé (`micro.flux`, voir plus haut).
 // Garde-fous : au plus un redémarrage par seconde, un extrait à la fois, 60 extraits par veille, veille suspendue
 // quand l'onglet est caché (batterie), jamais pendant un appel, une dictée ou un vocal.
-const veille = { actif: false, moteur: null, rec: null, dernierDemarrage: 0, echecs: 0, minuteur: null, suspendue: false,
+const veille = { actif: false, moteur: null, rec: null, dernierDemarrage: 0, echecs: 0, minuteur: null, suspendue: false, limite: null,
   flux: null, ctx: null, analyseur: null, boucle: null, enregistreur: null, extraits: 0, transcriptionEnCours: false, wakeLock: null, debutParole: 0, dernierSon: 0, plancher: 0.01 };
 const EXTRAITS_MAX = 60; const EXTRAIT_MAX_MS = 3000; const SILENCE_FIN_MS = 700; const PAROLE_MIN_MS = 250;
 const normaliser = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -651,6 +662,8 @@ function demarrerVeille() {
   ui.veilleEtat.textContent = `En veille · dites « ${etat.reglages.motActivation || 'assistant'} »`;
   ui.bandeauVeille.hidden = false;
   demanderWakeLock();
+  clearTimeout(veille.limite);
+  veille.limite = setTimeout(() => { if (!veille.actif) return; arreterVeille(); fermerMicro(); setEtat('Micro coupé après une minute sans activation : appuyez pour parler'); }, SILENCE_MAX_MS);
   if (moteur === 'ecoute') lancerEcouteLocale(); else lancerEcouteVeille();
 }
 
@@ -765,6 +778,7 @@ async function demanderWakeLock() {
 // Le micro partagé n'est jamais fermé ici (voir `fermerMicro`) : la veille ne fait que relâcher sa référence.
 function arreterVeille() {
   clearTimeout(veille.minuteur); veille.minuteur = null;
+  clearTimeout(veille.limite); veille.limite = null;
   clearInterval(veille.boucle); veille.boucle = null;
   ui.bandeauVeille.hidden = true;
   const rec = veille.rec; veille.rec = null;
@@ -776,7 +790,7 @@ function arreterVeille() {
   try { veille.wakeLock?.release(); } catch { /* ignoré */ } veille.wakeLock = null;
   veille.actif = false;
 }
-ui.btnQuitterVeille.addEventListener('click', () => { arreterVeille(); veille.suspendue = false; setEtat('Veille quittée'); });
+ui.btnQuitterVeille.addEventListener('click', () => { arreterVeille(); veille.suspendue = false; planifierFermetureMicro(); setEtat('Veille quittée'); });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (veille.actif) { arreterVeille(); veille.suspendue = true; } }
   else if (veille.suspendue && etat.reglages.mainsLibres) { veille.suspendue = false; demarrerVeille(); }
@@ -861,7 +875,7 @@ window.addEventListener('blur', () => { if (raccourcis.espace) { raccourcis.espa
 // « très court » et consignes « conducteur » via `contexte: 'voiture'` (session Realtime et délégation à Claude).
 // L'écran se met à jour en observant le DOM existant (bandeaux d'appel et de veille, état, bulles) : aucune dépendance
 // vers le reste du fichier en dehors des trois lignes marquées « phase 19 » / « mode voiture ».
-const INACTIVITE_VOITURE_MS = 120_000;
+const INACTIVITE_VOITURE_MS = SILENCE_MAX_MS;
 let surchargeDelaiInactivite = null; // lu par `delaiInactivite` de l'appel (null = comportement normal)
 const voiture = { actif: false, wakeLock: null, sauvegarde: null, observateur: null, premierTap: false };
 const uiVoiture = { ecran: $('#ecran-voiture'), etat: $('#voiture-etat'), bouton: $('#btn-voiture'), reponse: $('#voiture-reponse'), quitter: $('#btn-quitter-voiture'), menu: $('#btn-mode-voiture') };
