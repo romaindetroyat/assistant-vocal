@@ -9,6 +9,7 @@ import { definitionsOutilsConsignes, nomsOutilsConsignes, executerOutilConsignes
 import { definitionsOutilsMemoire, nomsOutilsMemoire, executerOutilMemoire } from './memoire.js';
 import { definitionsOutilsTaches, nomsOutilsTaches, executerOutilTaches } from './taches.js';
 import { definitionOutilBrief, executerOutilBrief } from './brief.js';
+import { definitionsOutilsTrajets, nomsOutilsTrajets, executerOutilTrajets } from './trajets.js';
 
 export const definitionsOutilsLocaux = [
   {
@@ -59,7 +60,7 @@ export const definitionsOutilsLocaux = [
   },
 ];
 
-export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, definitionOutilBrief.name, definitionOutilDev.name]);
+export const nomsOutilsLocaux = new Set([...definitionsOutilsLocaux.map((t) => t.name), ...nomsOutilsGmail, ...nomsOutilsBring, ...nomsOutilsConsignes, ...nomsOutilsMemoire, ...nomsOutilsTaches, ...nomsOutilsTrajets, definitionOutilBrief.name, definitionOutilDev.name]);
 
 // L'API n'accepte que 20 outils « stricts » : on réserve le mode strict aux schémas complexes.
 const STRICTS_PRIORITAIRES = new Set(['gmail_envoyer', 'gmail_repondre', 'tache_ajouter', 'courses_ajouter', 'schedule_reminder', 'memoire_noter']);
@@ -77,7 +78,7 @@ export function limiterStricts(outils) {
 export async function outilsLocauxDisponibles() {
   const comptes = await listerComptes().catch(() => []);
   const bring = await bringDisponible().catch(() => false);
-  return limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, definitionOutilBrief, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]);
+  return limiterStricts([...definitionsOutilsLocaux, ...definitionsOutilsConsignes, ...definitionsOutilsMemoire, ...definitionsOutilsTaches, ...definitionsOutilsTrajets, definitionOutilBrief, ...(comptes.length ? definitionsOutilsGmail : []), ...(bring ? definitionsOutilsBring : []), ...(devDisponible() ? [definitionOutilDev] : [])]);
 }
 
 function texte(s, max) {
@@ -92,6 +93,7 @@ export async function executerOutilLocal(nom, entree) {
   if (nomsOutilsMemoire.has(nom)) return executerOutilMemoire(nom, entree);
   if (nomsOutilsTaches.has(nom)) return executerOutilTaches(nom, entree);
   if (nom === definitionOutilBrief.name) return executerOutilBrief();
+  if (nomsOutilsTrajets.has(nom)) return executerOutilTrajets(nom, entree);
   switch (nom) {
     case 'notify_me': {
       const titre = texte(entree.title, 60);

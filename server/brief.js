@@ -6,6 +6,7 @@ import { envoyerNotification, pushDisponible } from './push.js';
 import { listerComptes } from './google.js';
 import { resoudreServeurs, listerServeursAjoutes } from './mcp.js';
 import { jetonPour } from './oauth-mcp.js';
+import { configTrajets } from './trajets.js';
 
 const CLE_GARDE = 'brief-du-matin';
 const CLE_BRIEF = 'dernier-brief';
@@ -23,7 +24,7 @@ export function tronquer(texte, max = LONGUEUR_PUSH) {
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
 
-function consigneBrief({ serveurs, comptesGmail }) {
+function consigneBrief({ serveurs, comptesGmail, trajets = false }) {
   const agenda = serveurs.find((s) => /agenda|calendar|calendrier/i.test(`${s.name} ${s.description || ''}`));
   const etapes = [
     agenda
@@ -34,27 +35,35 @@ function consigneBrief({ serveurs, comptesGmail }) {
       ? `Appelle gmail_rechercher (requête « is:unread is:important newer_than:1d ») sur chaque compte connecté (${comptesGmail.join(', ')}) pour les e-mails importants non lus des dernières 24 heures.`
       : "Aucun compte Gmail n'est connecté : ne mentionne pas les e-mails.",
     "Si des listes de courses sont disponibles (outils courses_*) et que c'est utile aujourd'hui, mentionne-les en une phrase, sinon ignore-les.",
+    ...(trajets ? ["Pour chaque rendez-vous ayant une adresse, appelle trajet_calculer depuis le domicile (origine vide) avec arriveeA = heure de début du rendez-vous, et indique l'heure de départ conseillée dans le brief (sans recopier les liens)."] : []),
   ];
   return `Tu prépares le brief du matin de l'utilisateur ; il sera lu à voix haute ou affiché en notification. Étapes obligatoires : ${etapes.map((e, i) => `${i + 1}) ${e}`).join(' ')} Ensuite rédige le brief : un texte lisible en vingt secondes, quatre à huit phrases maximum, sans aucune mise en forme (ni titre, ni liste, ni gras), qui commence par la date du jour en toutes lettres. Donne les faits (heures, noms, objets), pas de commentaires. N'utilise pas l'outil brief_du_jour.`;
 }
 
-// Génère le brief par un tour Claude éphémère (non sauvegardé). Retourne { texte, outils }.
-export async function genererBrief({ client, serveurs = [], nonConnectes = [] }) {
+// Tour Claude éphémère (conversation non sauvegardée) avec une consigne : utilisé par le brief et les rappels de départ.
+// Retourne { texte, outils }.
+export async function tourEphemere({ client, serveurs = [], nonConnectes = [], message, consigne, id = 'ephemere', titre = 'Tour éphémère' }) {
   if (!client) throw new Error('Client Anthropic absent');
   // Import différé : chat.js → tools.js → brief.js, on évite le cycle à l'évaluation des modules.
   const { executerTour } = await import('./chat.js');
   const { outilsLocauxDisponibles } = await import('./tools.js');
-  const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
   const outilsLocaux = (await outilsLocauxDisponibles()).filter((t) => t.name !== definitionOutilBrief.name);
-  const conversation = { id: 'brief', titre: 'Brief du matin', messages: [] };
+  const conversation = { id, titre, messages: [] };
   const outils = [];
   let texte = '';
-  for await (const ev of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Prépare le brief du matin.' }], serveurs, nonConnectes, outilsLocaux, effort: config.effortVoix, consigne: consigneBrief({ serveurs, comptesGmail }) })) {
+  for await (const ev of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs, nonConnectes, outilsLocaux, effort: config.effortVoix, consigne })) {
     if (ev.type === 'tool_use') outils.push(ev.name);
     else if (ev.type === 'done') texte = ev.text;
     else if (ev.type === 'error' && !texte) throw new Error(ev.message);
   }
-  texte = texte.trim();
+  return { texte: texte.trim(), outils };
+}
+
+// Génère le brief par un tour Claude éphémère (non sauvegardé). Retourne { texte, outils }.
+export async function genererBrief({ client, serveurs = [], nonConnectes = [] }) {
+  const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
+  const trajets = Boolean((await configTrajets().catch(() => ({}))).cle);
+  const { texte, outils } = await tourEphemere({ client, serveurs, nonConnectes, id: 'brief', titre: 'Brief du matin', message: 'Prépare le brief du matin.', consigne: consigneBrief({ serveurs, comptesGmail, trajets }) });
   if (!texte) throw new Error('Brief vide');
   return { texte, outils };
 }

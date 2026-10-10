@@ -38,12 +38,41 @@ function rendreMarkdown(texte) {
   h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
   h = h.replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>');
   h = h.replace(/^\s*[-*]\s+/gm, '• ');
+  // Lignes « Plans : https://… » / « Google Maps : https://… » (outil trajet_calculer) → gros boutons qui ouvrent l'itinéraire.
+  h = h.replace(/^\s*(Plans|Google Maps)\s*:\s*(https?:\/\/\S+)\s*$/gm, (_, nom, url) => `<a class="btn btn-itineraire" href="${url}" target="_blank" rel="noopener">Ouvrir dans ${nom}</a>`);
   return h;
 }
 function texteALire(texte) {
-  return texte.replace(/```[\s\S]*?```/g, ' ').replace(/[*_`#>]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').replace(/https?:\/\/\S+/g, 'lien');
+  return texte.replace(/^\s*(Plans|Google Maps)\s*:\s*https?:\/\/\S+\s*$/gm, ' ').replace(/```[\s\S]*?```/g, ' ').replace(/[*_`#>]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').replace(/https?:\/\/\S+/g, 'lien');
 }
 function setEtat(texte) { ui.etat.textContent = texte || ''; ui.etat.hidden = !texte; }
+
+// ---------- Position (réglage « partager ma position ») ----------
+// Jointe aux messages et aux délégations vocales pour les trajets « depuis ici » ; cache de 5 min ; échec silencieux.
+const POSITION_CACHE_MS = 5 * 60_000;
+const position = { valeur: null, obtenueLe: 0, enCours: null };
+async function obtenirPosition() {
+  if (!etat.reglages.partagerPosition || !navigator.geolocation) return null;
+  if (position.valeur && Date.now() - position.obtenueLe < POSITION_CACHE_MS) return position.valeur;
+  if (!position.enCours) {
+    position.enCours = new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => { position.valeur = { lat: p.coords.latitude, lng: p.coords.longitude, precision: Math.round(p.coords.accuracy || 0) }; position.obtenueLe = Date.now(); resolve(position.valeur); },
+        () => resolve(position.valeur), // refus ou échec : dernière position connue, sinon rien
+        { enableHighAccuracy: false, timeout: 4000, maximumAge: POSITION_CACHE_MS },
+      );
+    }).finally(() => { position.enCours = null; });
+  }
+  return position.enCours;
+}
+// Variante de api() qui joint la position aux délégations vocales (/api/voice/ask).
+async function apiAvecPosition(chemin, options = {}) {
+  if (chemin === '/api/voice/ask' && options.body) {
+    const pos = await obtenirPosition();
+    if (pos) options = { ...options, body: JSON.stringify({ ...JSON.parse(options.body), position: pos }) };
+  }
+  return api(chemin, options);
+}
 function defiler() { ui.messages.scrollTop = ui.messages.scrollHeight; }
 
 // ---------- Connexion ----------
@@ -246,7 +275,7 @@ async function envoyer() {
   let ligneOutils = null; let badgeActif = null; let texteRecu = ''; let texteFinal = '';
   defiler();
   try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: etat.conversationId, content }) });
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: etat.conversationId, content, position: await obtenirPosition() }) });
     if (r.status === 401) { afficherLogin(); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).erreur || `HTTP ${r.status}`);
     for await (const ev of lireSSE(r.body)) {
@@ -491,7 +520,7 @@ ui.btnNotifs.addEventListener('click', async () => {
 // ---------- Conversation vocale en direct (GPT-Realtime + Claude) ----------
 const INACTIVITE_APPEL_MS = 45_000; // mains libres : raccrochage automatique après ce silence, retour en veille
 const appel = creerConversationVocale({
-  api,
+  api: apiAvecPosition,
   surEtat: (t) => { ui.appelEtat.textContent = t; },
   surTexteUtilisateur: (t) => { ui.messages.querySelector('.vide-accueil')?.remove(); creerBulle('user').textContent = t; defiler(); },
   surTexteAssistant: (t) => { creerBulle('assistant').innerHTML = rendreMarkdown(t); defiler(); },
