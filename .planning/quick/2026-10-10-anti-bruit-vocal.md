@@ -1,0 +1,2 @@
+# Quick 2026-10-10 — Conversation vocale : réponses aux bruits et échos (iPhone, voiture)
+Symptôme : l’assistant répondait à des fragments (« Ç », « O ») et reprenait la parole seul. Correctif : Realtime sans réponse automatique (create_response false), VAD sémantique peu empressée, réduction de bruit far_field ; le navigateur ne crée la réponse que si la transcription est une vraie phrase (≥ 2 mots ou mot seul autorisé, hallucinations filtrées), sinon l’élément est supprimé ; repli à 4 s si la transcription n’arrive pas. Cache SW v25.

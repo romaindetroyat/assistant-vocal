@@ -80,12 +80,37 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     }
   }
 
+  // Filtre anti-bruit : la session ne répond pas d'elle-même ; on crée la réponse seulement si la transcription
+  // ressemble à une vraie phrase (pas un fragment d'écho, un bruit ou une hallucination de transcription).
+  const MOTS_SEULS = new Set(['oui', 'non', 'stop', 'merci', 'bonjour', 'salut', 'continue', 'annule', 'pardon', 'ok', 'allo', 'attends', 'arrête', 'arrete', 'répète', 'repete']);
+  const HALLUCINATIONS = /sous-titr|amara\.org|abonnez|merci d'avoir regard|\u266a|♪/i;
+  function transcriptionValide(t) {
+    const texte = String(t || '').trim();
+    if (!texte || HALLUCINATIONS.test(texte)) return false;
+    const mots = texte.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z0-9]+/g) || [];
+    if (mots.length >= 2 && mots.join('').length >= 4) return true;
+    return mots.length === 1 && MOTS_SEULS.has(mots[0]);
+  }
+  let minuteurTranscription = null;
+  function repondre() { clearTimeout(minuteurTranscription); minuteurTranscription = null; envoyer({ type: 'response.create' }); }
+
   async function traiter(ev) {
     if (ev.type?.startsWith('input_audio_buffer.') || ev.type?.startsWith('response.') || ev.type?.startsWith('conversation.item.')) armerInactivite();
     switch (ev.type) {
       case 'input_audio_buffer.speech_started': surEtat('Je vous écoute…'); break;
       case 'input_audio_buffer.speech_stopped': surEtat('…'); break;
-      case 'conversation.item.input_audio_transcription.completed': if (ev.transcript?.trim()) surTexteUtilisateur(ev.transcript.trim()); break;
+      case 'input_audio_buffer.committed':
+        // Si la transcription n'arrive pas (panne du service), on répond quand même après 4 s plutôt que de rester muet.
+        clearTimeout(minuteurTranscription);
+        minuteurTranscription = setTimeout(() => { minuteurTranscription = null; envoyer({ type: 'response.create' }); }, 4000);
+        break;
+      case 'conversation.item.input_audio_transcription.completed': {
+        const t = (ev.transcript || '').trim();
+        if (transcriptionValide(t)) { surTexteUtilisateur(t); repondre(); }
+        else { clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); if (ev.item_id) envoyer({ type: 'conversation.item.delete', item_id: ev.item_id }); }
+        break;
+      }
+      case 'conversation.item.input_audio_transcription.failed': clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); break;
       case 'response.output_audio_transcript.done': if (ev.transcript?.trim()) surTexteAssistant(ev.transcript.trim()); surEtat('Je vous écoute'); break;
       case 'response.output_audio.delta': case 'response.output_audio_transcript.delta': surEtat('Je parle…'); break;
       case 'response.done': {

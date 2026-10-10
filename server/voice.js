@@ -38,7 +38,10 @@ export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VO
     model: modeleVoix(),
     output_modalities: ['audio'],
     audio: {
-      input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, turn_detection: { type: 'semantic_vad', eagerness: 'medium' } },
+      // Détection de tour peu empressée + réduction de bruit « champ lointain » (haut-parleur du téléphone, voiture) ;
+      // la réponse n'est pas créée automatiquement : le navigateur la déclenche après avoir filtré la transcription
+      // (bruits, échos et fragments ne provoquent plus de réponse).
+      input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, noise_reduction: { type: 'far_field' }, turn_detection: { type: 'semantic_vad', eagerness: 'low', create_response: false, interrupt_response: true } },
       output: { voice: reglages.voix || env().OPENAI_REALTIME_VOICE || 'marin' },
     },
     instructions: instructionsVoix(reglages, { contexte }),
