@@ -2,8 +2,8 @@
 
 ## Current Position
 
-- Milestone: v2 livré (phases 13, 14, 15) le 2026-10-10 ; v3 à définir d'après l'usage
-- Last action: 15-02 mains libres iPhone (écoute locale + transcription OpenAI), cache SW v17 — 2026-10-10
+- Milestone: v3 « Mobilité iPhone » planifiée (phases 16 trajets, 17 partage, 18 raccourcis Siri, 19 mode voiture) ; aucune commencée
+- Last action: planification v3 (ROADMAP, REQUIREMENTS, quatre PLAN.md) — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
 - Tests : 57 (`npm test`)
 
@@ -23,6 +23,8 @@
 | 2026-10-10 | Mémoire alimentée par l'assistant via outil | Simple, visible, corrigeable |
 | 2026-10-10 | Abandon de Google Agenda en direct (ex-phase 15) | Agenda Hub couvre les quatre comptes |
 | 2026-10-10 | Phases v2 exécutées en parallèle dans des worktrees, fusion manuelle | Rapidité ; conflits limités à scheduler/worker/index |
+| 2026-10-10 | iPhone : partage et Siri via raccourcis iOS + jetons d'appareil (pas de Web Share Target sur Safari) | Seule voie fiable sur iOS |
+| 2026-10-10 | Trajets via Google Routes (clé saisie dans l'app) | Trafic réel et transports ; cohérent avec « connexions depuis l'app » |
 | 2026-10-10 | Veille iPhone par écoute locale + transcription courte (OpenAI) | SpeechRecognition inutilisable sur iOS |
 | 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
@@ -33,6 +35,7 @@
 ## Next
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
+- Lancer `/gsd-execute-phase 16` (trajets) dès que la clé Google Maps est saisie ; 17 et 18 peuvent s'enchaîner sans prérequis ; 19 après 18
 - Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone
 - iPhone = cible principale : vérifier la veille « écoute locale » (app ouverte à l'écran) et le vocal 🎙️ désormais actif
 - Toute nouvelle demande passe par une phase GSD (voir CLAUDE.md), y compris via `demander_developpement`

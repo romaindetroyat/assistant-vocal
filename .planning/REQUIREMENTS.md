@@ -1,6 +1,6 @@
 # Requirements: Assistant vocal PWA
 
-**Defined:** 2026-10-07 · **Updated:** 2026-10-10
+**Defined:** 2026-10-07 · **Updated:** 2026-10-10 (v3 planifiée)
 **Core Value:** Dire une phrase et obtenir l'action faite via le bon outil.
 
 ## v1 Requirements (livrées)
@@ -53,6 +53,28 @@
 - [x] **IN-07** Mot d'activation mains libres
 - [x] **ORC-09** Compaction serveur des longues conversations
 
+## v3 Requirements — Mobilité iPhone (planifiées)
+
+### Trajets (TRA)
+- **TRA-01** Durée de trajet avec trafic et itinéraire (voiture, transports, marche, vélo) via Google Routes, lien Plans / Google Maps
+- **TRA-02** Adresses domicile et bureau, position actuelle partagée sur demande
+- **TRA-03** Heure de départ des rendez-vous dans le brief du matin et rappel push « Partez maintenant »
+
+### Partage (PAR)
+- **PAR-01** Jetons d'appareil (création, révocation, hachage) pour les appels depuis Raccourcis iOS
+- **PAR-02** `POST /api/partage` : texte, URL, image + consigne → action de l'assistant, réponse + push
+- **PAR-03** Web Share Target (Android, ordinateur) et guide du raccourci iOS de partage
+
+### Raccourcis Siri (SIRI)
+- **SIRI-01** `POST /api/raccourci` : question dictée → réponse courte énoncée par Siri (< 15 s, repli push)
+- **SIRI-02** Liens profonds `/app?action=appel|brief`, `/app?dire=…`, `/app?mode=voiture`
+- **SIRI-03** Guides pas à pas des raccourcis dans « Mes outils »
+
+### Mode voiture (VOI)
+- **VOI-01** Affichage voiture : un bouton, grandes lettres, sombre, écran maintenu allumé
+- **VOI-02** Conversation permanente avec reprise mains libres, concision renforcée, contexte « conducteur »
+- **VOI-03** Rappels et notifications lus à voix haute pendant le mode voiture
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -61,6 +83,8 @@
 | MCP locaux (stdio) | Connecteur API = URL distantes seulement |
 | Connecteurs claude.ai réutilisés | Jetons OAuth non exportables |
 | Framework front | Zéro build, déploiement simple |
+| Écoute mains libres écran verrouillé sur iPhone | Impossible pour une app web (iOS coupe le micro) : contourné par les raccourcis Siri |
+| CarPlay | Réservé aux apps natives |
 
 ## Traceability
 
@@ -81,7 +105,11 @@
 | PER-05 | 13 | Validated |
 | PER-04 | 14 | Validated |
 | IN-07, ORC-09 | 15 | Validated |
-| INT-06 | v2 backlog | Pending |
+| INT-06 | backlog | Pending |
+| TRA-01..03 | 16 | Planned |
+| PAR-01..03 | 17 | Planned |
+| SIRI-01..03 | 18 | Planned |
+| VOI-01..03 | 19 | Planned |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*

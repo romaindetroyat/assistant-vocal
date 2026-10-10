@@ -41,6 +41,19 @@
 
 > Google Agenda en direct (ex-phase 15, INT-05) abandonné le 2026-10-10 : Agenda Hub suffit.
 
+## Milestone v3 — Mobilité iPhone (planifié le 2026-10-10)
+
+| Phase | Status | Goal |
+|-------|--------|------|
+| 16 — Trajets | Planned | Durée avec trafic, itinéraire Plans/Google Maps, heure de départ dans le brief et en rappel (Google Routes) |
+| 17 — Partage depuis l'iPhone | Planned | Feuille de partage iOS (raccourci + jeton d'appareil), Web Share Target ailleurs, résultat en push |
+| 18 — Raccourcis Siri | Planned | « Dis Siri, demande à l'assistant… » répondu à voix haute écran verrouillé ; liens profonds appel/brief/voiture |
+| 19 — Mode voiture | Planned | Un bouton, conversation permanente, tout lu à voix haute, écran sombre maintenu allumé |
+
+Ordre retenu : 16 (indépendante), 17 (crée les jetons d'appareil), 18 (réutilise les jetons), 19 (lancée par le lien
+Siri de la 18). Plans détaillés dans `.planning/phases/16-…` à `19-…`. Prérequis de Romain : clé Google Maps Platform
+(phase 16) ; les raccourcis iOS se créent d'après les guides fournis dans « Mes outils ».
+
 ## Progress
 
-15 phases livrées sur 15 (v1 + v2). v3 à définir d'après l'usage (reste au backlog : INT-06 Element/Matrix).
+15 phases livrées sur 15 (v1 + v2). v3 : 4 phases planifiées, aucune commencée (backlog : INT-06 Element/Matrix).
