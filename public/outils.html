@@ -34,6 +34,17 @@
     .raccourci summary { font-size: 14px; }
     .raccourci code { overflow-wrap: anywhere; }
     .pied-version { margin: 0; text-align: center; font-size: 12px; opacity: 0.8; overflow-wrap: anywhere; }
+    .autorisation { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--bordure); }
+    .autorisation:first-child { border-top: 0; }
+    .autorisation .ligne { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .autorisation .nom { font-weight: 600; flex: 1; min-width: 120px; }
+    .badge { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--bordure); color: var(--texte-2); background: var(--fond-3); }
+    .badge.ok { border-color: var(--ok); color: var(--ok); }
+    .badge.attente { border-color: var(--accent); color: var(--accent); }
+    .badge.refuse { border-color: var(--erreur); color: var(--erreur); }
+    .autorisation .desc { font-size: 13px; color: var(--texte-2); }
+    .marche { margin: 0; font-size: 13px; color: var(--texte-2); line-height: 1.45; }
+    .marche strong { color: var(--texte); }
   </style>
 </head>
 <body>
@@ -229,6 +240,13 @@
       <label>Adresse du bureau <input id="trajets-bureau" type="text" maxlength="200" autocomplete="off" placeholder="facultatif"></label>
       <label class="case"><input id="trajets-position" type="checkbox"> Partager ma position : l'application joint votre position GPS à chaque message pour les trajets « depuis ici »</label>
       <p id="etat-trajets" class="discret"></p>
+    </section>
+
+    <section class="carte" id="autorisations">
+      <h2>Autorisations</h2>
+      <p class="discret">Micro, position et notifications sont demandés une seule fois puis conservés par le navigateur : vérifiez ici leur état et accordez-les d'avance plutôt qu'en pleine conversation. Sur iPhone, l'app installée sur l'écran d'accueil a ses propres autorisations.</p>
+      <div id="liste-autorisations"></div>
+      <p id="etat-autorisations" class="discret"></p>
     </section>
 
     <section class="carte">
@@ -543,6 +561,73 @@
       } catch (e) { $('#etat-trajets').textContent = `Erreur : ${e.message}`; }
     }
     for (const id of ['#trajets-domicile', '#trajets-bureau', '#trajets-position']) $(id).addEventListener('change', enregistrerTrajets);
+
+    // --- Autorisations (phase 21) : état lu par navigator.permissions, demande à la volée, marche à suivre ---
+    const estIphone = /iP(hone|ad)/.test(navigator.userAgent);
+    const LIBELLES_ETAT = { granted: ['Accordée', 'ok'], prompt: ['À demander', 'attente'], denied: ['Refusée', 'refuse'], inconnu: ['Inconnue, testez', ''] };
+    const AUTORISATIONS = [
+      {
+        id: 'micro', nom: 'Micro', permission: 'microphone', usage: 'dictée, vocal, conversation en direct, veille mains libres',
+        demander: async () => { const f = await navigator.mediaDevices.getUserMedia({ audio: true }); f.getTracks().forEach((t) => t.stop()); },
+        chrome: 'Cadenas dans la barre d\'adresse → Autorisations du site → Micro : Autoriser.',
+        iphone: 'Réglages → Apps → Safari → Micro → ce site → Autoriser. Pour l\'app installée sur l\'écran d\'accueil, l\'autorisation est demandée au premier usage ; si elle a été refusée, supprimez l\'icône et réinstallez-la (Partager → Sur l\'écran d\'accueil).',
+      },
+      {
+        id: 'position', nom: 'Position', permission: 'geolocation', usage: 'trajets « depuis ici », météo « ici » (si « Partager ma position » est coché)',
+        demander: () => new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(() => resolve(), (e) => reject(new Error(e.message || 'refusée')), { enableHighAccuracy: false, timeout: 8000, maximumAge: 3_600_000 })),
+        chrome: 'Cadenas dans la barre d\'adresse → Autorisations du site → Localisation : Autoriser.',
+        iphone: 'Réglages → Apps → Safari → Position → ce site → Autoriser ; pour l\'app installée sur l\'écran d\'accueil, Réglages → Safari → Position → Autoriser. Vérifiez aussi Réglages → Confidentialité → Service de localisation → Safari.',
+      },
+      {
+        id: 'notifications', nom: 'Notifications', permission: 'notifications', usage: 'brief du matin, rappels, réponses en différé',
+        demander: async () => { if (!window.Notification) throw new Error('non prises en charge par ce navigateur'); if ((await Notification.requestPermission()) !== 'granted') throw new Error('refusées'); },
+        chrome: 'Cadenas dans la barre d\'adresse → Autorisations du site → Notifications : Autoriser, puis activez 🔔 dans l\'assistant.',
+        iphone: 'Installez d\'abord l\'app sur l\'écran d\'accueil (Partager → Sur l\'écran d\'accueil), ouvrez-la et touchez 🔔 ; ensuite Réglages → Notifications → Assistant → Autoriser.',
+      },
+    ];
+    const etatsAutorisations = {};
+    async function lireAutorisation(a) {
+      if (a.permission === 'notifications' && window.Notification && Notification.permission !== 'default') return Notification.permission; // Safari sans permissions.query
+      try {
+        const s = await navigator.permissions.query({ name: a.permission });
+        s.onchange = () => { etatsAutorisations[a.id] = s.state; afficherAutorisation(a); };
+        return s.state;
+      } catch { return window.Notification && a.permission === 'notifications' ? 'prompt' : 'inconnu'; }
+    }
+    function afficherAutorisation(a) {
+      const etatA = etatsAutorisations[a.id] || 'inconnu';
+      const [libelle, classe] = LIBELLES_ETAT[etatA] || LIBELLES_ETAT.inconnu;
+      const bloc = $(`#autorisation-${a.id}`);
+      const badge = bloc.querySelector('.badge'); badge.textContent = libelle; badge.className = `badge${classe ? ` ${classe}` : ''}`;
+      bloc.querySelector('button').hidden = etatA === 'granted';
+      const marche = bloc.querySelector('.marche');
+      marche.hidden = etatA === 'granted';
+      marche.innerHTML = '';
+      if (etatA !== 'granted') {
+        const b = document.createElement('strong'); b.textContent = estIphone ? 'iPhone : ' : 'Chrome : ';
+        marche.append(b, document.createTextNode(estIphone ? a.iphone : a.chrome));
+        if (etatA === 'denied') marche.append(document.createTextNode(' Après modification, rechargez la page.'));
+      }
+    }
+    async function chargerAutorisations() {
+      const el = $('#liste-autorisations'); el.innerHTML = '';
+      for (const a of AUTORISATIONS) {
+        const bloc = document.createElement('div'); bloc.className = 'autorisation'; bloc.id = `autorisation-${a.id}`;
+        bloc.innerHTML = '<div class="ligne"><span class="nom"></span><span class="badge"></span><button class="btn btn-secondaire btn-petit" type="button">Demander maintenant</button></div><div class="desc"></div><p class="marche" hidden></p>';
+        bloc.querySelector('.nom').textContent = a.nom; bloc.querySelector('.desc').textContent = a.usage;
+        bloc.querySelector('button').addEventListener('click', async () => {
+          const out = $('#etat-autorisations'); out.textContent = `${a.nom} : demande en cours… répondez à la question du navigateur.`;
+          try { await a.demander(); etatsAutorisations[a.id] = 'granted'; out.textContent = `${a.nom} : accordée ✓`; }
+          catch (e) { if (/NotAllowed|refus|denied|Permission/i.test(`${e.name} ${e.message}`)) etatsAutorisations[a.id] = 'denied'; out.textContent = `${a.nom} : ${e.message || 'refusée'}`; }
+          etatsAutorisations[a.id] = await lireAutorisation(a).then((s) => (s === 'inconnu' ? etatsAutorisations[a.id] : s));
+          afficherAutorisation(a);
+        });
+        el.append(bloc);
+        etatsAutorisations[a.id] = await lireAutorisation(a);
+        afficherAutorisation(a);
+      }
+    }
+    chargerAutorisations().catch((e) => { $('#etat-autorisations').textContent = `Autorisations : ${e.message}`; });
 
     const NOMS_VOIX = { marin: 'Marin (féminine, naturelle)', cedar: 'Cedar (masculine, naturelle)', alloy: 'Alloy', ash: 'Ash', ballad: 'Ballad', coral: 'Coral', echo: 'Echo', sage: 'Sage', shimmer: 'Shimmer', verse: 'Verse' };
     api('/api/reglages').then((r) => {
