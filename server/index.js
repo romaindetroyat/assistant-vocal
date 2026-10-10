@@ -16,6 +16,7 @@ import { transcriptionDisponible } from './transcribe.js';
 import { demarrerPlanificateur } from './scheduler.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendFs } from './store-fs.js';
+import { infosBuild } from './version.js';
 
 const ici = path.dirname(fileURLToPath(import.meta.url));
 const dossierPublic = path.relative(process.cwd(), path.join(ici, '..', 'public')) || '.';
@@ -31,7 +32,7 @@ export function chargerServeursMcp() {
 
 export function creerApplicationNode({ client = new Anthropic({ defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }), serveurs = chargerServeursMcp() } = {}) {
   utiliserBackend(creerBackendFs(config.dataDir));
-  return creerApplication({ client, serveurs, fichier: (c, chemin) => statique.fetch(new Request(new URL(chemin, c.req.url))) });
+  return creerApplication({ client, serveurs, fichier: (c, chemin) => statique.fetch(new Request(new URL(chemin, c.req.url))), version: infosBuild() });
 }
 
 const estPrincipal = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

@@ -15,6 +15,9 @@ for (const chemin of lister(dossier)) {
   const ext = path.extname(chemin);
   fichiers[chemin] = { type: types[ext] || 'application/octet-stream', base64: fs.readFileSync(path.join(dossier, chemin)).toString('base64') };
 }
-const sortie = `// Fichier généré par scripts/inline-assets.mjs — ne pas modifier.\nexport const fichiersInline = ${JSON.stringify(fichiers)};\n`;
+// Version lue dans package.json ; date de déploiement = DEPLOYED_AT ou l'heure du build (aucune avec --dev).
+const { version } = JSON.parse(fs.readFileSync(path.join(racine, 'package.json'), 'utf8'));
+const infosBuild = { version, deployeLe: process.argv.includes('--dev') ? null : process.env.DEPLOYED_AT || new Date().toISOString() };
+const sortie = `// Fichier généré par scripts/inline-assets.mjs — ne pas modifier.\nexport const infosBuild = ${JSON.stringify(infosBuild)};\nexport const fichiersInline = ${JSON.stringify(fichiers)};\n`;
 fs.writeFileSync(path.join(racine, 'server', 'assets-inline.js'), sortie);
-console.log(`${Object.keys(fichiers).length} fichiers embarqués (${(sortie.length / 1024).toFixed(0)} Ko)`);
+console.log(`Version ${infosBuild.version} (${infosBuild.deployeLe || 'dev'}) · ${Object.keys(fichiers).length} fichiers embarqués (${(sortie.length / 1024).toFixed(0)} Ko)`);

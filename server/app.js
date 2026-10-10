@@ -16,13 +16,15 @@ import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
 import * as as from './oauth-server.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
+import { formaterVersion } from './version.js';
 
 /**
  * @param client  client Anthropic (ou simulé)
  * @param serveurs serveurs MCP analysés, ou fonction () => serveurs (évaluée à chaque requête)
  * @param fichier (c, chemin) => Response : sert un fichier statique de public/
+ * @param version { version, deployeLe } : version du package.json et horodatage du déploiement (null en dev)
  */
-export function creerApplication({ client, serveurs = [], fichier }) {
+export function creerApplication({ client, serveurs = [], fichier, version = {} }) {
   const app = new Hono();
   const serveursEnv = () => (typeof serveurs === 'function' ? serveurs() : serveurs);
   // Serveurs déclarés par l'environnement + serveurs ajoutés dans l'application.
@@ -119,6 +121,8 @@ export function creerApplication({ client, serveurs = [], fichier }) {
   });
 
   // --- Réglages ---
+  app.get('/api/version', (c) => c.json({ version: version.version || null, deployeLe: version.deployeLe || null, texte: formaterVersion(version) }));
+
   app.get('/api/reglages', async (c) => c.json({ ...(await lireReglages()), voixDisponibles: VOIX, concisions: Object.keys(CONCISIONS) }));
   app.put('/api/reglages', async (c) => {
     try { return c.json(await modifierReglages(await c.req.json().catch(() => ({})))); }
