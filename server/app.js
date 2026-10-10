@@ -19,6 +19,7 @@ import * as bring from './bring.js';
 import { lireConsignes, remplacerConsignes } from './consignes.js';
 import { lireMemoire, remplacerMemoire } from './memoire.js';
 import * as taches from './taches.js';
+import * as brief from './brief.js';
 import { traiterRequeteJsonRpc, VERSION_PROTOCOLE } from './mcp-server.js';
 import { formaterVersion } from './version.js';
 
@@ -199,6 +200,17 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   app.post('/api/taches', async (c) => { try { return c.json(await taches.ajouterTache(await c.req.json().catch(() => ({}))), 201); } catch (e) { return c.json({ erreur: e.message }, 400); } });
   app.put('/api/taches/:id', async (c) => { try { return c.json(await taches.modifierTache(c.req.param('id'), await c.req.json().catch(() => ({})))); } catch (e) { return c.json({ erreur: e.message }, 400); } });
   app.delete('/api/taches/:id', async (c) => { try { await taches.supprimerTache(c.req.param('id')); return c.json({ ok: true }); } catch (e) { return c.json({ erreur: e.message }, 404); } });
+
+  // --- Brief du matin : dernier brief enregistré, ou génération à la demande ---
+  app.get('/api/brief', async (c) => c.json((await brief.lireDernierBrief()) || { jour: null, texte: null, genereLe: null }));
+  app.post('/api/brief', async (c) => {
+    try {
+      const { prets, nonConnectes } = await resoudreServeurs(await lesServeurs(), (nom) => oauth.jetonPour(nom));
+      const { texte } = await brief.genererBrief({ client: leClient(), serveurs: prets, nonConnectes });
+      const enregistre = await brief.enregistrerBrief(texte);
+      return c.json({ texte, jour: enregistre.jour, genereLe: enregistre.genereLe });
+    } catch (e) { return c.json({ erreur: e.message }, 500); }
+  });
 
   app.post('/api/transcribe', async (c) => {
     const form = await c.req.formData().catch(() => null);
