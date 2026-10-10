@@ -54,6 +54,12 @@ Ordre retenu : 16 (indépendante), 17 (crée les jetons d'appareil), 18 (réutil
 Siri de la 18). Plans détaillés dans `.planning/phases/16-…` à `19-…`. Prérequis de Romain : clé Google Maps Platform
 (phase 16) ; les raccourcis iOS se créent d'après les guides fournis dans « Mes outils ».
 
+## Milestone v4 — Quotidien (en cours)
+
+| Phase | Status | Goal |
+|-------|--------|------|
+| 20 — Météo | Complete | Outil meteo (Open-Meteo : ECMWF IFS + AROME, modèles de tameteo.com), tranches de journée, conseil, météo dans le brief |
+
 ## Progress
 
-19 phases livrées sur 19 (v1 + v2 + v3). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
+20 phases livrées sur 20 (v1 à v4 en cours). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.

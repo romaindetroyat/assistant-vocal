@@ -75,6 +75,12 @@
 - [x] **VOI-02** Conversation permanente avec reprise mains libres, concision renforcée, contexte « conducteur »
 - [x] **VOI-03** Rappels et notifications lus à voix haute pendant le mode voiture
 
+## v4 Requirements — Quotidien
+
+### Météo (MET)
+- [x] **MET-01** Prévisions à la voix (aujourd'hui, demain, semaine, date ; lieu par défaut position/domicile) avec conseil pratique
+- [x] **MET-02** Phrase météo en tête du brief du matin
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -110,6 +116,7 @@
 | PAR-01..03 | 17 | Validated (tests) |
 | SIRI-01..03 | 18 | Validated (tests) |
 | VOI-01..03 | 19 | Validated (tests) |
+| MET-01..02 | 20 | Validated (tests) |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*

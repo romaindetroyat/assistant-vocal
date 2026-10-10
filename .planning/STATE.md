@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v3 « Mobilité iPhone » livrée (phases 16 à 19) le 2026-10-10 ; tests réels iPhone à faire par Romain
-- Last action: cinq tâches rapides post-v3 (anti-bruit vocal, iPhone en mode voiture, latence ÷2 et coût ÷18, suivi de consommation), cache SW v28 — 2026-10-10
+- Milestone: v4 « Quotidien » en cours : phase 20 météo livrée le 2026-10-10 ; v3 à valider sur iPhone par Romain
+- Last action: phase 20 météo (Open-Meteo, modèles ECMWF + AROME) ; auparavant cinq tâches rapides post-v3 (anti-bruit vocal, iPhone en mode voiture, latence ÷2 et coût ÷18, suivi de consommation), cache SW v28 — 2026-10-10
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 79 (`npm test`)
+- Tests : 86 (`npm test`)
 
 ## Decisions Log
 
@@ -26,6 +26,7 @@
 | 2026-10-10 | iPhone : partage et Siri via raccourcis iOS + jetons d'appareil (pas de Web Share Target sur Safari) | Seule voie fiable sur iOS |
 | 2026-10-10 | Trajets via Google Routes (clé saisie dans l'app) | Trafic réel et transports ; cohérent avec « connexions depuis l'app » |
 | 2026-10-10 | Veille iPhone par écoute locale + transcription courte (OpenAI) | SpeechRecognition inutilisable sur iOS |
+| 2026-10-10 | Météo via Open-Meteo (ECMWF + AROME) plutôt que l'API Meteored | Pas d'API Meteored documentée publiquement ; mêmes modèles, gratuit, sans clé |
 | 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
 ## Blockers
