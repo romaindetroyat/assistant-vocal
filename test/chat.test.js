@@ -27,6 +27,31 @@ function clientSimule(reponses) {
   };
 }
 
+test('serveurs MCP secondaires : attachés seulement après activer_serveur, puis gardés pour la conversation', async () => {
+  const client = clientSimule([
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'activer_serveur', input: { serveur: 'vercel' } }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Déploiement OK.' }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Encore OK.' }] },
+  ]);
+  const conversation = { titre: 'Nouvelle conversation', messages: [] };
+  const serveurs = [{ name: 'agenda', url: 'https://x.invalid/agenda', description: 'Agenda' }, { name: 'vercel', url: 'https://x.invalid/vercel', description: 'Déploiements' }];
+  const evts = [];
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Dernier déploiement ?' }], serveurs, outilsLocaux: [] })) evts.push(e);
+  const r1 = client.requetes[0];
+  assert.deepEqual(r1.mcp_servers.map((m) => m.name), ['agenda']);
+  assert.ok(r1.tools.some((t) => t.name === 'activer_serveur' && t.input_schema.properties.serveur.enum.includes('vercel')));
+  assert.match(r1.system[0].text, /vercel : Déploiements — À ACTIVER/);
+  assert.ok(!/agenda : Agenda — À ACTIVER/.test(r1.system[0].text));
+  const r2 = client.requetes[1];
+  assert.deepEqual(r2.mcp_servers.map((m) => m.name), ['agenda', 'vercel']);
+  assert.deepEqual(r2.tools.find((t) => t.mcp_server_name === 'vercel').default_config, { defer_loading: true });
+  assert.deepEqual(conversation.serveursActifs, ['vercel']);
+  assert.ok(evts.some((e) => e.type === 'tool_result' && e.name === 'activer_serveur' && e.ok));
+  // Tour suivant de la même conversation : vercel reste attaché d'emblée.
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Et le précédent ?' }], serveurs, outilsLocaux: [] })) evts.push(e);
+  assert.deepEqual(client.requetes[2].mcp_servers.map((m) => m.name), ['agenda', 'vercel']);
+});
+
 const outilLocalTest = [{ name: 'list_reminders', description: 'x', strict: true, input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false } }];
 
 test('tour simple : texte streamé, historique enrichi, requête bien formée', async () => {

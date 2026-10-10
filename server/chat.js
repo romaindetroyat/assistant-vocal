@@ -1,6 +1,6 @@
 // Un tour de conversation : appel Claude en streaming, outils MCP (côté Anthropic) + outils locaux (ici).
 import { config } from './config.js';
-import { parametresMcp } from './mcp.js';
+import { parametresMcp, SERVEURS_PRIORITAIRES } from './mcp.js';
 import { blocsPromptSysteme } from './prompt.js';
 import { definitionsOutilsLocaux, nomsOutilsLocaux, executerOutilLocal, outilsLocauxDisponibles } from './tools.js';
 import { listerComptes } from './google.js';
@@ -43,16 +43,32 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   if (compactee) yield { type: 'compaction', messages: conversation.resumes.at(-1).messagesCompactes };
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
-  const { mcp_servers, tools: toolsMcp } = parametresMcp(serveurs);
+  // Latence : chaque serveur MCP attaché coûte une connexion côté API (plusieurs secondes pour sept serveurs).
+  // Seuls les serveurs prioritaires (agenda, courrier) sont attachés d'emblée ; les autres le sont à la demande via
+  // l'outil activer_serveur, et restent actifs pour toute la conversation (`conversation.serveursActifs`).
+  const estPrioritaire = (s) => SERVEURS_PRIORITAIRES.test(`${s.name} ${s.description || ''}`);
+  conversation.serveursActifs = Array.isArray(conversation.serveursActifs) ? conversation.serveursActifs : [];
+  const serveursAttaches = () => serveurs.filter((s) => estPrioritaire(s) || conversation.serveursActifs.includes(s.name));
+  const secondaires = serveurs.filter((s) => !estPrioritaire(s));
+  const outilActiver = secondaires.length ? [{
+    name: 'activer_serveur',
+    description: `Active un serveur MCP secondaire pour cette conversation (ses outils deviennent appelables au tour suivant). Serveurs disponibles : ${secondaires.map((s) => `${s.name} (${s.description || 'sans description'})`).join(' ; ')}.`,
+    input_schema: { type: 'object', properties: { serveur: { type: 'string', enum: secondaires.map((s) => s.name), description: 'Nom du serveur à activer' } }, required: ['serveur'] },
+  }] : [];
   const rappelsActifs = (await listerRappels()).filter((r) => !r.livreLe).length;
-  const system = blocsPromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire });
-  // Recherche d'outils en tête (jamais différée) : les serveurs MCP secondaires sont chargés à la demande.
-  const tools = [
-    { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' },
-    ...outilsLocaux,
-    ...toolsMcp,
-    { type: 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
-  ];
+  const system = blocsPromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire, serveursActifs: serveursAttaches().map((s) => s.name) });
+  // Recherche d'outils en tête (jamais différée) : les outils différés sont chargés à la demande.
+  const construireOutils = () => {
+    const { mcp_servers, tools: toolsMcp } = parametresMcp(serveursAttaches());
+    return { mcp_servers, tools: [
+      { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' },
+      ...outilsLocaux,
+      ...outilActiver,
+      ...toolsMcp,
+      { type: 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
+    ] };
+  };
+  let { mcp_servers, tools } = construireOutils();
 
   let texteFinal = '';
   const debutTour = Date.now();
@@ -98,6 +114,16 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
       const appels = reponse.content.filter((b) => b.type === 'tool_use');
       const resultats = [];
       for (const appel of appels) {
+        if (appel.name === 'activer_serveur') {
+          const nom = String(appel.input?.serveur || '');
+          const existe = secondaires.some((s) => s.name === nom);
+          if (existe && !conversation.serveursActifs.includes(nom)) conversation.serveursActifs.push(nom);
+          ({ mcp_servers, tools } = construireOutils());
+          const texte = existe ? `Serveur ${nom} activé : ses outils sont disponibles dès maintenant (cherche-les avec tool_search_tool_bm25 si besoin), appelle-les.` : `Serveur inconnu : ${nom}`;
+          resultats.push({ type: 'tool_result', tool_use_id: appel.id, is_error: !existe, content: texte });
+          yield { type: 'tool_result', name: appel.name, ok: existe, preview: texte };
+          continue;
+        }
         if (!nomsOutilsLocaux.has(appel.name)) {
           resultats.push({ type: 'tool_result', tool_use_id: appel.id, is_error: true, content: `Outil inconnu : ${appel.name}` });
           continue;

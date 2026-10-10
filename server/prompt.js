@@ -17,10 +17,11 @@ export function promptVolatil({ rappelsActifs = 0 } = {}) {
 export function construirePromptSysteme(serveurs, options = {}) {
   return `${promptStable(serveurs, options)}\n\n${promptVolatil(options)}`;
 }
-function promptStable(serveurs, { pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [], memoire = [] } = {}) {
+function promptStable(serveurs, { pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [], memoire = [], serveursActifs = null } = {}) {
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
 
-  const lignes = serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}`);
+  const attache = (s) => serveursActifs === null || serveursActifs.includes(s.name);
+  const lignes = serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}${attache(s) ? '' : ' — À ACTIVER d\'abord avec activer_serveur'}`);
   for (const s of nonConnectes) lignes.push(`- ${s.name} : NON CONNECTÉ (${s.description || ''}) — si l'utilisateur en a besoin, dis-lui de le connecter dans le menu ☰ de l'application.`);
   const carte = lignes.length ? lignes.join('\n') : '- (aucun serveur MCP configuré : dis-le si on te demande une action qui en nécessiterait un)';
 
@@ -31,7 +32,7 @@ Tu es joint depuis un téléphone ou un ordinateur, le plus souvent à la voix.
 
 Serveurs MCP connectés (chaque outil porte le nom de son serveur) :
 ${carte}
-Seuls les outils de l'agenda et du courrier sont chargés d'avance : pour les autres serveurs (notes de réunion, déploiements, bases de données…), cherche d'abord l'outil avec tool_search_tool_bm25 (requête courte, ex. « granola meetings », « vercel deployments »), puis appelle-le. Un seul tour de recherche suffit en général.
+Les serveurs marqués « À ACTIVER » ne sont pas encore attachés : appelle activer_serveur (nom du serveur) dès que la demande les concerne, puis, au tour suivant, cherche l'outil avec tool_search_tool_bm25 (requête courte, ex. « meetings », « deployments ») et appelle-le. Activation et recherche se font sans en parler à l'utilisateur.
 
 Outils locaux :
 - notify_me : notification push immédiate sur les appareils de l'utilisateur
