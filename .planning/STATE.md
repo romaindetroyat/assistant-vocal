@@ -3,7 +3,7 @@
 ## Current Position
 
 - Milestone: v4 « Quotidien » livré et clôturé le 2026-10-11 (phases 20 à 23 + tâches rapides) ; v5 à définir d'après l'usage
-- Last action: clôture de la v4 (tag v4.0) — 2026-10-11
+- Last action: clôture de la v4 — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
 - Tests : 105 (`npm test`)
 
