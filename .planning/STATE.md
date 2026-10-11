@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v4 « Quotidien » en cours : phases 20 (météo), 21 (extension, raccourcis, autorisations), 22 (coffre de documents), 23 (interface Ardoise) livrées
-- Last action: tâche rapide « arrêter l'écoute » (extension 1.1.0, micro éteint à l'arrêt, bruit sans effet sur l'inactivité), cache SW v37 — 2026-10-11
+- Last action: tâches rapides micro (arrêt de l'écoute, fuites du micro corrigées, dictée bornée à 15 s, journal du micro), nettoyage des données de test en production, cache SW v39 — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 104 (`npm test`)
+- Tests : 105 (`npm test`)
 
 ## Decisions Log
 
@@ -38,7 +38,8 @@
 
 ## Next
 
-- Mode voiture : lire `GET /api/diag/client` après le prochain trajet de Romain pour diagnostiquer les coupures restantes
+- Mode voiture : lire `GET /api/diag/client` après le prochain trajet de Romain (micro coupé pendant la recherche à valider)
+- Règle : ne plus tester en écriture sur la production (données de test nettoyées le 2026-10-11)
 - Coffre : activer R2 (tableau de bord Cloudflare) puis décommenter le binding DOCS ; définir un secret DOCS_KEY dédié
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
