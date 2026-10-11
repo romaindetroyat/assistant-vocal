@@ -388,8 +388,22 @@ async function ajouterImage(fichier) {
   const piece = document.createElement('div'); piece.className = 'piece';
   const img = document.createElement('img'); img.src = url;
   const x = document.createElement('button'); x.textContent = '✕'; x.setAttribute('aria-label', 'Retirer');
-  x.onclick = () => { etat.images = etat.images.filter((i) => i.url !== url); piece.remove(); ui.pieces.hidden = !etat.images.length; };
-  piece.append(img, x); ui.pieces.append(piece); ui.pieces.hidden = false;
+  const retirer = () => { etat.images = etat.images.filter((i) => i.url !== url); piece.remove(); ui.pieces.hidden = !etat.images.length; };
+  x.onclick = retirer;
+  // Ranger l'original (pleine résolution) dans le coffre de documents chiffré au lieu de l'envoyer dans la conversation.
+  const coffre = document.createElement('button'); coffre.textContent = '🗂️'; coffre.className = 'piece-coffre'; coffre.title = 'Ranger dans le coffre de documents'; coffre.setAttribute('aria-label', 'Ranger dans le coffre');
+  coffre.onclick = async () => {
+    setEtat('Rangement dans le coffre : chiffrement et lecture du document…');
+    try {
+      const form = new FormData(); form.append('fichier', fichier, fichier.name || 'document.jpg');
+      const r = await fetch('/api/documents', { method: 'POST', body: form });
+      const doc = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(doc.erreur || `HTTP ${r.status}`);
+      retirer();
+      setEtat(`Rangé dans le coffre (${doc.espace}) : ${doc.titre}. Fiche à valider dans Mes documents.`);
+    } catch (e) { setEtat(`Coffre : ${e.message}`); }
+  };
+  piece.append(img, coffre, x); ui.pieces.append(piece); ui.pieces.hidden = false;
 }
 function viderPieces() { etat.images = []; ui.pieces.innerHTML = ''; ui.pieces.hidden = true; }
 function redimensionner(fichier, max = 1568) {
