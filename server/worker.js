@@ -5,6 +5,7 @@ import { creerApplication } from './app.js';
 import { serveursDepuisEnv } from './mcp.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendKv } from './store-kv.js';
+import { utiliserBlobs, creerBlobsKv, creerBlobsR2 } from './blobs.js';
 import { livrerRappelsDus, pointDuMatin } from './scheduler.js';
 import { consolidationHebdo } from './memoire-consolidation.js';
 import { fichiersInline, infosBuild } from './assets-inline.js';
@@ -13,6 +14,8 @@ function preparer(env) {
   // Les variables et secrets du Worker alimentent process.env (lu par config.js).
   for (const [k, v] of Object.entries(env)) if (typeof v === 'string') process.env[k] = v;
   utiliserBackend(creerBackendKv(env.DATA));
+  // Coffre de documents : R2 si le bucket est branché (binding DOCS), sinon KV.
+  utiliserBlobs(env.DOCS ? creerBlobsR2(env.DOCS) : creerBlobsKv(env.DATA));
 }
 
 let serveursCache = null;
