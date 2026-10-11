@@ -123,7 +123,7 @@ export async function rappelsRendezVous({ client, serveurs = [], nonConnectes = 
 }
 
 // ---------- Résumé du soir ----------
-const CONSIGNE_SOIR = "Tu prépares le résumé de fin de journée de l'utilisateur ; il sera lu à voix haute ou affiché en notification. Étapes : 1) tache_lister avec le filtre faites puis a_faire ; 2) l'agenda de demain (premier rendez-vous : heure, titre, lieu ; si une adresse est donnée et que trajet_calculer est disponible, l'heure de départ depuis le domicile) ; 3) les e-mails importants encore non lus s'il y en a. Rédige quatre à six phrases sans aucune mise en forme : ce qui a été fait, ce qui reste en priorité, puis demain. Donne les faits, sans commentaires. N'utilise pas les outils brief_du_jour ni resume_du_soir.";
+const CONSIGNE_SOIR = (comptes) => `Tu prépares le résumé de fin de journée de l'utilisateur ; il sera lu à voix haute ou affiché en notification, il ne peut donc pas te répondre. Étapes : 1) tache_lister avec le filtre faites puis a_faire ; 2) l'agenda de demain (premier rendez-vous : heure, titre, lieu ; si une adresse est donnée et que trajet_calculer est disponible, l'heure de départ depuis le domicile) ; 3) ${comptes.length ? `les e-mails importants non lus du jour : appelle gmail_rechercher (requête « is:unread newer_than:1d -category:promotions -category:social ») pour chacun de ces comptes : ${comptes.join(', ')}` : "pas d'e-mails (aucun compte connecté), n'en parle pas"}. Rédige quatre à six phrases sans aucune mise en forme : ce qui a été fait, ce qui reste en priorité, demain, puis les mails importants s'il y en a. Donne les faits, sans commentaires ni question à l'utilisateur ; si une étape échoue, n'en parle pas. N'utilise pas les outils brief_du_jour ni resume_du_soir.`;
 
 export async function resumeDuSoir({ client, serveurs = [], nonConnectes = [], maintenant = new Date(), envoyer = envoyerNotification, reglages = null } = {}) {
   const p = reglagesProactif(reglages || await lireReglages());
@@ -133,7 +133,8 @@ export async function resumeDuSoir({ client, serveurs = [], nonConnectes = [], m
   const etat = (await lireValeur(CLE_SOIR)) || {};
   if (etat.jour === jour) return false;
   await ecrireValeur(CLE_SOIR, { jour });
-  const { texte } = await tourEphemere({ client, serveurs, nonConnectes, id: 'soir', titre: 'Résumé du soir', message: 'Prépare le résumé de fin de journée.', consigne: CONSIGNE_SOIR });
+  const comptes = (await listerComptes().catch(() => [])).map((c) => c.email);
+  const { texte } = await tourEphemere({ client, serveurs, nonConnectes, id: 'soir', titre: 'Résumé du soir', message: 'Prépare le résumé de fin de journée.', consigne: CONSIGNE_SOIR(comptes) });
   if (!texte) return false;
   await ecrireValeur(CLE_RESUME, { jour, texte, genereLe: maintenant.toISOString() });
   await envoyer({ titre: 'Votre soirée', corps: tronquer(texte), url: '/app', tag: 'resume-du-soir' });
