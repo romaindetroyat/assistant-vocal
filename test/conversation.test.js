@@ -62,3 +62,21 @@ test('couper la parole rouvre le micro', async () => {
   assert.ok(canal.envoyes.some((e) => e.type === 'response.cancel'));
   appel.arreter();
 });
+
+test('le bruit ambiant ne prolonge pas l\'appel : fin automatique malgré des détections de parole sans texte valable', async () => {
+  const { flux, canal } = navigateurSimule();
+  const { creerConversationVocale } = await import('../public/conversation.js');
+  const api = async () => ({ conversationId: 'c3', model: 'm', value: 'v' });
+  let fin = null;
+  const appel = creerConversationVocale({ api, surEtat() {}, surTexteUtilisateur() {}, surTexteAssistant() {}, surOutils() {}, surFin: (r) => { fin = r; }, delaiInactivite: () => 60, conserverFlux: () => true });
+  await appel.demarrer(null, { flux });
+  canal.onopen();
+  const bruit = setInterval(() => {
+    canal.onmessage({ data: JSON.stringify({ type: 'input_audio_buffer.speech_started' }) });
+    canal.onmessage({ data: JSON.stringify({ type: 'conversation.item.input_audio_transcription.completed', transcript: 'euh', item_id: 'i' }) });
+  }, 20);
+  await new Promise((r) => setTimeout(r, 150));
+  clearInterval(bruit);
+  assert.equal(appel.actif, false, 'appel terminé');
+  assert.match(fin, /silence/);
+});

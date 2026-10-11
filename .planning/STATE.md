@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v4 « Quotidien » en cours : phases 20 (météo), 21 (extension, raccourcis, autorisations), 22 (coffre de documents), 23 (interface Ardoise) livrées
-- Last action: tâche rapide « micro coupé pendant la recherche, toucher = couper le micro », cache SW v36 — 2026-10-11
+- Last action: tâche rapide « arrêter l'écoute » (extension 1.1.0, micro éteint à l'arrêt, bruit sans effet sur l'inactivité), cache SW v37 — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 103 (`npm test`)
+- Tests : 104 (`npm test`)
 
 ## Decisions Log
 

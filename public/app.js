@@ -544,7 +544,7 @@ function finAppuiMicro(annule = false) {
   const long = appuiMicro.long; appuiMicro.long = false;
   ui.btnMicro.classList.remove('long');
   if (annule) { libelleMicro(); return; }
-  if (appel.actif) { appel.arreter('Raccroché'); fermerMicro(); return; }
+  if (appel.actif) { arreterEcoute('Écoute arrêtée'); return; }
   if (long) { demarrerAppel(); return; }
   if (dictee.actif) { arreterDictee({ envoyer: true }); return; }
   if (etat.enregistreur) { arreterEnregistrement(); return; }
@@ -644,7 +644,8 @@ const appel = creerConversationVocale({
     // mains libres : on repasse en veille.
     micro.flux = appel.recupererFlux() || micro.flux;
     envoyerJournal();
-    if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
+    if (arretVolontaire) { arretVolontaire = false; fermerMicro(); } // arrêt demandé : micro éteint, pas de veille
+    else if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
     else planifierFermetureMicro();
   },
   delaiInactivite: () => surchargeDelaiInactivite ?? INACTIVITE_APPEL_MS, // même règle d'une minute partout
@@ -665,7 +666,24 @@ async function demarrerAppel() {
     if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
   } catch { /* état déjà affiché */ }
 }
-$('#btn-raccrocher').addEventListener('click', () => appel.arreter());
+$('#btn-raccrocher').addEventListener('click', () => arreterEcoute('Écoute arrêtée'));
+// Interrupteur appelé par l'extension Chromium (raccourci « Parler » quand la fenêtre est déjà ouverte).
+window.__assistantBasculerEcoute = () => {
+  if (appel.actif || veille.actif || dictee.actif) { if (dictee.actif) arreterDictee({ envoyer: false }); arreterEcoute('Écoute arrêtée'); setEtat('Écoute arrêtée'); }
+  else if (etat.moi?.voix) demarrerAppel();
+  else ui.ecranTap.hidden = false;
+};
+// Arrêt volontaire de l'écoute (bouton, Échap, raccourci, mode voiture) : fin d'appel, pas de reprise en veille et micro
+// éteint tout de suite (plus d'indicateur d'enregistrement du navigateur ou de l'iPhone).
+let arretVolontaire = false;
+function arreterEcoute(raison = 'Écoute arrêtée') {
+  if (appel.actif) { arretVolontaire = true; appel.arreter(raison); }
+  arretVolontaire = false;
+  if (veille.actif) arreterVeille();
+  veille.suspendue = false;
+  fermerMicro();
+  journal('ecoute', raison);
+}
 
 // ---------- Mains libres : veille à mot d'activation ----------
 // Après un appel, l'application reste en veille et relance l'appel quand elle entend le mot d'activation.
@@ -839,7 +857,7 @@ function arreterVeille() {
   try { veille.wakeLock?.release(); } catch { /* ignoré */ } veille.wakeLock = null;
   veille.actif = false;
 }
-ui.btnQuitterVeille.addEventListener('click', () => { arreterVeille(); veille.suspendue = false; planifierFermetureMicro(); setEtat('Veille quittée'); });
+ui.btnQuitterVeille.addEventListener('click', () => { arreterEcoute('Veille quittée'); setEtat('Veille quittée'); });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (veille.actif) { arreterVeille(); veille.suspendue = true; } }
   else if (veille.suspendue && etat.reglages.mainsLibres) { veille.suspendue = false; demarrerVeille(); }
@@ -873,8 +891,8 @@ uiAide.aide.addEventListener('click', (e) => { if (e.target === uiAide.aide) fer
 function echapper_() {
   if (!uiAide.aide.hidden) { fermerAide(); return true; }
   if (!ui.ecranTap.hidden) { ui.ecranTap.hidden = true; return true; }
-  if (appel.actif) { appel.arreter(); return true; }
-  if (veille.actif) { arreterVeille(); veille.suspendue = false; setEtat('Veille quittée'); return true; }
+  if (appel.actif) { arreterEcoute('Écoute arrêtée'); return true; }
+  if (veille.actif) { arreterEcoute('Veille quittée'); setEtat('Veille quittée'); return true; }
   if (dictee.actif) { raccourcis.espace = false; arreterDictee({ envoyer: false }); return true; }
   if (!ui.tiroir.hidden) { fermerTiroir(); return true; }
   return false;
@@ -899,7 +917,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (e.repeat) return;
     if (!etat.moi?.voix) { setEtat('Conversation vocale non configurée sur le serveur'); return; }
-    if (appel.actif) appel.arreter(); else demarrerAppel();
+    if (appel.actif) arreterEcoute('Écoute arrêtée'); else demarrerAppel();
     return;
   }
   if (dansChamp(e)) return;
@@ -971,7 +989,7 @@ function quitterModeVoiture() {
   surchargeDelaiInactivite = null;
   const s = voiture.sauvegarde || {}; voiture.sauvegarde = null;
   etat.reglages.mainsLibres = Boolean(s.mainsLibres); etat.voix = Boolean(s.voix); // réglages d'origine restaurés avant la fin de l'appel
-  if (appel.actif) appel.arreter('Mode voiture quitté');
+  if (appel.actif) arreterEcoute('Mode voiture quitté');
   if (!etat.reglages.mainsLibres) { arreterVeille(); veille.suspendue = false; }
   window.speechSynthesis?.cancel();
   voiture.observateur?.disconnect(); voiture.observateur = null;
@@ -1063,13 +1081,13 @@ uiVoiture.bouton.addEventListener('click', () => {
   const long = appuiVoiture && Date.now() - appuiVoiture >= 800; appuiVoiture = 0;
   if (appel.actif) {
     if (!long && /je parle/i.test(ui.appelEtat.textContent || '')) appel.interrompre();
-    else { appel.arreter('Micro coupé'); fermerMicro(); } // micro vraiment éteint (fin de l'indicateur orange sur iPhone)
+    else arreterEcoute('Micro coupé'); // micro vraiment éteint (fin de l'indicateur orange sur iPhone)
     return;
   }
   if (dictee.actif) { arreterDictee({ envoyer: true }); return; }
   lancerParoleVoiture();
 });
-$('#btn-raccrocher-voiture')?.addEventListener('click', () => { if (appel.actif) appel.arreter('Raccroché'); });
+$('#btn-raccrocher-voiture')?.addEventListener('click', () => arreterEcoute('Raccroché'));
 uiVoiture.ecran.addEventListener('pointerdown', (e) => {
   if (!voiture.actif || voiture.premierTap || etat.reglages.voitureAutoAppel === false) return;
   if (e.target.closest('button')) return; // les boutons gèrent leur propre clic

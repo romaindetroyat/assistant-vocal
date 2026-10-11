@@ -26,8 +26,12 @@ export async function ouvrirAssistant(chemin = '/app') {
   const existante = await lireFenetre();
   if (existante) {
     await chrome.windows.update(existante.windowId, { focused: true });
-    // Seul l'appel force la navigation : « Ouvrir » garde la conversation en cours.
-    if (chemin.includes('action=appel') || chemin.includes('conversation=')) await chrome.tabs.update(existante.tabId, { url, active: true });
+    // « Parler » dans une fenêtre déjà ouverte = interrupteur : l'app lance l'écoute, ou l'arrête si elle est en cours
+    // (micro éteint). Repli sur la navigation si la page ne répond pas (onglet rechargé, autre adresse).
+    if (chemin.includes('action=appel')) {
+      const bascule = await executerDansOnglet(existante.tabId, () => { if (!window.__assistantBasculerEcoute) return false; window.__assistantBasculerEcoute(); return true; }, [], 'MAIN'); // monde de la page : accès à la fonction exposée par l'app
+      if (!bascule) await chrome.tabs.update(existante.tabId, { url, active: true });
+    } else if (chemin.includes('conversation=')) await chrome.tabs.update(existante.tabId, { url, active: true });
     return existante;
   }
   const fenetre = await chrome.windows.create({ url, type: 'popup', focused: true, ...TAILLE_FENETRE });
@@ -48,8 +52,8 @@ chrome.notifications.onClicked.addListener(async (id) => {
 });
 
 // ---------- Contenu de la page ----------
-async function executerDansOnglet(tabId, func, args = []) {
-  try { const [r] = await chrome.scripting.executeScript({ target: { tabId }, func, args }); return r?.result; }
+async function executerDansOnglet(tabId, func, args = [], world = 'ISOLATED') {
+  try { const [r] = await chrome.scripting.executeScript({ target: { tabId }, func, args, world }); return r?.result; }
   catch { return undefined; } // pages chrome://, Web Store, PDF… : scripts interdits
 }
 const extraireTexte = (limite) => ({ titre: document.title, texte: (document.body?.innerText || '').replace(/\n{3,}/g, '\n\n').trim().slice(0, limite) });

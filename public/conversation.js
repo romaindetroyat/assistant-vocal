@@ -110,7 +110,9 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   function repondre() { clearTimeout(minuteurTranscription); minuteurTranscription = null; envoyer({ type: 'response.create' }); }
 
   async function traiter(ev) {
-    if (ev.type?.startsWith('input_audio_buffer.') || ev.type?.startsWith('response.') || ev.type?.startsWith('conversation.item.')) armerInactivite();
+    // Seuls une vraie demande (transcription valide, plus bas) ou une réponse de l'assistant prolongent l'appel : le bruit
+    // ambiant (détections de parole sans texte valable) ne doit pas garder le micro ouvert indéfiniment.
+    if (ev.type?.startsWith('response.')) armerInactivite();
     switch (ev.type) {
       case 'input_audio_buffer.speech_started': surEtat('Je vous écoute…'); break;
       case 'input_audio_buffer.speech_stopped': surEtat('…'); break;
@@ -121,7 +123,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
         break;
       case 'conversation.item.input_audio_transcription.completed': {
         const t = (ev.transcript || '').trim();
-        if (transcriptionValide(t)) { surTexteUtilisateur(t); repondre(); }
+        if (transcriptionValide(t)) { armerInactivite(); surTexteUtilisateur(t); repondre(); }
         else { journal('bruit-ignore', t.slice(0, 40)); clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); if (ev.item_id) envoyer({ type: 'conversation.item.delete', item_id: ev.item_id }); }
         break;
       }
