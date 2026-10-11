@@ -174,7 +174,8 @@ test('position jointe à /api/chat et /api/voice/ask : consigne « Position actu
   assert.match(consigne.content, /lue à voix haute/); assert.match(consigne.content, /Position actuelle de l'utilisateur : 43\.1,5\.9\./);
   r = await app.request('/api/chat', { method: 'POST', headers: entetes, body: JSON.stringify({ content: [{ type: 'text', text: 'Salut' }] }) });
   await r.text();
-  assert.ok(!client.requetes[2].messages.some((m) => m.role === 'system'), 'sans position : pas de consigne');
+  const sansPosition = client.requetes[2].messages.filter((m) => m.role === 'system');
+  assert.equal(sansPosition.length, 1); assert.doesNotMatch(sansPosition[0].content, /Position actuelle/, 'sans position : seulement la longueur');
   assert.equal(definirPositionCourante(undefined), null);
 });
 

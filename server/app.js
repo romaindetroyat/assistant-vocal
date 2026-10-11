@@ -11,7 +11,7 @@ import * as store from './store.js';
 import { resoudreServeurs, listerServeursAjoutes, ajouterServeur, retirerServeur } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
 import { voixDisponible, modeleVoix, creerJetonEphemere, apercuVoix } from './voice.js';
-import { lireReglages, modifierReglages, consigneConcision, contexteValide, CONSIGNE_VOITURE_CLAUDE, VOIX, CONCISIONS } from './reglages.js';
+import { lireReglages, modifierReglages, consigneConcision, contexteValide, CONSIGNE_VOITURE_CLAUDE, VOIX, CONCISIONS, MODELES } from './reglages.js';
 import { CATALOGUE, parId } from './catalogue.js';
 import * as google from './google.js';
 import * as trajets from './trajets.js';
@@ -169,7 +169,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   // --- Réglages ---
   app.get('/api/version', (c) => c.json({ version: version.version || null, deployeLe: version.deployeLe || null, texte: formaterVersion(version) }));
 
-  app.get('/api/reglages', async (c) => c.json({ ...(await lireReglages()), voixDisponibles: VOIX, concisions: Object.keys(CONCISIONS) }));
+  app.get('/api/reglages', async (c) => c.json({ ...(await lireReglages()), voixDisponibles: VOIX, concisions: Object.keys(CONCISIONS), modeles: MODELES }));
   app.put('/api/reglages', async (c) => {
     try { return c.json(await modifierReglages(await c.req.json().catch(() => ({})))); }
     catch (e) { return c.json({ erreur: e.message }, 400); }

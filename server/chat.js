@@ -10,6 +10,7 @@ import { pushDisponible } from './push.js';
 import { listerRappels } from './store.js';
 import { enregistrerUsage } from './usage.js';
 import { compacterSiNecessaire } from './compaction.js';
+import { lireReglages, modeleClaude, consigneConcision } from './reglages.js';
 
 const BETAS = ['mcp-client-2025-11-20', 'server-side-fallback-2026-07-01'];
 const MAX_ITERATIONS = 12;
@@ -36,6 +37,11 @@ function nettoyerPourHistorique(contenu) {
  */
 export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null, source = 'chat' }) {
   if (!outilsLocaux) outilsLocaux = await outilsLocauxDisponibles();
+  // Modèle choisi dans l'application (Haiku, Sonnet ou Opus) et longueur des réponses en mode texte.
+  const reglages = await lireReglages().catch(() => ({}));
+  const modele = modeleClaude(reglages, config.model);
+  const estHaiku = /haiku/.test(modele);
+  if (source === 'chat') consigne = [consigne, `Longueur de la réponse : ${consigneConcision(reglages.concision)}`].filter(Boolean).join('\n');
   const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
   const consignes = await lireConsignes().catch(() => []);
   const memoire = await lireMemoire().catch(() => []);
@@ -66,7 +72,8 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
       ...outilsLocaux,
       ...outilActiver,
       ...toolsMcp,
-      { type: 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
+      // Haiku n'a pas la variante à filtrage dynamique de la recherche web : variante de base.
+      { type: estHaiku ? 'web_search_20250305' : 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
     ] };
   };
   let { mcp_servers, tools } = construireOutils();
@@ -76,10 +83,10 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const debutIteration = Date.now(); let premierEvenement = 0;
     const stream = client.beta.messages.stream({
-      model: config.model,
+      model: modele,
       max_tokens: 16000,
       betas: BETAS,
-      fallbacks: 'default',
+      ...(estHaiku ? {} : { fallbacks: 'default' }), // pas de repli serveur pour Haiku
       thinking: { type: 'adaptive' },
       output_config: { effort },
       cache_control: { type: 'ephemeral' }, // cache automatique de la fin de conversation (le bloc système stable a son propre point)
