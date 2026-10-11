@@ -75,7 +75,7 @@
 - [x] **VOI-02** Conversation permanente avec reprise mains libres, concision renforcée, contexte « conducteur »
 - [x] **VOI-03** Rappels et notifications lus à voix haute pendant le mode voiture
 
-## v4 Requirements — Quotidien
+## v4 Requirements — Quotidien (livré le 2026-10-11)
 
 ### Météo (MET)
 - [x] **MET-01** Prévisions à la voix (aujourd'hui, demain, semaine, date ; lieu par défaut position/domicile) avec conseil pratique

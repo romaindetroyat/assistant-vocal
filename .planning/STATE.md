@@ -2,8 +2,8 @@
 
 ## Current Position
 
-- Milestone: v4 « Quotidien » en cours : phases 20 (météo), 21 (extension, raccourcis, autorisations), 22 (coffre de documents), 23 (interface Ardoise) livrées
-- Last action: tâches rapides micro (arrêt de l'écoute, fuites du micro corrigées, dictée bornée à 15 s, journal du micro), nettoyage des données de test en production, cache SW v39 — 2026-10-11
+- Milestone: v4 « Quotidien » livré et clôturé le 2026-10-11 (phases 20 à 23 + tâches rapides) ; v5 à définir d'après l'usage
+- Last action: clôture de la v4 (tag v4.0) — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
 - Tests : 105 (`npm test`)
 

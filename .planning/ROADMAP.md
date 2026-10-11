@@ -54,7 +54,7 @@ Ordre retenu : 16 (indépendante), 17 (crée les jetons d'appareil), 18 (réutil
 Siri de la 18). Plans détaillés dans `.planning/phases/16-…` à `19-…`. Prérequis de Romain : clé Google Maps Platform
 (phase 16) ; les raccourcis iOS se créent d'après les guides fournis dans « Mes outils ».
 
-## Milestone v4 — Quotidien (en cours)
+## Milestone v4 — Quotidien (livré, 2026-10-10 → 2026-10-11)
 
 | Phase | Status | Goal |
 |-------|--------|------|
@@ -63,6 +63,15 @@ Siri de la 18). Plans détaillés dans `.planning/phases/16-…` à `19-…`. Pr
 | 22 — Coffre de documents chiffré | Complete | Fiches extraites par Claude, AES-256-GCM, champs sensibles sur confirmation, page Mes documents, partage « range dans le coffre », expirations dans le brief (KV en attendant R2) |
 | 23 — Interface « Ardoise » | Complete | Rail de navigation, micro unifié, transcription en écran partagé, curseurs modèle (Haiku/Sonnet/Opus) et longueur (5 niveaux), mode voiture restylé |
 
+Tâches rapides de la v4 : mode voiture stable (tap = couper la parole, journal de diagnostic client), micro coupé
+pendant la recherche, arrêt de l'écoute et fuites du micro corrigées (dictée bornée à 15 s), nettoyage des données de
+test en production. Bilan : 105 tests, cache SW v39, extension 1.1.0.
+
+## Milestone v5 — à définir
+
+Définie d'après l'usage réel (`/gsd-new-milestone`). Candidats : vérifications iPhone (partage, Siri, veille), choix du
+modèle selon la Consommation, clé dédiée du coffre et R2, INT-06 Element/Matrix (backlog).
+
 ## Progress
 
-23 phases livrées sur 23 (v1 à v4 en cours). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
+23 phases livrées sur 23 (v1 à v4 livrés, v5 à définir). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
