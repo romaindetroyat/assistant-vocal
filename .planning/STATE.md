@@ -46,11 +46,10 @@
 - Coffre : activer R2 (tableau de bord Cloudflare) puis décommenter le binding DOCS ; définir un secret DOCS_KEY dédié
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
-- Décision : Opus 5.5 conservé partout, suivi de consommation dans Mes outils pour juger sur pièces
+- Décision (v5) : modèle automatique Haiku / Opus par défaut ; ajuster les règles d'après la part Haiku/Opus dans la consommation
 - Romain : charger l'extension (dossier extension/, mode développeur), coller le jeton dans ses options, tester Ctrl+Maj+Espace ; vérifier les badges Autorisations
 - Clé Routes collée et trajets vérifiés ✓ ; reste à Romain : jeton d'appareil + raccourcis iOS (partage, Siri), test en voiture
 - Retours d'usage → corrections en `/gsd-quick` ; prochaine version à définir d'après l'usage
 - Vérifier en production : brief du matin demain 8 h (un seul push), consolidation mémoire au premier cron après 7 jours, veille mains libres sur Chrome Android / iPhone
 - iPhone = cible principale : s'ouvre en mode voiture ; vérifier la veille « écoute locale » et le filtre anti-bruit en conditions réelles
-- Lire la section « Consommation Claude » dans 3-4 jours ; si trop cher, basculer la voix et Siri sur Haiku 5.5 (tâche rapide)
 - Toute nouvelle demande passe par une phase GSD (voir CLAUDE.md), y compris via `demander_developpement`
