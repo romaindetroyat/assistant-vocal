@@ -250,6 +250,17 @@
       <div id="journal-memoire"></div>
     </section>
 
+    <section class="carte" id="proactif">
+      <h2>Assistant proactif</h2>
+      <p class="discret">L'assistant vous prévient sans qu'on lui demande, par notification (lue à voix haute en mode voiture). Rien n'est envoyé pendant les heures de silence.</p>
+      <label class="case"><input id="pro-mails" type="checkbox"> Mails urgents : vérification toutes les 15 min, tri par Haiku (≈ 0,01 ct par passage)</label>
+      <label class="case"><input id="pro-rdv" type="checkbox"> Rappel 10 min avant chaque rendez-vous (visio comprises ; les rendez-vous avec adresse ont déjà leur rappel « Partez pour … »)</label>
+      <label class="case"><input id="pro-soir" type="checkbox"> Résumé du soir : fait, reste à faire, demain</label>
+      <label>Heure du résumé du soir <input id="pro-heure-soir" type="time"></label>
+      <div class="actions"><label>Silence de <input id="pro-silence-debut" type="time"></label><label>à <input id="pro-silence-fin" type="time"></label></div>
+      <p id="etat-proactif" class="discret"></p>
+    </section>
+
     <section>
       <h2>Consommation Claude</h2>
       <p class="discret">Tokens et coût estimé par jour, au tarif de chaque modèle (par million de tokens en entrée / sortie : Haiku 0,10 / 0,50 $, Sonnet 2 / 10 $, Opus 4 / 20 $ ; cache lu 0,1 ×, écrit 2 ×). La colonne Modèles indique le nombre d'appels de chacun. La facture réelle d'Anthropic fait foi ; la voix OpenAI est facturée à part.</p>
@@ -575,6 +586,29 @@
     $('#btn-trajets-cle').addEventListener('click', enregistrerCleTrajets);
     $('#trajets-cle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enregistrerCleTrajets(); } });
     $('#trajets-cle').addEventListener('change', () => { if ($('#trajets-cle').value.trim()) enregistrerCleTrajets(); });
+    // Assistant proactif (phase 25)
+    const champsProactif = { mailsUrgents: '#pro-mails', rappelsRdv: '#pro-rdv', resumeSoir: '#pro-soir', heureSoir: '#pro-heure-soir', silenceDebut: '#pro-silence-debut', silenceFin: '#pro-silence-fin' };
+    async function afficherEtatProactif() {
+      try {
+        const e = await api('/api/proactif/etat');
+        const morceaux = [];
+        if (e.mails.dernierPassage) morceaux.push(`mails vérifiés à ${new Date(e.mails.dernierPassage).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (${e.mails.signales} signalé${e.mails.signales > 1 ? 's' : ''} au total)`);
+        if (e.rdv.jour) morceaux.push(`${e.rdv.programmes} rappel${e.rdv.programmes > 1 ? 's' : ''} de rendez-vous le ${e.rdv.jour}`);
+        if (e.soir.jour) morceaux.push(`dernier résumé du soir le ${e.soir.jour}`);
+        $('#etat-proactif').textContent = morceaux.length ? `Dernière activité : ${morceaux.join(' · ')}.` : 'Pas encore de passage (le premier a lieu dans la minute qui suit l’activation).';
+      } catch { /* ignoré */ }
+    }
+    api('/api/reglages').then((r) => {
+      const p = { ...(r.proactifDefaut || {}), ...(r.proactif || {}) };
+      for (const [k, sel] of Object.entries(champsProactif)) { const el = $(sel); if (el.type === 'checkbox') el.checked = Boolean(p[k]); else el.value = p[k] || ''; }
+      afficherEtatProactif();
+    }).catch(() => {});
+    for (const [k, sel] of Object.entries(champsProactif)) $(sel).addEventListener('change', async () => {
+      const el = $(sel);
+      try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ proactif: { [k]: el.type === 'checkbox' ? el.checked : el.value } }) }); $('#etat-proactif').textContent = 'Enregistré ✓'; }
+      catch (e) { $('#etat-proactif').textContent = `Erreur : ${e.message}`; }
+    });
+
     api('/api/usage').then((u) => {
       $('#usage-total').textContent = u.jours.length ? `${u.totalCout} $ sur ${u.jours.length} jour(s) suivis` : 'Aucune donnée encore.';
       const corps = $('#usage-table tbody'); corps.innerHTML = '';

@@ -51,9 +51,20 @@ export async function modifierReglages(modifs) {
     if (adresse.length > ADRESSE_MAX) throw new Error(`L'adresse du ${lieu} dépasse ${ADRESSE_MAX} caractères`);
     actuels[lieu] = adresse;
   }
+  if (modifs.proactif !== undefined) actuels.proactif = validerProactif(modifs.proactif, actuels.proactif);
   if (modifs.partagerPosition !== undefined) { if (typeof modifs.partagerPosition !== 'boolean') throw new Error('partagerPosition doit être un booléen'); actuels.partagerPosition = modifs.partagerPosition; }
   await ecrireValeur('reglages', actuels);
   return actuels;
+}
+
+// Assistant proactif (phase 25) : interrupteurs et heures (HH:MM) ; fusion partielle avec les valeurs actuelles.
+const HEURE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function validerProactif(m, actuel = {}) {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) throw new Error('proactif doit être un objet');
+  const res = { ...actuel };
+  for (const k of ['mailsUrgents', 'rappelsRdv', 'resumeSoir']) if (m[k] !== undefined) { if (typeof m[k] !== 'boolean') throw new Error(`proactif.${k} doit être un booléen`); res[k] = m[k]; }
+  for (const k of ['heureSoir', 'silenceDebut', 'silenceFin']) if (m[k] !== undefined) { if (!HEURE.test(String(m[k]))) throw new Error(`proactif.${k} : heure attendue au format HH:MM`); res[k] = String(m[k]); }
+  return res;
 }
 
 export function consigneConcision(concision) { return CONCISIONS[concision] || CONCISIONS.court; }

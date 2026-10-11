@@ -7,6 +7,7 @@ import { utiliserBackend } from './store.js';
 import { creerBackendKv } from './store-kv.js';
 import { utiliserBlobs, creerBlobsKv, creerBlobsR2 } from './blobs.js';
 import { livrerRappelsDus, pointDuMatin } from './scheduler.js';
+import { tachesProactives } from './proactif.js';
 import { consolidationHebdo } from './memoire-consolidation.js';
 import { fichiersInline, infosBuild } from './assets-inline.js';
 
@@ -59,6 +60,7 @@ export default {
     ctx.waitUntil(Promise.all([
       livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)),
       pointDuMatin({ client: clientAnthropic, serveurs }).catch((e) => console.warn('[matin]', e.message)),
+      tachesProactives({ client: clientAnthropic, serveurs }).catch((e) => console.warn('[proactif]', e.message)),
       env.ANTHROPIC_API_KEY ? consolidationHebdo({ client: clientAnthropic() }).catch((e) => console.warn('[mémoire]', e.message)) : Promise.resolve(false),
     ]));
   },

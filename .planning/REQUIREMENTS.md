@@ -106,11 +106,11 @@
 - [x] **AUTO-01..06** Mode auto par défaut, routage par règles, escalade Haiku → Opus, modèle visible, coût par modèle, bouton Auto
 
 ### Assistant proactif (PRO)
-- [ ] **PRO-01** Mails urgents signalés
-- [ ] **PRO-02** Rappel avant rendez-vous
-- [ ] **PRO-03** Résumé du soir
-- [ ] **PRO-04** Réglages et heures de silence
-- [ ] **PRO-05** Planification (cron, état)
+- [x] **PRO-01** Mails urgents signalés
+- [x] **PRO-02** Rappel avant rendez-vous
+- [x] **PRO-03** Résumé du soir
+- [x] **PRO-04** Réglages et heures de silence
+- [x] **PRO-05** Planification (cron, état)
 
 ## Out of Scope
 

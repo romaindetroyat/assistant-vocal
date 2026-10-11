@@ -4,6 +4,7 @@ import { envoyerNotification, pushDisponible } from './push.js';
 import { briefDuMatin, resoudreContexteBrief, tourEphemere, dateHeureParis, tronquer } from './brief.js';
 import { consolidationHebdo } from './memoire-consolidation.js';
 import { configTrajets, calculerTrajet, formaterDuree, heureParis } from './trajets.js';
+import { tachesProactives } from './proactif.js';
 
 const CLE_DEPARTS = 'departs-du-jour';
 const HEURE_DEPARTS = 7; // heure de Paris à partir de laquelle les départs du jour sont programmés
@@ -95,6 +96,7 @@ export function demarrerPlanificateur({ client = null, serveurs = [] } = {}, int
   const t = setInterval(() => {
     livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message));
     pointDuMatin({ client, serveurs }).catch((e) => console.warn('[matin]', e.message));
+    tachesProactives({ client, serveurs }).catch((e) => console.warn('[proactif]', e.message));
     if (client) consolidationHebdo({ client: leClient() }).catch((e) => console.warn('[mémoire]', e.message));
   }, intervalleMs);
   t.unref();

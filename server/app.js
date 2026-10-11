@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
 import { exigerSession, estConnecte, motDePasseValide, poserCookie, retirerCookie } from './auth.js';
 import { executerTour } from './chat.js';
+import { etatProactif, PROACTIF_DEFAUT } from './proactif.js';
 import { pushDisponible } from './push.js';
 import { transcriptionDisponible, transcrire } from './transcribe.js';
 import * as store from './store.js';
@@ -167,10 +168,13 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     return c.json({ text: trajets.sansLiensItineraire(texte) || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, modele, conversationId: conversation.id });
   });
 
+  // --- Assistant proactif (phase 25) : état des derniers passages ---
+  app.get('/api/proactif/etat', async (c) => c.json(await etatProactif()));
+
   // --- Réglages ---
   app.get('/api/version', (c) => c.json({ version: version.version || null, deployeLe: version.deployeLe || null, texte: formaterVersion(version) }));
 
-  app.get('/api/reglages', async (c) => c.json({ ...(await lireReglages()), voixDisponibles: VOIX, concisions: Object.keys(CONCISIONS), modeles: MODELES }));
+  app.get('/api/reglages', async (c) => c.json({ ...(await lireReglages()), voixDisponibles: VOIX, concisions: Object.keys(CONCISIONS), modeles: MODELES, proactifDefaut: PROACTIF_DEFAUT }));
   app.put('/api/reglages', async (c) => {
     try { return c.json(await modifierReglages(await c.req.json().catch(() => ({})))); }
     catch (e) { return c.json({ erreur: e.message }, 400); }

@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v4 « Quotidien » livré et clôturé le 2026-10-11 (phases 20 à 23 + tâches rapides) ; v5 à définir d'après l'usage
-- Last action: clôture de la v4 — 2026-10-11
+- Milestone: v5 « Plus malin » : phases 24 (modèle automatique) et 25 (assistant proactif) livrées — 2026-10-11
+- Last action: phase 25 assistant proactif (mails urgents, rappels de rendez-vous, résumé du soir, silence), cache SW v41 — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 105 (`npm test`)
+- Tests : 114 (`npm test`)
 
 ## Decisions Log
 
@@ -37,6 +37,9 @@
 - Aucun. Point d'attention : Agenda Hub exige un retour par collage (adresse du Worker non autorisée).
 
 ## Next
+
+- Romain : toucher « Auto » dans le dock (son réglage enregistré est « opus ») ; vérifier les premières notifications proactives et la section Assistant proactif
+- Lecture seule après usage : `/api/usage` (part Haiku/Opus) et `/api/proactif/etat`
 
 - Mode voiture : lire `GET /api/diag/client` après le prochain trajet de Romain (micro coupé pendant la recherche à valider)
 - Règle : ne plus tester en écriture sur la production (données de test nettoyées le 2026-10-11)

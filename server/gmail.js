@@ -111,3 +111,11 @@ export async function executerOutilGmail(nom, e, fetchImpl = fetch) {
     default: throw new Error(`Outil Gmail inconnu : ${nom}`);
   }
 }
+
+// Messages non lus récents d'un compte (assistant proactif, phase 25) : en-têtes et extrait seulement, jamais le corps.
+export async function nonLusRecents(email, { requete = 'is:unread in:inbox newer_than:1d -category:promotions -category:social -category:forums', max = 15 } = {}, fetchImpl = fetch) {
+  const liste = await gmail(email, 'messages', { query: { q: requete, maxResults: String(max) } }, fetchImpl);
+  if (!liste.messages?.length) return [];
+  const details = await Promise.all(liste.messages.map((m) => gmail(email, `messages/${m.id}`, { query: { format: 'metadata' } }, fetchImpl)));
+  return details.map((m) => ({ id: m.id, compte: email, de: entete(m, 'From'), objet: entete(m, 'Subject'), date: entete(m, 'Date'), extrait: String(m.snippet || '').slice(0, 300) }));
+}

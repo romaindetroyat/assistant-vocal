@@ -49,7 +49,7 @@ export async function tourEphemere({ client, serveurs = [], nonConnectes = [], m
   // Import différé : chat.js → tools.js → brief.js, on évite le cycle à l'évaluation des modules.
   const { executerTour } = await import('./chat.js');
   const { outilsLocauxDisponibles } = await import('./tools.js');
-  const outilsLocaux = (await outilsLocauxDisponibles()).filter((t) => t.name !== definitionOutilBrief.name);
+  const outilsLocaux = (await outilsLocauxDisponibles()).filter((t) => t.name !== definitionOutilBrief.name && t.name !== 'resume_du_soir');
   const conversation = { id, titre, messages: [] };
   const outils = [];
   let texte = '';

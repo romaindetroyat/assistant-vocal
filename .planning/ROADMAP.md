@@ -72,8 +72,8 @@ test en production. Bilan : 105 tests, cache SW v39, extension 1.1.0.
 | Phase | Status | Goal |
 |-------|--------|------|
 | 24 — Modèle automatique | Complete | Haiku pour les questions simples, Opus pour les vraies tâches, escalade automatique, coût par modèle |
-| 25 — Assistant proactif | Planned | Mails urgents, rappel avant rendez-vous, résumé du soir, heures de silence |
+| 25 — Assistant proactif | Complete | Mails urgents, rappel avant rendez-vous, résumé du soir, heures de silence |
 
 ## Progress
 
-23 phases livrées sur 23 (v1 à v4 livrés, v5 à définir). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
+25 phases livrées sur 25 (v1 à v4 livrés, v5 « Plus malin » livrée en attente de retours d'usage). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
