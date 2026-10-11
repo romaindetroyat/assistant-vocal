@@ -11,6 +11,19 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   let actif = false; let reconnexions = 0; let minuteurDeco = null; let minuteurInactivite = null;
   const enCours = new Set(); const resultatsEnAttente = [];
   const MAX_RECONNEXIONS = 4;
+  // Micro coupé pendant la recherche : dès que la question part chez Claude, la piste micro est désactivée (plus de bruit
+  // de route ni d'écho capté), puis rouverte quand la réponse a fini d'être lue (output_audio_buffer.stopped), quand
+  // l'utilisateur coupe la parole, ou au plus tard MICRO_SECOURS_MS après la livraison du résultat.
+  const MICRO_SECOURS_MS = 45_000;
+  let microCoupe = false; let attenteLecture = false; let minuteurMicro = null;
+  function couperMicro(coupe) {
+    clearTimeout(minuteurMicro); minuteurMicro = null;
+    if (!coupe) attenteLecture = false;
+    if (microCoupe === coupe) return;
+    microCoupe = coupe;
+    for (const piste of flux?.getAudioTracks() || []) piste.enabled = !coupe;
+    journal('micro', coupe ? 'coupé pendant la recherche' : 'rouvert');
+  }
 
   // Temporisateur d'inactivité : réarmé à chaque signe de vie (parole, réponse, délégation) ; suspendu pendant qu'on attend Claude.
   function armerInactivite() {
@@ -115,7 +128,12 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
       case 'conversation.item.input_audio_transcription.failed': clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); break;
       case 'response.output_audio_transcript.done': if (ev.transcript?.trim()) surTexteAssistant(ev.transcript.trim()); surEtat('Je vous écoute'); break;
       case 'response.output_audio.delta': case 'response.output_audio_transcript.delta': surEtat('Je parle…'); break;
+      case 'output_audio_buffer.stopped': case 'output_audio_buffer.cleared':
+        if (attenteLecture && !enCours.size) { couperMicro(false); surEtat('Je vous écoute'); }
+        break;
       case 'response.done': {
+        // Réponse au résultat annulée ou en échec : rien ne sera lu, on rouvre le micro tout de suite.
+        if (attenteLecture && ev.response?.status && ev.response.status !== 'completed' && !enCours.size) couperMicro(false);
         for (const item of ev.response?.output || []) {
           if (item.type === 'function_call' && item.name === 'demander_assistant' && !enCours.has(item.call_id)) {
             enCours.add(item.call_id);
@@ -132,7 +150,8 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   async function deleguer(item) {
     let message = '';
     try { message = JSON.parse(item.arguments || '{}').message || ''; } catch { message = ''; }
-    surEtat('Je réfléchis…');
+    couperMicro(true);
+    surEtat('Je réfléchis… micro coupé');
     clearTimeout(minuteurInactivite); // pas de raccrochage pendant que Claude travaille
     let texte;
     try {
@@ -144,6 +163,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     armerInactivite();
     const livre = envoyer({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: item.call_id, output: JSON.stringify({ reponse: texte }) } }) && envoyer({ type: 'response.create' });
     if (!livre) resultatsEnAttente.push({ message, texte }); // le canal est tombé pendant le traitement : rejoué après reconnexion
+    if (enCours.size <= 1) { attenteLecture = true; clearTimeout(minuteurMicro); minuteurMicro = setTimeout(() => couperMicro(false), MICRO_SECOURS_MS); }
   }
 
   function fermerPc() {
@@ -157,6 +177,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     if (!actif) return;
     journal('fin-appel', raison || 'raccroché');
     actif = false;
+    couperMicro(false); // le flux est rendu à l'app (micro partagé) : jamais désactivé
     fermerPc();
     if (!conserverFlux()) { flux?.getTracks().forEach((t) => t.stop()); flux = null; }
     // L'élément audio est conservé : « débloqué » par le premier appel (geste), il peut rejouer sans geste sur Safari (veille).
@@ -179,6 +200,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
 
   // Coupe la parole à l'assistant (sans raccrocher) : l'utilisateur peut parler aussitôt.
   function interrompre() {
+    couperMicro(false);
     const ok = envoyer({ type: 'response.cancel' });
     envoyer({ type: 'output_audio_buffer.clear' });
     armerInactivite();
@@ -186,5 +208,5 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     return ok;
   }
 
-  return { demarrer, arreter, recupererFlux, interrompre, dire, get actif() { return actif; }, get conversationId() { return conversationId; } };
+  return { demarrer, arreter, recupererFlux, interrompre, dire, get actif() { return actif; }, get conversationId() { return conversationId; }, get microCoupe() { return microCoupe; } };
 }

@@ -544,7 +544,7 @@ function finAppuiMicro(annule = false) {
   const long = appuiMicro.long; appuiMicro.long = false;
   ui.btnMicro.classList.remove('long');
   if (annule) { libelleMicro(); return; }
-  if (appel.actif) { appel.arreter('Raccroché'); return; }
+  if (appel.actif) { appel.arreter('Raccroché'); fermerMicro(); return; }
   if (long) { demarrerAppel(); return; }
   if (dictee.actif) { arreterDictee({ envoyer: true }); return; }
   if (etat.enregistreur) { arreterEnregistrement(); return; }
@@ -1020,7 +1020,8 @@ function rafraichirVoiture() {
     else if (/erreur/i.test(e)) { libelle = 'Réessayer'; }
     else { libelle = 'En écoute'; classe = 'ecoute'; }
     if (classe === 'parle') texteEtat = 'Touchez pour couper la parole · appui long pour raccrocher';
-    if (classe !== 'parle') texteEtat = e || 'Conversation en cours';
+    else if (classe === 'ecoute') texteEtat = 'Je vous écoute · touchez pour couper le micro';
+    else texteEtat = e || 'Conversation en cours';
   } else if (dictee.actif) { libelle = 'En écoute'; classe = 'ecoute'; texteEtat = 'Je vous écoute…'; }
   else if (etat.envoiEnCours) { libelle = 'Je réfléchis…'; classe = 'reflechit'; texteEtat = 'Je réfléchis…'; }
   else if (veille.actif) { classe = 'veille'; texteEtat = `En veille · dites « ${etat.reglages.motActivation || 'assistant'} »`; }
@@ -1053,13 +1054,18 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Gros bouton : un tap pendant l'appel coupe la parole à l'assistant (on peut parler aussitôt), sans raccrocher ;
-// un appui long (≥ 0,8 s) ou le bouton « Raccrocher » termine l'appel. Hors appel, un tap lance la conversation.
+// Gros bouton pendant l'appel : si l'assistant parle, un tap lui coupe la parole (on peut parler aussitôt) ;
+// sinon (écoute, réflexion), un tap coupe le micro en raccrochant. Appui long (≥ 0,8 s) ou « Fin » : raccrocher.
+// Hors appel, un tap lance la conversation.
 let appuiVoiture = 0;
 uiVoiture.bouton.addEventListener('pointerdown', () => { appuiVoiture = Date.now(); });
 uiVoiture.bouton.addEventListener('click', () => {
   const long = appuiVoiture && Date.now() - appuiVoiture >= 800; appuiVoiture = 0;
-  if (appel.actif) { if (long) appel.arreter('Raccroché'); else appel.interrompre(); return; }
+  if (appel.actif) {
+    if (!long && /je parle/i.test(ui.appelEtat.textContent || '')) appel.interrompre();
+    else { appel.arreter('Micro coupé'); fermerMicro(); } // micro vraiment éteint (fin de l'indicateur orange sur iPhone)
+    return;
+  }
   if (dictee.actif) { arreterDictee({ envoyer: true }); return; }
   lancerParoleVoiture();
 });
