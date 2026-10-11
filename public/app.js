@@ -486,6 +486,7 @@ function demarrerDictee({ maintien = false } = {}) {
   if (!SR || dictee.actif) return;
   window.speechSynthesis?.cancel(); arreterVeille();
   dictee.actif = true; dictee.maintien = maintien; dictee.final = ''; dictee.echecs = 0;
+  journal('dictee', maintien ? 'début (appui maintenu)' : 'début');
   dictee.base = ui.saisie.value ? `${ui.saisie.value.trim()} ` : '';
   if (!maintien) armerSansParole();
   ui.btnMicro.setAttribute('aria-pressed', 'true');
@@ -542,6 +543,7 @@ function arreterDictee({ envoyer = false } = {}) {
   clearTimeout(dictee.minuteur); clearTimeout(dictee.minuteurSansParole);
   if (!dictee.actif) return;
   dictee.actif = false;
+  journal('dictee', envoyer ? 'fin (envoi)' : 'fin'); envoyerJournal();
   const rec = dictee.rec; dictee.rec = null;
   if (rec) { rec.onend = null; try { rec.stop(); } catch { /* ignoré */ } }
   ui.btnMicro.setAttribute('aria-pressed', 'false'); setEtat('');
