@@ -100,6 +100,18 @@
 - [x] **UI-04** Choix du modèle (réactivité, coût) et de la longueur (5 niveaux)
 - [x] **UI-05** Boutons inutiles retirés ; mode voiture restylé
 
+## v5 Requirements — Plus malin
+
+### Modèle automatique (AUTO)
+- [x] **AUTO-01..06** Mode auto par défaut, routage par règles, escalade Haiku → Opus, modèle visible, coût par modèle, bouton Auto
+
+### Assistant proactif (PRO)
+- [ ] **PRO-01** Mails urgents signalés
+- [ ] **PRO-02** Rappel avant rendez-vous
+- [ ] **PRO-03** Résumé du soir
+- [ ] **PRO-04** Réglages et heures de silence
+- [ ] **PRO-05** Planification (cron, état)
+
 ## Out of Scope
 
 | Feature | Reason |

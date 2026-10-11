@@ -124,8 +124,8 @@ test('executerTour : compaction avant le tour, événement compaction émis, err
     const client = clientSimule('Résumé court.');
     const conversation = longueConversation(4, 300);
     const evts = [];
-    for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Suite' }], serveurs: [], outilsLocaux: [] })) evts.push(e);
-    assert.deepEqual(evts.map((e) => e.type), ['compaction', 'text', 'done']);
+    for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Suite' }], serveurs: [], outilsLocaux: [] })) if (e.type !== 'modele') evts.push(e);
+    assert.deepEqual(evts.filter((e) => e.type !== 'modele').map((e) => e.type), ['compaction', 'text', 'done']);
     assert.equal(evts[0].messages, 2);
     assert.equal(conversation.messages.at(-2).content[0].text, 'Suite');
     assert.equal(conversation.resumes.length, 1);
@@ -134,8 +134,8 @@ test('executerTour : compaction avant le tour, événement compaction émis, err
     const clientKo = clientSimule(); clientKo.beta.messages.create = async () => { throw new Error('panne'); };
     const conv2 = longueConversation(4, 300);
     const evts2 = [];
-    for await (const e of executerTour({ client: clientKo, conversation: conv2, contenuUtilisateur: [{ type: 'text', text: 'Suite' }], serveurs: [], outilsLocaux: [] })) evts2.push(e);
-    assert.deepEqual(evts2.map((e) => e.type), ['text', 'done']);
+    for await (const e of executerTour({ client: clientKo, conversation: conv2, contenuUtilisateur: [{ type: 'text', text: 'Suite' }], serveurs: [], outilsLocaux: [] })) if (e.type !== 'modele') evts2.push(e);
+    assert.deepEqual(evts2.filter((e) => e.type !== 'modele').map((e) => e.type), ['text', 'done']);
     assert.equal(conv2.messages.length, 10);
   } finally { delete process.env.COMPACTION_SEUIL; }
 });

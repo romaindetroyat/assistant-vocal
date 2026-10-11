@@ -25,9 +25,9 @@ const reponseTexte = (text) => ({ stop_reason: 'end_turn', content: [{ type: 'te
 test('réglages : cinq longueurs, trois modèles, valeurs inconnues refusées', async () => {
   await ecrireValeur('reglages', {});
   assert.deepEqual(Object.keys(CONCISIONS), ['tres_court', 'court', 'normal', 'developpe', 'tres_developpe']);
-  assert.deepEqual(Object.keys(MODELES), ['haiku', 'sonnet', 'opus']);
-  for (const m of Object.values(MODELES)) assert.ok(m.id && m.nom && m.delai && m.cout);
-  assert.equal((await lireReglages()).modele, 'opus');
+  assert.deepEqual(Object.keys(MODELES), ['auto', 'haiku', 'sonnet', 'opus']);
+  for (const [k, m] of Object.entries(MODELES)) assert.ok((m.id || k === 'auto') && m.nom && m.delai && m.cout);
+  assert.equal((await lireReglages()).modele, 'auto');
   await modifierReglages({ modele: 'haiku', concision: 'tres_developpe' });
   const r = await lireReglages();
   assert.equal(r.modele, 'haiku'); assert.equal(r.concision, 'tres_developpe');

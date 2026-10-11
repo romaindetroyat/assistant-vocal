@@ -8,7 +8,7 @@ const ui = {
   btnMicro: $('#btn-micro'), microLibelle: $('#micro-libelle'), btnEnvoyer: $('#btn-envoyer'),
   btnNotifs: $('#btn-notifs'), bandeauAppel: $('#bandeau-appel'), appelEtat: $('#appel-etat'),
   salut: $('#salut'), dateJour: $('#date-jour'), reglageModele: $('#reglage-modele'), reglageLongueur: $('#reglage-longueur'),
-  valeurModele: $('#valeur-modele'), valeurLongueur: $('#valeur-longueur'), estimationDelai: $('#estimation-delai'), estimationCout: $('#estimation-cout'),
+  valeurModele: $('#valeur-modele'), btnAuto: $('#btn-auto'), valeurLongueur: $('#valeur-longueur'), estimationDelai: $('#estimation-delai'), estimationCout: $('#estimation-cout'),
   ecranTap: $('#ecran-tap'), btnTap: $('#btn-tap'), btnTapAnnuler: $('#btn-tap-annuler'),
   bandeauVeille: $('#bandeau-veille'), veilleEtat: $('#veille-etat'), btnQuitterVeille: $('#btn-quitter-veille'),
 };
@@ -254,6 +254,20 @@ const ORDRE_MODELES = ['haiku', 'sonnet', 'opus'];
 const ORDRE_LONGUEURS = ['tres_court', 'court', 'normal', 'developpe', 'tres_developpe'];
 const NOMS_LONGUEURS = { tres_court: 'Très court', court: 'Court', normal: 'Normal', developpe: 'Développé', tres_developpe: 'Très développé' };
 function afficherDock() {
+  const estAuto = etat.reglages.modele === 'auto';
+  ui.btnAuto.setAttribute('aria-pressed', String(estAuto));
+  ui.reglageModele.disabled = estAuto;
+  if (estAuto) {
+    const infos = etat.reglages.modeles?.auto;
+    ui.valeurModele.textContent = 'Automatique';
+    ui.reglageModele.value = '1';
+    const longueur = ORDRE_LONGUEURS.includes(etat.reglages.concision) ? etat.reglages.concision : 'court';
+    ui.reglageLongueur.value = String(ORDRE_LONGUEURS.indexOf(longueur));
+    ui.valeurLongueur.textContent = NOMS_LONGUEURS[longueur];
+    ui.estimationDelai.textContent = infos?.delai || '≈ 2 à 7 s';
+    ui.estimationCout.textContent = `${infos?.cout || '≈ 0,05 à 1 ct'} par question`;
+    return;
+  }
   const modele = ORDRE_MODELES.includes(etat.reglages.modele) ? etat.reglages.modele : 'opus';
   const longueur = ORDRE_LONGUEURS.includes(etat.reglages.concision) ? etat.reglages.concision : 'court';
   ui.reglageModele.value = String(ORDRE_MODELES.indexOf(modele));
@@ -272,6 +286,7 @@ async function enregistrerDock(modifs) {
   try { const r = await api('/api/reglages', { method: 'PUT', body: JSON.stringify(modifs) }); Object.assign(etat.reglages, r); afficherDock(); }
   catch (e) { etat.reglages = avant; afficherDock(); setEtat(`Réglage non enregistré : ${e.message}`); }
 }
+ui.btnAuto.addEventListener('click', () => enregistrerDock({ modele: etat.reglages.modele === 'auto' ? 'opus' : 'auto' })); // quitter l'auto = Opus, à ajuster au curseur
 ui.reglageModele.addEventListener('input', () => { etat.reglages.modele = ORDRE_MODELES[ui.reglageModele.value]; afficherDock(); });
 ui.reglageModele.addEventListener('change', () => enregistrerDock({ modele: ORDRE_MODELES[ui.reglageModele.value] }));
 ui.reglageLongueur.addEventListener('input', () => { etat.reglages.concision = ORDRE_LONGUEURS[ui.reglageLongueur.value]; afficherDock(); });
@@ -388,7 +403,8 @@ async function envoyer() {
     if (r.status === 401) { afficherLogin(); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).erreur || `HTTP ${r.status}`);
     for await (const ev of lireSSE(r.body)) {
-      if (ev.event === 'start') { if (!etat.conversationId) { etat.conversationId = ev.data.conversationId; localStorage.setItem('conversationId', etat.conversationId); } }
+      if (ev.event === 'modele') { const nom = ev.data.nom.replace(/\s[\d.]+$/, ''); bulle.dataset.modele = ev.data.auto ? `${nom} · auto` : nom; }
+      else if (ev.event === 'start') { if (!etat.conversationId) { etat.conversationId = ev.data.conversationId; localStorage.setItem('conversationId', etat.conversationId); } }
       else if (ev.event === 'text') { texteRecu += ev.data.text; bulle.classList.remove('vide'); bulle.innerHTML = rendreMarkdown(texteRecu); setEtat(''); defiler(); }
       else if (ev.event === 'tool_use') { if (!ligneOutils) { ligneOutils = creerLigneOutils(); ui.messages.insertBefore(ligneOutils, bulle); } badgeActif = ajouterBadge(ligneOutils, ev.data.name, ev.data.server); setEtat(`Outil : ${ev.data.name}…`); defiler(); }
       else if (ev.event === 'tool_result') { if (badgeActif) { badgeActif.className = `outil ${ev.data.ok ? 'ok' : 'ko'}`; badgeActif.title = ev.data.preview || ''; } }

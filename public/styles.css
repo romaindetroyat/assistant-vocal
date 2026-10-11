@@ -149,6 +149,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   :root:not([data-theme="light"]) .curseur input[type="range"] { accent-color: var(--ambre); }
   :root:not([data-theme="light"]) .micro:not([aria-pressed="true"]):not(.enregistre):not(.long):not(.en-appel), :root:not([data-theme="light"]) .btn-envoyer { background: #3a3f47 !important; }
 }
+.bouton-auto { margin-left: 6px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--bordure-2); background: transparent; color: var(--texte-2); font: 600 11px var(--corps); cursor: pointer; vertical-align: 1px; }
+.bouton-auto[aria-pressed="true"] { background: var(--ambre); border-color: var(--ambre); color: #1f2329; }
+.curseur input[type="range"]:disabled { opacity: 0.45; }
+.msg.assistant[data-modele]:not(.vide)::after { content: attr(data-modele); display: block; margin-top: 4px; font-size: 11px; color: var(--ardoise-texte-2); }
 .curseur-bornes { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--texte-2); }
 .estimation { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-left: 20px; border-left: 1px solid var(--bordure); white-space: nowrap; }
 #estimation-delai { font: 600 22px var(--titre); }

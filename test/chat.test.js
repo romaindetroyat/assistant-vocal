@@ -5,6 +5,9 @@ import { executerTour } from '../server/chat.js';
 import { creerApplicationNode as creerApplication } from '../server/index.js';
 import { creerJeton } from '../server/auth.js';
 import * as store from '../server/store.js';
+// Ces tests portent sur un modèle forcé (Opus) ; le mode automatique est testé dans routage.test.js.
+await store.ecrireValeur('reglages', { modele: 'opus' });
+const sansModele = (evts) => evts.filter((e) => e.type !== 'modele');
 
 // Client Anthropic simulé : rejoue une liste de réponses, enregistre les requêtes.
 function clientSimule(reponses) {
@@ -36,7 +39,7 @@ test('serveurs MCP secondaires : attachés seulement après activer_serveur, pui
   const conversation = { titre: 'Nouvelle conversation', messages: [] };
   const serveurs = [{ name: 'agenda', url: 'https://x.invalid/agenda', description: 'Agenda' }, { name: 'vercel', url: 'https://x.invalid/vercel', description: 'Déploiements' }];
   const evts = [];
-  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Dernier déploiement ?' }], serveurs, outilsLocaux: [] })) evts.push(e);
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Dernier déploiement ?' }], serveurs, outilsLocaux: [] })) if (e.type !== 'modele') evts.push(e);
   const r1 = client.requetes[0];
   assert.deepEqual(r1.mcp_servers.map((m) => m.name), ['agenda']);
   assert.ok(r1.tools.some((t) => t.name === 'activer_serveur' && t.input_schema.properties.serveur.enum.includes('vercel')));
@@ -48,7 +51,7 @@ test('serveurs MCP secondaires : attachés seulement après activer_serveur, pui
   assert.deepEqual(conversation.serveursActifs, ['vercel']);
   assert.ok(evts.some((e) => e.type === 'tool_result' && e.name === 'activer_serveur' && e.ok));
   // Tour suivant de la même conversation : vercel reste attaché d'emblée.
-  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Et le précédent ?' }], serveurs, outilsLocaux: [] })) evts.push(e);
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Et le précédent ?' }], serveurs, outilsLocaux: [] })) if (e.type !== 'modele') evts.push(e);
   assert.deepEqual(client.requetes[2].mcp_servers.map((m) => m.name), ['agenda', 'vercel']);
 });
 
@@ -59,9 +62,9 @@ test('tour simple : texte streamé, historique enrichi, requête bien formée', 
   const conversation = { titre: 'Nouvelle conversation', messages: [] };
   const serveurs = [{ name: 'gmail', url: 'https://x.invalid/gmail', description: 'Mail', authorization_token: 'jeton-secret-xyz' }];
   const evts = [];
-  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Salut' }], serveurs, outilsLocaux: outilLocalTest })) evts.push(e);
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Salut' }], serveurs, outilsLocaux: outilLocalTest })) if (e.type !== 'modele') evts.push(e);
 
-  assert.deepEqual(evts.map((e) => e.type), ['text', 'done']);
+  assert.deepEqual(sansModele(evts).map((e) => e.type), ['text', 'done']);
   assert.equal(evts.at(-1).text, 'Bonjour !');
   assert.equal(conversation.messages.length, 2);
   assert.equal(conversation.titre, 'Salut');
@@ -91,9 +94,9 @@ test('outil local : exécution, tool_result renvoyé, puis réponse finale', asy
   ]);
   const conversation = { titre: 'x', messages: [] };
   const evts = [];
-  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Mes rappels ?' }], serveurs: [], outilsLocaux: outilLocalTest })) evts.push(e);
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Mes rappels ?' }], serveurs: [], outilsLocaux: outilLocalTest })) if (e.type !== 'modele') evts.push(e);
 
-  assert.deepEqual(evts.map((e) => e.type), ['tool_use', 'tool_result', 'text', 'done']);
+  assert.deepEqual(sansModele(evts).map((e) => e.type), ['tool_use', 'tool_result', 'text', 'done']);
   assert.equal(evts[1].ok, true);
   assert.equal(client.requetes.length, 2);
   const resultats = client.requetes[1].messages.at(-1);
@@ -115,7 +118,7 @@ test('outils MCP côté serveur : événements tool_use émis, blocs rejoués, f
   }]);
   const conversation = { titre: 'x', messages: [] };
   const evts = [];
-  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Mes mails' }], serveurs: [], outilsLocaux: outilLocalTest })) evts.push(e);
+  for await (const e of executerTour({ client, conversation, contenuUtilisateur: [{ type: 'text', text: 'Mes mails' }], serveurs: [], outilsLocaux: outilLocalTest })) if (e.type !== 'modele') evts.push(e);
   assert.deepEqual(evts[0], { type: 'tool_use', name: 'search_threads', server: 'gmail' });
   const types = conversation.messages[1].content.map((b) => b.type);
   assert.deepEqual(types, ['mcp_tool_use', 'mcp_tool_result', 'text']);

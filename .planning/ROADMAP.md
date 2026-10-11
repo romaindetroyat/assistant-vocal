@@ -67,10 +67,12 @@ Tâches rapides de la v4 : mode voiture stable (tap = couper la parole, journal 
 pendant la recherche, arrêt de l'écoute et fuites du micro corrigées (dictée bornée à 15 s), nettoyage des données de
 test en production. Bilan : 105 tests, cache SW v39, extension 1.1.0.
 
-## Milestone v5 — à définir
+## Milestone v5 — Plus malin (en cours)
 
-Définie d'après l'usage réel (`/gsd-new-milestone`). Candidats : vérifications iPhone (partage, Siri, veille), choix du
-modèle selon la Consommation, clé dédiée du coffre et R2, INT-06 Element/Matrix (backlog).
+| Phase | Status | Goal |
+|-------|--------|------|
+| 24 — Modèle automatique | Complete | Haiku pour les questions simples, Opus pour les vraies tâches, escalade automatique, coût par modèle |
+| 25 — Assistant proactif | Planned | Mails urgents, rappel avant rendez-vous, résumé du soir, heures de silence |
 
 ## Progress
 

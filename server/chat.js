@@ -10,7 +10,8 @@ import { pushDisponible } from './push.js';
 import { listerRappels } from './store.js';
 import { enregistrerUsage } from './usage.js';
 import { compacterSiNecessaire } from './compaction.js';
-import { lireReglages, modeleClaude, consigneConcision } from './reglages.js';
+import { lireReglages, modeleClaude, consigneConcision, MODELES } from './reglages.js';
+import { choisirModeleAuto, SOURCES_AUTO, OUTIL_ESCALADER } from './routage.js';
 
 const BETAS = ['mcp-client-2025-11-20', 'server-side-fallback-2026-07-01'];
 const MAX_ITERATIONS = 12;
@@ -39,8 +40,14 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   if (!outilsLocaux) outilsLocaux = await outilsLocauxDisponibles();
   // Modèle choisi dans l'application (Haiku, Sonnet ou Opus) et longueur des réponses en mode texte.
   const reglages = await lireReglages().catch(() => ({}));
-  const modele = modeleClaude(reglages, config.model);
-  const estHaiku = /haiku/.test(modele);
+  // Modèle automatique (phase 24) : Haiku ou Opus selon la demande ; Haiku peut escalader vers Opus (outil escalader).
+  const auto = reglages.modele === 'auto' && SOURCES_AUTO.has(source);
+  const choix = auto ? choisirModeleAuto(contenuUtilisateur) : null;
+  let modele = auto ? MODELES[choix.cle].id : modeleClaude(reglages, config.model);
+  const estHaiku = () => /haiku/.test(modele);
+  const peutEscalader = () => auto && estHaiku();
+  const cleModele = () => Object.keys(MODELES).find((k) => MODELES[k].id === modele) || 'opus';
+  yield { type: 'modele', cle: cleModele(), nom: MODELES[cleModele()]?.nom || modele, auto, raison: choix?.raison || '' };
   if (source === 'chat') consigne = [consigne, `Longueur de la réponse : ${consigneConcision(reglages.concision)}`].filter(Boolean).join('\n');
   const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
   const consignes = await lireConsignes().catch(() => []);
@@ -71,14 +78,16 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
       { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' },
       ...outilsLocaux,
       ...outilActiver,
+      ...(peutEscalader() ? [OUTIL_ESCALADER] : []),
       ...toolsMcp,
       // Haiku n'a pas la variante à filtrage dynamique de la recherche web : variante de base.
-      { type: estHaiku ? 'web_search_20250305' : 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
+      { type: estHaiku() ? 'web_search_20250305' : 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', country: 'FR', timezone: 'Europe/Paris' } },
     ] };
   };
   let { mcp_servers, tools } = construireOutils();
 
   let texteFinal = '';
+  let avecConsigne = true; // consigne système jointe au premier appel (et au premier appel d'Opus après une escalade)
   const debutTour = Date.now();
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const debutIteration = Date.now(); let premierEvenement = 0;
@@ -86,15 +95,16 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
       model: modele,
       max_tokens: 16000,
       betas: BETAS,
-      ...(estHaiku ? {} : { fallbacks: 'default' }), // pas de repli serveur pour Haiku
+      ...(estHaiku() ? {} : { fallbacks: 'default' }), // pas de repli serveur pour Haiku
       thinking: { type: 'adaptive' },
       output_config: { effort },
       cache_control: { type: 'ephemeral' }, // cache automatique de la fin de conversation (le bloc système stable a son propre point)
       system,
       tools,
       ...(mcp_servers.length ? { mcp_servers } : {}),
-      messages: consigne && iteration === 0 ? [...conversation.messages, { role: 'system', content: consigne }] : conversation.messages,
+      messages: consigne && avecConsigne ? [...conversation.messages, { role: 'system', content: consigne }] : conversation.messages,
     });
+    avecConsigne = false;
 
     let texteIteration = '';
     for await (const event of stream) {
@@ -112,9 +122,18 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
     }
 
     const reponse = await stream.finalMessage();
-    await enregistrerUsage(reponse.usage, source).catch(() => {});
+    await enregistrerUsage(reponse.usage, source, new Date(), cleModele()).catch(() => {});
     // Chronométrage (journal) : latence avant le premier événement, durée de l'itération, outils appelés.
     console.log(`[chat] itération ${iteration + 1} : premier événement ${premierEvenement ? premierEvenement - debutIteration : '-'} ms, durée ${Date.now() - debutIteration} ms, arrêt ${reponse.stop_reason}, outils ${reponse.content.filter((b) => b.type === 'tool_use' || b.type === 'mcp_tool_use' || b.type === 'server_tool_use').map((b) => b.name).join(',') || '-'}, cache ${reponse.usage?.cache_read_input_tokens ?? 0}/${reponse.usage?.input_tokens ?? 0}`);
+    // Escalade : Haiku juge la demande trop difficile → le tour repart sur Opus ; sa réponse n'est pas conservée.
+    if (peutEscalader() && reponse.content.some((b) => b.type === 'tool_use' && b.name === OUTIL_ESCALADER.name)) {
+      const raison = String(reponse.content.find((b) => b.name === OUTIL_ESCALADER.name)?.input?.raison || 'escalade').slice(0, 80);
+      modele = MODELES.opus.id;
+      ({ mcp_servers, tools } = construireOutils());
+      yield { type: 'modele', cle: 'opus', nom: MODELES.opus.nom, auto: true, raison: `escalade : ${raison}` };
+      avecConsigne = true;
+      continue;
+    }
     if (!texteIteration) { const t = texteDe(reponse.content); if (t) { texteIteration = t; yield { type: 'text', text: t }; } } // sécurité : texte final sans delta streamé
     conversation.messages.push({ role: 'assistant', content: nettoyerPourHistorique(reponse.content) });
     texteFinal += texteIteration;

@@ -144,7 +144,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     const conversation = corps.conversationId ? await store.lireConversation(corps.conversationId).catch(() => null) : await store.creerConversation();
     if (!conversation) return c.json({ erreur: 'Conversation introuvable' }, 404);
     const outils = [];
-    let texte = ''; let erreur = null;
+    let texte = ''; let erreur = null; let modele = null;
     // Mode voiture (phase 19) : concision « très court » forcée et aucun lien, quel que soit le réglage enregistré.
     const voiture = contexteValide(corps.contexte) === 'voiture';
     const concision = consigneConcision(voiture ? 'tres_court' : (await lireReglages()).concision);
@@ -154,6 +154,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
       const position = trajets.consignePosition(corps.position);
       for await (const ev of executerTour({ client: leClient(), conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs: prets, nonConnectes, effort: config.effortVoix, consigne: position ? `${consigne} ${position}` : consigne, source: 'voix' })) {
         if (ev.type === 'tool_use') outils.push(ev.name);
+        else if (ev.type === 'modele') modele = ev.cle;
         else if (ev.type === 'done') texte = ev.text;
         else if (ev.type === 'error') erreur = ev.message;
       }
@@ -163,7 +164,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     } finally {
       await store.sauverConversation(conversation);
     }
-    return c.json({ text: trajets.sansLiensItineraire(texte) || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, conversationId: conversation.id });
+    return c.json({ text: trajets.sansLiensItineraire(texte) || (erreur ? `Désolé, une erreur est survenue : ${erreur}` : "Je n'ai pas de réponse."), outils, modele, conversationId: conversation.id });
   });
 
   // --- Réglages ---

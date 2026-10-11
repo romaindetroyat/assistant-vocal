@@ -12,17 +12,18 @@ export const CONCISIONS = {
 };
 // Modèle de réflexion (Claude) choisi dans l'application : délai et coût par question indicatifs, cache compris.
 export const MODELES = {
+  auto: { id: null, nom: 'Automatique', role: 'Haiku pour les questions simples, Opus pour les vraies tâches', delai: '≈ 2 à 7 s', cout: '≈ 0,05 à 1 ct' },
   haiku: { id: 'claude-haiku-5-5', nom: 'Haiku 5.5', role: 'Instantané, pour les questions simples', delai: '≈ 2 s', cout: '≈ 0,05 ct' },
   sonnet: { id: 'claude-sonnet-5-5', nom: 'Sonnet 5.5', role: 'Rapide et précis au quotidien', delai: '≈ 4 s', cout: '≈ 0,5 ct' },
   opus: { id: 'claude-opus-5-5', nom: 'Opus 5.5', role: 'Le plus fin, pour les vraies tâches', delai: '≈ 7 s', cout: '≈ 1 ct' },
 };
-// Identifiant de modèle à utiliser : le choix de l'application, sinon la variable CLAUDE_MODEL.
+// Identifiant de modèle à utiliser : le choix de l'application, sinon la variable CLAUDE_MODEL (« auto » : voir routage.js).
 export function modeleClaude(reglages, defaut) { return MODELES[reglages?.modele]?.id || defaut; }
 // mainsLibres : après un appel, l'application reste en veille et relance la conversation sur le mot d'activation.
 // domicile / bureau : adresses pour les trajets ; partagerPosition : le front joint la position GPS à chaque message.
 // iphoneVoiture : sur iPhone, l'application s'ouvre directement en mode voiture.
 // voitureAutoAppel : en mode voiture, le premier tap sur l'écran lance la conversation (sinon seul le bouton « Parler »).
-const DEFAUTS = { voix: 'marin', concision: 'court', modele: 'opus', mainsLibres: false, motActivation: 'assistant', domicile: '', bureau: '', partagerPosition: false, voitureAutoAppel: true, iphoneVoiture: true };
+const DEFAUTS = { voix: 'marin', concision: 'court', modele: 'auto', mainsLibres: false, motActivation: 'assistant', domicile: '', bureau: '', partagerPosition: false, voitureAutoAppel: true, iphoneVoiture: true };
 const MOT_ACTIVATION_MAX = 40;
 const ADRESSE_MAX = 200;
 

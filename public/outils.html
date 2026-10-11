@@ -252,9 +252,9 @@
 
     <section>
       <h2>Consommation Claude</h2>
-      <p class="discret">Tokens et coût estimé par jour (tarifs Opus 5.5 : 4 $/M en entrée, 0,20 $/M lus en cache, 8 $/M écrits en cache, 20 $/M en sortie). La facture réelle d'Anthropic fait foi ; la voix OpenAI est facturée à part.</p>
+      <p class="discret">Tokens et coût estimé par jour, au tarif de chaque modèle (par million de tokens en entrée / sortie : Haiku 0,10 / 0,50 $, Sonnet 2 / 10 $, Opus 4 / 20 $ ; cache lu 0,1 ×, écrit 2 ×). La colonne Modèles indique le nombre d'appels de chacun. La facture réelle d'Anthropic fait foi ; la voix OpenAI est facturée à part.</p>
       <p id="usage-total"></p>
-      <table class="tableau" id="usage-table"><thead><tr><th>Jour</th><th>Appels</th><th>Entrée</th><th>Cache</th><th>Sortie</th><th>Coût</th></tr></thead><tbody></tbody></table>
+      <table class="tableau" id="usage-table"><thead><tr><th>Jour</th><th>Appels</th><th>Entrée</th><th>Cache</th><th>Sortie</th><th>Modèles</th><th>Coût</th></tr></thead><tbody></tbody></table>
     </section>
     <section class="carte">
       <h2>Trajets (Google Routes)</h2>
@@ -580,7 +580,7 @@
       const corps = $('#usage-table tbody'); corps.innerHTML = '';
       for (const j of u.jours) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${j.jour}</td><td>${j.appels}</td><td>${j.entree.toLocaleString('fr-FR')}</td><td>${(j.cache_lecture + j.cache_ecriture).toLocaleString('fr-FR')}</td><td>${j.sortie.toLocaleString('fr-FR')}</td><td>${j.cout.toFixed(2)} $</td>`;
+        tr.innerHTML = `<td>${j.jour}</td><td>${j.appels}</td><td>${j.entree.toLocaleString('fr-FR')}</td><td>${(j.cache_lecture + j.cache_ecriture).toLocaleString('fr-FR')}</td><td>${j.sortie.toLocaleString('fr-FR')}</td><td>${Object.entries(j.modeles || {}).map(([m, d]) => `${m[0].toUpperCase()}${m.slice(1)} ${d.appels}`).join(' · ') || 'Opus'}</td><td>${j.cout.toFixed(2)} $</td>`;
         corps.append(tr);
       }
     }).catch(() => {});
