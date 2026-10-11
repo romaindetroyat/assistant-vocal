@@ -104,7 +104,9 @@ window.addEventListener('unhandledrejection', (e) => journal('promesse-rejetee',
 // micro est fermé. Il est redemandé au prochain geste (Espace, bouton, raccourci) sans nouvelle autorisation.
 const SILENCE_MAX_MS = 60_000;
 const MICRO_FERMETURE_MS = SILENCE_MAX_MS;
-const micro = { flux: null, minuteur: null };
+// `tous` : chaque flux obtenu, pour qu'aucun ne survive à fermerMicro ; `generation` : incrémentée à chaque fermeture,
+// un micro accordé après une demande d'arrêt est aussitôt éteint ; `enCours` : une seule demande à la fois.
+const micro = { flux: null, minuteur: null, tous: new Set(), generation: 0, enCours: null };
 // Programme la fermeture du micro si plus rien ne l'utilise d'ici SILENCE_MAX_MS (appelé à la fin de chaque usage).
 function planifierFermetureMicro() {
   clearTimeout(micro.minuteur);
@@ -114,13 +116,28 @@ function microVivant() { return Boolean(micro.flux && micro.flux.getAudioTracks(
 async function obtenirMicro() {
   clearTimeout(micro.minuteur); micro.minuteur = null;
   if (microVivant()) return micro.flux;
-  micro.flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-  for (const piste of micro.flux.getTracks()) piste.addEventListener('ended', () => { if (micro.flux && !microVivant()) micro.flux = null; });
-  return micro.flux;
+  if (micro.enCours) return micro.enCours;
+  const generation = micro.generation;
+  micro.enCours = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+    .then((flux) => {
+      if (generation !== micro.generation) { flux.getTracks().forEach((t) => t.stop()); journal('micro', 'accordé après l\'arrêt : éteint'); throw new Error('Écoute arrêtée'); }
+      micro.tous.add(flux); micro.flux = flux; journal('micro', 'ouvert');
+      for (const piste of flux.getTracks()) piste.addEventListener('ended', () => { if (micro.flux === flux && !microVivant()) micro.flux = null; });
+      return flux;
+    })
+    .finally(() => { micro.enCours = null; });
+  return micro.enCours;
 }
+// Enregistre un flux ouvert ailleurs (conversation reconnectée) pour qu'il soit lui aussi éteint par fermerMicro.
+function adopterFlux(flux) { if (flux) { micro.tous.add(flux); micro.flux = flux; } }
 function fermerMicro() {
   clearTimeout(micro.minuteur); micro.minuteur = null;
-  if (micro.flux) { micro.flux.getTracks().forEach((t) => t.stop()); micro.flux = null; }
+  micro.generation++;
+  let n = 0;
+  for (const flux of micro.tous) for (const t of flux.getTracks()) if (t.readyState === 'live') { t.stop(); n++; }
+  if (micro.flux) micro.flux.getTracks().forEach((t) => t.stop());
+  micro.tous.clear(); micro.flux = null;
+  if (n) journal('micro', `éteint (${n} piste${n > 1 ? 's' : ''})`);
 }
 document.addEventListener('visibilitychange', () => {
   clearTimeout(micro.minuteur); micro.minuteur = null;
@@ -470,6 +487,7 @@ function demarrerDictee({ maintien = false } = {}) {
   window.speechSynthesis?.cancel(); arreterVeille();
   dictee.actif = true; dictee.maintien = maintien; dictee.final = ''; dictee.echecs = 0;
   dictee.base = ui.saisie.value ? `${ui.saisie.value.trim()} ` : '';
+  if (!maintien) armerSansParole();
   ui.btnMicro.setAttribute('aria-pressed', 'true');
   setEtat(maintien ? 'Je vous écoute… relâchez pour envoyer' : 'Je vous écoute… (envoi après un silence)');
   lancerReconnaissance();
@@ -507,6 +525,12 @@ function lancerReconnaissance() {
   try { rec.start(); } catch (e) { setEtat(`Dictée impossible : ${e.message}`); dictee.actif = false; ui.btnMicro.setAttribute('aria-pressed', 'false'); }
 }
 
+// Dictée lancée sans que rien ne soit dit : arrêt au bout de 15 s (le navigateur relancerait l'écoute indéfiniment).
+const DICTEE_SANS_PAROLE_MS = 15_000;
+function armerSansParole() {
+  clearTimeout(dictee.minuteurSansParole);
+  dictee.minuteurSansParole = setTimeout(() => { if (dictee.actif && !texteDicte().trim()) { arreterDictee({ envoyer: false }); setEtat('Dictée arrêtée : rien entendu'); } }, DICTEE_SANS_PAROLE_MS);
+}
 function armerSilence() {
   clearTimeout(dictee.minuteur);
   if (dictee.maintien) return; // en appui maintenu, c'est le relâchement qui envoie
@@ -515,7 +539,7 @@ function armerSilence() {
 function texteDicte() { return ui.saisie.value; }
 
 function arreterDictee({ envoyer = false } = {}) {
-  clearTimeout(dictee.minuteur);
+  clearTimeout(dictee.minuteur); clearTimeout(dictee.minuteurSansParole);
   if (!dictee.actif) return;
   dictee.actif = false;
   const rec = dictee.rec; dictee.rec = null;
@@ -642,7 +666,7 @@ const appel = creerConversationVocale({
     chargerListe();
     // Le micro de l'appel revient à l'app (micro partagé, pas de nouvelle demande de permission sur iPhone) ;
     // mains libres : on repasse en veille.
-    micro.flux = appel.recupererFlux() || micro.flux;
+    adopterFlux(appel.recupererFlux());
     envoyerJournal();
     if (arretVolontaire) { arretVolontaire = false; fermerMicro(); } // arrêt demandé : micro éteint, pas de veille
     else if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
@@ -660,7 +684,8 @@ async function demarrerAppel() {
   ui.bandeauAppel.hidden = false; libelleMicro();
   let flux = null;
   try { flux = await obtenirMicro(); } // micro partagé, demandé pendant le geste (iOS) puis conservé
-  catch (e) { ui.bandeauAppel.hidden = true; libelleMicro(); setEtat(`Micro refusé : ${e.message}`); return; }
+  catch (e) { ui.bandeauAppel.hidden = true; libelleMicro(); setEtat(e.message === 'Écoute arrêtée' ? e.message : `Micro refusé : ${e.message}`); return; }
+  if (ui.bandeauAppel.hidden) { fermerMicro(); return; } // arrêt demandé pendant l'ouverture du micro
   try {
     const id = await appel.demarrer(etat.conversationId, { flux });
     if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
@@ -679,10 +704,13 @@ let arretVolontaire = false;
 function arreterEcoute(raison = 'Écoute arrêtée') {
   if (appel.actif) { arretVolontaire = true; appel.arreter(raison); }
   arretVolontaire = false;
+  ui.bandeauAppel.hidden = true; libelleMicro(); // aussi pendant l'ouverture du micro, avant que l'appel ne démarre
   if (veille.actif) arreterVeille();
   veille.suspendue = false;
+  if (dictee.actif) arreterDictee({ envoyer: false });
   fermerMicro();
   journal('ecoute', raison);
+  envoyerJournal();
 }
 
 // ---------- Mains libres : veille à mot d'activation ----------

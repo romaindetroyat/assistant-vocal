@@ -45,8 +45,13 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   async function connecter() {
     surEtat(reconnexions ? `Reconnexion (${reconnexions})…` : 'Connexion…');
     const session = await api('/api/voice/session', { method: 'POST', body: JSON.stringify({ conversationId, contexte: contexte() || undefined }) });
+    if (!actif) return; // raccroché pendant la connexion : ne pas ouvrir le micro
     conversationId = session.conversationId;
-    if (!flux) flux = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    if (!flux) {
+      const f = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      if (!actif) { f.getTracks().forEach((t) => t.stop()); return; }
+      flux = f;
+    }
     pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     if (!audioEl) { audioEl = document.createElement('audio'); audioEl.autoplay = true; audioEl.playsInline = true; document.body.append(audioEl); }
     pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; audioEl.play?.().catch(() => {}); };
@@ -65,10 +70,12 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     };
     const offre = await pc.createOffer();
     await pc.setLocalDescription(offre);
+    if (!actif || monPc !== pc) { try { monPc.close(); } catch { /* ignoré */ } return; }
     const r = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(session.model)}`, {
       method: 'POST', headers: { Authorization: `Bearer ${session.value}`, 'Content-Type': 'application/sdp' }, body: offre.sdp,
     });
     if (!r.ok) throw new Error(`OpenAI : HTTP ${r.status}`);
+    if (!actif || monPc !== pc) { try { monPc.close(); } catch { /* ignoré */ } return; }
     await pc.setRemoteDescription({ type: 'answer', sdp: await r.text() });
   }
 

@@ -80,3 +80,19 @@ test('le bruit ambiant ne prolonge pas l\'appel : fin automatique malgré des d�
   assert.equal(appel.actif, false, 'appel terminé');
   assert.match(fin, /silence/);
 });
+
+test('raccrocher pendant la connexion : le micro n\'est jamais ouvert ensuite', async () => {
+  navigateurSimule();
+  let demandes = 0;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: async () => { demandes++; return { getTracks: () => [], getAudioTracks: () => [] }; } } } });
+  const { creerConversationVocale } = await import('../public/conversation.js');
+  let libererSession;
+  const api = () => new Promise((r) => { libererSession = r; });
+  const appel = creerConversationVocale({ api, surEtat() {}, surTexteUtilisateur() {}, surTexteAssistant() {}, surOutils() {}, surFin() {} });
+  const demarrage = appel.demarrer(null); // sans flux fourni : la conversation ouvrirait son propre micro
+  appel.arreter('Écoute arrêtée');
+  libererSession({ conversationId: 'c4', model: 'm', value: 'v' });
+  await demarrage;
+  assert.equal(demandes, 0, 'aucune demande de micro après l\'arrêt');
+  assert.equal(appel.actif, false);
+});

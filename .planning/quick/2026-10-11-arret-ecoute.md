@@ -13,3 +13,11 @@
 - `public/app.js` : `arreterEcoute()` pour tout arrêt volontaire (bouton « Arrêter l'écoute », Échap, Ctrl+Espace, micro, voiture) : fin d'appel, pas de veille, micro éteint aussitôt. `window.__assistantBasculerEcoute` exposé pour l'extension.
 - `extension/background.js` (v1.1.0) : « Parler » dans la fenêtre déjà ouverte bascule l'écoute (script dans le monde de la page), repli sur la navigation.
 - Test : le bruit n'empêche plus la fin automatique. Cache SW v37.
+
+## Suite — « Le micro est toujours ouvert »
+- Fuite 1 : arrêt pendant l'ouverture du micro (permission en cours ou connexion à la voix) → le micro s'ouvrait ensuite et
+  n'était plus jamais fermé (conversation.js ouvrait même son propre flux après le raccrochage). Corrigé : demande de micro
+  unique, numéro de génération (micro accordé après un arrêt = éteint aussitôt), registre de tous les flux éteints par
+  `fermerMicro`, vérifications `actif` après chaque attente de `connecter()`.
+- Fuite 2 : dictée lancée sans parler → le navigateur relançait l'écoute indéfiniment. Arrêt après 15 s sans parole.
+- Journal client : « micro ouvert / éteint (n pistes) », envoyé dès l'arrêt de l'écoute. Cache SW v38.
