@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v4 « Quotidien » en cours : phases 20 (météo), 21 (extension, raccourcis, autorisations), 22 (coffre de documents) livrées
-- Last action: phase 22 coffre de documents + tâche rapide « mode voiture stable » (journal de diagnostic client), cache SW v34 — 2026-10-11
+- Milestone: v4 « Quotidien » en cours : phases 20 (météo), 21 (extension, raccourcis, autorisations), 22 (coffre de documents), 23 (interface Ardoise) livrées
+- Last action: phase 23 interface « Ardoise » (rail, transcription à droite, curseurs modèle et longueur, voiture restylée), cache SW v35 — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 99 (`npm test`)
+- Tests : 101 (`npm test`)
 
 ## Decisions Log
 
@@ -29,6 +29,7 @@
 | 2026-10-10 | Météo via Open-Meteo (ECMWF + AROME) plutôt que l'API Meteored | Pas d'API Meteored documentée publiquement ; mêmes modèles, gratuit, sans clé |
 | 2026-10-11 | Coffre chiffré côté serveur (AES-GCM) avec fiches extraites par Claude, KV en attendant R2 | Sécurité sans tiers ; usage vocal conservé |
 | 2026-10-11 | Mode voiture sans veille forcée, tap = couper la parole | Le tap raccrochait ; la veille transcrivait le bruit de la route |
+| 2026-10-11 | Interface « Ardoise » ; modèle et longueur choisis par curseurs ; micro unique (toucher = dictée, maintenir = conversation) | Choix de Romain parmi trois maquettes ; moins de boutons |
 | 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
 ## Blockers

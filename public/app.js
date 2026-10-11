@@ -4,21 +4,22 @@ const $ = (s) => document.querySelector(s);
 const ui = {
   login: $('#ecran-login'), app: $('#ecran-app'), formLogin: $('#form-login'), motDePasse: $('#mot-de-passe'), loginErreur: $('#login-erreur'),
   messages: $('#messages'), saisie: $('#saisie'), pieces: $('#pieces'), etat: $('#etat'), titre: $('#titre-conv'),
-  tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'), listeOutils: $('#liste-outils'),
-  btnMicro: $('#btn-micro'), btnVocal: $('#btn-vocal'), btnEnvoyer: $('#btn-envoyer'), btnVoix: $('#btn-voix'),
-  btnMainsLibres: $('#btn-mains-libres'), btnNotifs: $('#btn-notifs'), btnAppel: $('#btn-appel'), bandeauAppel: $('#bandeau-appel'), appelEtat: $('#appel-etat'),
+  tiroir: $('#tiroir'), voile: $('#voile'), liste: $('#liste-conversations'),
+  btnMicro: $('#btn-micro'), microLibelle: $('#micro-libelle'), btnEnvoyer: $('#btn-envoyer'),
+  btnNotifs: $('#btn-notifs'), bandeauAppel: $('#bandeau-appel'), appelEtat: $('#appel-etat'),
+  salut: $('#salut'), dateJour: $('#date-jour'), reglageModele: $('#reglage-modele'), reglageLongueur: $('#reglage-longueur'),
+  valeurModele: $('#valeur-modele'), valeurLongueur: $('#valeur-longueur'), estimationDelai: $('#estimation-delai'), estimationCout: $('#estimation-cout'),
   ecranTap: $('#ecran-tap'), btnTap: $('#btn-tap'), btnTapAnnuler: $('#btn-tap-annuler'),
   bandeauVeille: $('#bandeau-veille'), veilleEtat: $('#veille-etat'), btnQuitterVeille: $('#btn-quitter-veille'),
 };
 
 const etat = {
   moi: null,
-  reglages: {}, // réglages serveur (/api/reglages) : voix, concision, mainsLibres, motActivation
+  reglages: {}, // réglages serveur (/api/reglages) : voix, concision, modele, mainsLibres, motActivation
   conversationId: null,
   images: [], // {data (base64), media_type, url}
   envoiEnCours: false,
-  voix: localStorage.getItem('voix') === '1',
-  mainsLibres: localStorage.getItem('mainsLibres') === '1',
+  voix: false, // lecture à voix haute des réponses écrites : seulement en mode voiture (phase 23)
   reconnaissance: null,
   enregistreur: null,
 };
@@ -146,20 +147,17 @@ async function demarrer() {
   try { etat.moi = await api('/api/me'); } catch { return; }
   ui.login.hidden = true; ui.app.hidden = false;
   document.title = etat.moi.assistantName;
-  afficherOutils(etat.moi.serveurs);
+  afficherSalut();
   etat.reglages = await api('/api/reglages').catch(() => ({}));
+  afficherDock();
   activerModeVoitureDepuisUrl(); // ?mode=voiture (phase 19)
   const connecte = new URLSearchParams(location.search).get('connecte');
   if (connecte) { history.replaceState(null, '', '/app'); setEtat(`${connecte} connecté ✓`); }
-  ui.btnVoix.setAttribute('aria-pressed', String(etat.voix));
-  ui.btnMainsLibres.setAttribute('aria-pressed', String(etat.mainsLibres));
   ui.btnNotifs.hidden = !etat.moi.push;
-  ui.btnAppel.hidden = !etat.moi.voix;
-  if (etat.moi.voix) ui.btnAppel.title = `Conversation vocale en direct (${etat.moi.voix.modele})`;
-  if (!etat.moi.transcription) ui.btnVocal.title = 'Vocal : service de transcription non configuré, utilisez la dictée';
-  if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-    ui.btnMicro.disabled = true; ui.btnMicro.title = 'Dictée non disponible dans ce navigateur : écrivez ou enregistrez un vocal';
-  }
+  const dicteeDisponible = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+  if (!dicteeDisponible && !etat.moi.transcription && !etat.moi.voix) { ui.btnMicro.disabled = true; ui.btnMicro.title = 'Ni dictée ni transcription disponibles : écrivez votre message'; }
+  libelleMicro();
+  if (etat.moi.voix) ui.btnMicro.title = `Touchez pour dicter, maintenez pour une conversation en direct (${etat.moi.voix.modele})`;
   await chargerListe();
   const params = new URLSearchParams(location.search);
   const existe = (id) => id && [...ui.liste.querySelectorAll('li')].some((li) => li.dataset.id === id);
@@ -228,39 +226,52 @@ async function recevoirPartage() {
   await envoyer();
 }
 
-// ---------- Outils (serveurs MCP) ----------
-function afficherOutils(serveurs) {
-  ui.listeOutils.innerHTML = '';
-  if (!serveurs.length) { const li = document.createElement('li'); li.className = 'discret'; li.textContent = 'Aucun outil : ajoutez-en dans « Mes outils »'; ui.listeOutils.append(li); return; }
-  for (const s of serveurs) {
-    const li = document.createElement('li');
-    const point = document.createElement('span'); point.className = `point${s.connecte ? '' : ' off'}`;
-    const nom = document.createElement('span'); nom.className = 'nom'; nom.textContent = s.name; nom.title = s.description || '';
-    li.append(point, nom);
-    if (s.auth === 'oauth' && !s.connecte) {
-      const b = document.createElement('button'); b.className = 'btn btn-secondaire'; b.textContent = 'Connecter';
-      b.onclick = () => { location.href = `/connect/${encodeURIComponent(s.name)}`; };
-      li.append(b);
-    }
-    ui.listeOutils.append(li);
-  }
+// ---------- En-tête et dock (phase 23) ----------
+function afficherSalut() {
+  const maintenant = new Date();
+  ui.salut.textContent = maintenant.getHours() >= 18 || maintenant.getHours() < 5 ? 'Bonsoir' : 'Bonjour';
+  ui.dateJour.textContent = maintenant.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
-async function rafraichirOutils() { try { afficherOutils(await api('/api/mcp')); } catch { /* ignoré */ } }
-async function connecterOutil(nom) {
-  try {
-    const { url, manuel } = await api(`/api/mcp/${nom}/connect`, { method: 'POST' });
-    if (!manuel) { location.href = url; return; }
-    window.open(url, '_blank');
-    const colle = prompt(`Autorisez ${nom} dans l'onglet qui vient de s'ouvrir. À la fin, le navigateur affiche une page "localhost" introuvable : copiez son adresse complète et collez-la ici.`);
-    if (!colle) return;
-    await api(`/api/mcp/${nom}/finish`, { method: 'POST', body: JSON.stringify({ url: colle }) });
-    setEtat(`${nom} connecté ✓`); await rafraichirOutils();
-  } catch (e) { setEtat(`Connexion ${nom} : ${e.message}`); }
+// Curseurs « Réflexion » (modèle Claude) et « Longueur » : enregistrés côté serveur, valables pour le texte et la voix.
+const ORDRE_MODELES = ['haiku', 'sonnet', 'opus'];
+const ORDRE_LONGUEURS = ['tres_court', 'court', 'normal', 'developpe', 'tres_developpe'];
+const NOMS_LONGUEURS = { tres_court: 'Très court', court: 'Court', normal: 'Normal', developpe: 'Développé', tres_developpe: 'Très développé' };
+function afficherDock() {
+  const modele = ORDRE_MODELES.includes(etat.reglages.modele) ? etat.reglages.modele : 'opus';
+  const longueur = ORDRE_LONGUEURS.includes(etat.reglages.concision) ? etat.reglages.concision : 'court';
+  ui.reglageModele.value = String(ORDRE_MODELES.indexOf(modele));
+  ui.reglageLongueur.value = String(ORDRE_LONGUEURS.indexOf(longueur));
+  const infos = etat.reglages.modeles?.[modele];
+  ui.valeurModele.textContent = infos?.nom || modele;
+  ui.reglageModele.title = infos?.role || '';
+  ui.valeurLongueur.textContent = NOMS_LONGUEURS[longueur];
+  const plusLong = longueur === 'developpe' || longueur === 'tres_developpe';
+  ui.estimationDelai.textContent = infos ? `${infos.delai}${plusLong ? ' +' : ''}` : '';
+  ui.estimationCout.textContent = infos ? `${infos.cout} par question` : '';
 }
-async function deconnecterOutil(nom) {
-  if (!confirm(`Déconnecter ${nom} ?`)) return;
-  await api(`/api/mcp/${nom}`, { method: 'DELETE' }); await rafraichirOutils();
+async function enregistrerDock(modifs) {
+  const avant = { ...etat.reglages };
+  Object.assign(etat.reglages, modifs); afficherDock();
+  try { const r = await api('/api/reglages', { method: 'PUT', body: JSON.stringify(modifs) }); Object.assign(etat.reglages, r); afficherDock(); }
+  catch (e) { etat.reglages = avant; afficherDock(); setEtat(`Réglage non enregistré : ${e.message}`); }
 }
+ui.reglageModele.addEventListener('input', () => { etat.reglages.modele = ORDRE_MODELES[ui.reglageModele.value]; afficherDock(); });
+ui.reglageModele.addEventListener('change', () => enregistrerDock({ modele: ORDRE_MODELES[ui.reglageModele.value] }));
+ui.reglageLongueur.addEventListener('input', () => { etat.reglages.concision = ORDRE_LONGUEURS[ui.reglageLongueur.value]; afficherDock(); });
+ui.reglageLongueur.addEventListener('change', () => enregistrerDock({ concision: ORDRE_LONGUEURS[ui.reglageLongueur.value] }));
+
+// Puces de demandes fréquentes
+for (const puce of document.querySelectorAll('.puce[data-dire]')) {
+  puce.addEventListener('click', () => { if (etat.envoiEnCours) return; ui.saisie.value = puce.dataset.dire; redimensionnerSaisie(); envoyer(); });
+}
+
+// Copie de la transcription affichée
+$('#btn-copier').addEventListener('click', async () => {
+  const lignes = [...ui.messages.querySelectorAll('.msg.user, .msg.assistant')].map((m) => [m.classList.contains('user') ? 'Vous' : 'Assistant', m.textContent.trim()]).filter(([, t]) => t).map(([qui, t]) => `${qui} : ${t}`);
+  if (!lignes.length) { setEtat('Rien à copier pour l\'instant'); return; }
+  try { await navigator.clipboard.writeText(lignes.join('\n\n')); setEtat('Transcription copiée ✓'); }
+  catch (e) { setEtat(`Copie impossible : ${e.message}`); }
+});
 
 // ---------- Conversations ----------
 async function chargerListe() {
@@ -283,7 +294,7 @@ async function ouvrirConversation(id) {
   ui.titre.textContent = etat.moi.assistantName;
   if (!id) {
     const p = document.createElement('p'); p.className = 'vide-accueil';
-    p.textContent = 'Appuyez sur le micro et parlez, ou écrivez. Collez une image, prenez une photo, enregistrez un vocal.';
+    p.textContent = 'La transcription de vos échanges s\'affiche ici. Touchez le micro pour dicter, maintenez-le pour une conversation en direct, ou écrivez.';
     ui.messages.append(p);
   } else {
     const conv = await api(`/api/conversations/${id}`);
@@ -328,7 +339,8 @@ function afficherResumes(resumes) {
   }
   ui.messages.append(det);
 }
-function creerBulle(role) { const el = document.createElement('div'); el.className = `msg ${role}`; ui.messages.append(el); return el; }
+const ETIQUETTES = { user: 'Vous', assistant: 'A.' };
+function creerBulle(role) { const el = document.createElement('div'); el.className = `msg ${role}`; if (ETIQUETTES[role]) el.dataset.etiquette = ETIQUETTES[role]; ui.messages.append(el); return el; }
 function creerLigneOutils() { const el = document.createElement('div'); el.className = 'outils'; ui.messages.append(el); return el; }
 function ajouterBadge(ligne, nom, serveur, classe = 'actif') {
   const b = document.createElement('span'); b.className = `outil ${classe}`; b.textContent = serveur && serveur !== 'local' ? `${serveur} · ${nom}` : nom; ligne.append(b); return b;
@@ -374,7 +386,6 @@ async function envoyer() {
   } finally {
     etat.envoiEnCours = false; ui.btnEnvoyer.disabled = false; setEtat('');
     chargerListe().then(() => { const li = ui.liste.querySelector(`li[data-id="${etat.conversationId}"] button`); if (li) ui.titre.textContent = li.textContent; });
-    if (etat.mainsLibres && !dictee.actif) demarrerDictee();
   }
 }
 async function* lireSSE(body) {
@@ -512,32 +523,52 @@ function arreterDictee({ envoyer = false } = {}) {
   ui.btnMicro.setAttribute('aria-pressed', 'false'); setEtat('');
   const texte = texteDicte().trim();
   if (envoyer && texte) envoyer_();
-  else if (etat.mainsLibres && !etat.envoiEnCours && !texte) setTimeout(() => demarrerDictee(), 300);
 }
 function envoyer_() { envoyer(); }
 
-// Bouton micro : appui bref = écoute jusqu'au silence ; appui maintenu = écoute tant qu'on tient, envoi au relâchement.
+// Bouton micro (phase 23) : toucher = dictée jusqu'au silence (vocal transcrit si la dictée n'existe pas) ;
+// maintenir ≥ 0,6 s puis relâcher = conversation vocale en direct ; pendant un appel, toucher = raccrocher.
+// L'appel part au relâchement : c'est un geste utilisateur, exigé par Safari pour le micro et le son.
+const APPUI_LONG_MS = 600;
+const appuiMicro = { debut: 0, minuteur: null, long: false };
 ui.btnMicro.addEventListener('pointerdown', (e) => {
   e.preventDefault(); ui.btnMicro.setPointerCapture?.(e.pointerId);
-  dictee.debutAppui = Date.now();
-  if (dictee.actif) { arreterDictee({ envoyer: true }); dictee.debutAppui = 0; return; }
-  demarrerDictee({ maintien: true });
+  appuiMicro.debut = Date.now(); appuiMicro.long = false;
+  clearTimeout(appuiMicro.minuteur);
+  if (appel.actif || dictee.actif || etat.enregistreur || !etat.moi?.voix) return;
+  appuiMicro.minuteur = setTimeout(() => { appuiMicro.long = true; ui.btnMicro.classList.add('long'); ui.microLibelle.textContent = 'Relâchez pour converser'; }, APPUI_LONG_MS);
 });
-function finAppui() {
-  if (!dictee.debutAppui) return;
-  const duree = Date.now() - dictee.debutAppui; dictee.debutAppui = 0;
-  if (!dictee.actif) return;
-  if (duree < 500) { dictee.maintien = false; setEtat('Je vous écoute… (envoi après un silence)'); armerSilence(); } // appui bref : on continue jusqu'au silence
-  else arreterDictee({ envoyer: true }); // appui maintenu : relâcher envoie
+function finAppuiMicro(annule = false) {
+  if (!appuiMicro.debut) return;
+  clearTimeout(appuiMicro.minuteur); appuiMicro.debut = 0;
+  const long = appuiMicro.long; appuiMicro.long = false;
+  ui.btnMicro.classList.remove('long');
+  if (annule) { libelleMicro(); return; }
+  if (appel.actif) { appel.arreter('Raccroché'); return; }
+  if (long) { demarrerAppel(); return; }
+  if (dictee.actif) { arreterDictee({ envoyer: true }); return; }
+  if (etat.enregistreur) { arreterEnregistrement(); return; }
+  if (window.SpeechRecognition || window.webkitSpeechRecognition) demarrerDictee();
+  else demarrerEnregistrement();
 }
-ui.btnMicro.addEventListener('pointerup', finAppui);
-ui.btnMicro.addEventListener('pointercancel', finAppui);
+ui.btnMicro.addEventListener('pointerup', () => finAppuiMicro());
+ui.btnMicro.addEventListener('pointercancel', () => finAppuiMicro(true));
 ui.btnMicro.addEventListener('contextmenu', (e) => e.preventDefault());
+ui.btnMicro.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { appuiMicro.debut = Date.now(); finAppuiMicro(); } } });
+function libelleMicro() {
+  let t = etat.moi?.voix ? 'Touchez pour parler' : 'Touchez pour dicter';
+  if (appel.actif || !ui.bandeauAppel.hidden) t = 'Touchez pour raccrocher';
+  else if (dictee.actif) t = 'Je vous écoute…';
+  else if (etat.enregistreur) t = 'Touchez pour envoyer';
+  ui.microLibelle.textContent = t;
+  ui.btnMicro.classList.toggle('en-appel', !ui.bandeauAppel.hidden);
+}
+new MutationObserver(libelleMicro).observe(ui.btnMicro, { attributes: true, attributeFilter: ['aria-pressed'] });
 
 // ---------- Vocal enregistré (MediaRecorder → /api/transcribe) ----------
 async function demarrerEnregistrement() {
   if (etat.enregistreur) return;
-  if (!etat.moi.transcription) { setEtat('Vocal indisponible : service de transcription non configuré. Utilisez la dictée 🎤.'); return; }
+  if (!etat.moi.transcription) { setEtat('Vocal indisponible : service de transcription non configuré. Écrivez votre message.'); return; }
   arreterVeille();
   try {
     const flux = await obtenirMicro(); // micro partagé : conservé après l'enregistrement
@@ -545,7 +576,7 @@ async function demarrerEnregistrement() {
     rec.ondataavailable = (e) => morceaux.push(e.data);
     rec.onstop = async () => {
       planifierFermetureMicro();
-      ui.btnVocal.classList.remove('enregistre'); setEtat('Transcription…');
+      ui.btnMicro.classList.remove('enregistre'); libelleMicro(); setEtat('Transcription…');
       const blob = new Blob(morceaux, { type: rec.mimeType || 'audio/webm' });
       const form = new FormData(); form.append('file', blob, 'vocal.webm');
       try {
@@ -556,14 +587,10 @@ async function demarrerEnregistrement() {
         if (json.text) envoyer();
       } catch (e) { setEtat(`Transcription impossible : ${e.message}`); }
     };
-    etat.enregistreur = rec; rec.start(); ui.btnVocal.classList.add('enregistre'); setEtat('Enregistrement… relâchez pour envoyer');
+    etat.enregistreur = rec; rec.start(); ui.btnMicro.classList.add('enregistre'); libelleMicro(); setEtat('Enregistrement… touchez le micro pour envoyer');
   } catch (e) { setEtat(`Micro refusé : ${e.message}`); }
 }
 function arreterEnregistrement() { if (etat.enregistreur) { etat.enregistreur.stop(); etat.enregistreur = null; } }
-ui.btnVocal.addEventListener('pointerdown', (e) => { e.preventDefault(); demarrerEnregistrement(); });
-ui.btnVocal.addEventListener('pointerup', arreterEnregistrement);
-ui.btnVocal.addEventListener('pointerleave', arreterEnregistrement);
-ui.btnVocal.addEventListener('pointercancel', arreterEnregistrement);
 
 // ---------- Lecture à voix haute ----------
 let voixFr = null;
@@ -581,16 +608,6 @@ function lire(texte) {
     window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
   });
 }
-ui.btnVoix.addEventListener('click', () => {
-  etat.voix = !etat.voix; localStorage.setItem('voix', etat.voix ? '1' : '0'); ui.btnVoix.setAttribute('aria-pressed', String(etat.voix));
-  if (!etat.voix) window.speechSynthesis?.cancel(); else lire('Lecture à voix haute activée.');
-});
-ui.btnMainsLibres.addEventListener('click', () => {
-  etat.mainsLibres = !etat.mainsLibres; localStorage.setItem('mainsLibres', etat.mainsLibres ? '1' : '0');
-  ui.btnMainsLibres.setAttribute('aria-pressed', String(etat.mainsLibres));
-  if (etat.mainsLibres) { etat.voix = true; localStorage.setItem('voix', '1'); ui.btnVoix.setAttribute('aria-pressed', 'true'); demarrerDictee(); } else arreterDictee({ envoyer: false });
-});
-
 // ---------- Notifications push ----------
 function base64VersUint8(b64) { const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(b64.length / 4) * 4, '=')); return Uint8Array.from(s, (c) => c.charCodeAt(0)); }
 async function verifierAbonnementPush(reg) {
@@ -620,7 +637,7 @@ const appel = creerConversationVocale({
   surTexteAssistant: (t) => { creerBulle('assistant').innerHTML = rendreMarkdown(t); defiler(); },
   surOutils: (noms) => { const l = creerLigneOutils(); for (const n of noms) ajouterBadge(l, n, '', 'ok'); defiler(); },
   surFin: (raison) => {
-    ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false');
+    ui.bandeauAppel.hidden = true; libelleMicro();
     if (raison) setEtat(raison);
     chargerListe();
     // Le micro de l'appel revient à l'app (micro partagé, pas de nouvelle demande de permission sur iPhone) ;
@@ -639,16 +656,15 @@ async function demarrerAppel() {
   if (appel.actif) return;
   window.speechSynthesis?.cancel(); arreterDictee({ envoyer: false }); arreterVeille();
   if (etat.reglages.mainsLibres) preparerContexteAudio(); // geste utilisateur : débloque Web Audio pour la veille (Safari)
-  ui.bandeauAppel.hidden = false; ui.btnAppel.setAttribute('aria-pressed', 'true');
+  ui.bandeauAppel.hidden = false; libelleMicro();
   let flux = null;
   try { flux = await obtenirMicro(); } // micro partagé, demandé pendant le geste (iOS) puis conservé
-  catch (e) { ui.bandeauAppel.hidden = true; ui.btnAppel.setAttribute('aria-pressed', 'false'); setEtat(`Micro refusé : ${e.message}`); return; }
+  catch (e) { ui.bandeauAppel.hidden = true; libelleMicro(); setEtat(`Micro refusé : ${e.message}`); return; }
   try {
     const id = await appel.demarrer(etat.conversationId, { flux });
     if (id !== etat.conversationId) { etat.conversationId = id; localStorage.setItem('conversationId', id); ui.messages.querySelector('.vide-accueil')?.remove(); chargerListe(); }
   } catch { /* état déjà affiché */ }
 }
-ui.btnAppel.addEventListener('click', () => { if (appel.actif) appel.arreter(); else demarrerAppel(); });
 $('#btn-raccrocher').addEventListener('click', () => appel.arreter());
 
 // ---------- Mains libres : veille à mot d'activation ----------
@@ -832,7 +848,8 @@ document.addEventListener('visibilitychange', () => {
 // ---------- Tiroir ----------
 function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; }
 function fermerTiroir() { ui.tiroir.hidden = true; ui.voile.hidden = true; }
-$('#btn-menu').addEventListener('click', ouvrirTiroir);
+$('#btn-historique').addEventListener('click', ouvrirTiroir);
+$('#btn-nouvelle-panneau').addEventListener('click', async () => { await ouvrirConversation(null); ui.saisie.focus(); });
 $('#btn-fermer-tiroir').addEventListener('click', fermerTiroir);
 ui.voile.addEventListener('click', fermerTiroir);
 $('#btn-nouvelle').addEventListener('click', async () => { await ouvrirConversation(null); fermerTiroir(); ui.saisie.focus(); });
@@ -864,7 +881,7 @@ function echapper_() {
 }
 function commencerParole() {
   if (dictee.actif || etat.enregistreur || appel.actif) return false;
-  if (!ui.btnMicro.disabled) { raccourcis.mode = 'dictee'; demarrerDictee({ maintien: true }); return dictee.actif; }
+  if (window.SpeechRecognition || window.webkitSpeechRecognition) { raccourcis.mode = 'dictee'; demarrerDictee({ maintien: true }); return dictee.actif; }
   if (etat.moi?.transcription) { raccourcis.mode = 'vocal'; demarrerEnregistrement(); return true; }
   return false;
 }
@@ -911,7 +928,7 @@ window.addEventListener('blur', () => { if (raccourcis.espace) { raccourcis.espa
 const INACTIVITE_VOITURE_MS = SILENCE_MAX_MS;
 let surchargeDelaiInactivite = null; // lu par `delaiInactivite` de l'appel (null = comportement normal)
 const voiture = { actif: false, wakeLock: null, sauvegarde: null, observateur: null, premierTap: false };
-const uiVoiture = { ecran: $('#ecran-voiture'), etat: $('#voiture-etat'), bouton: $('#btn-voiture'), reponse: $('#voiture-reponse'), quitter: $('#btn-quitter-voiture'), menu: $('#btn-mode-voiture') };
+const uiVoiture = { ecran: $('#ecran-voiture'), etat: $('#voiture-etat'), bouton: $('#btn-voiture'), reponse: $('#voiture-reponse'), question: $('#voiture-question'), puce: $('#voiture-puce'), onde: $('#voiture-onde'), quitter: $('#btn-quitter-voiture'), menu: $('#btn-mode-voiture') };
 
 // Sur iPhone (réglage « iphoneVoiture », actif par défaut), l'app s'ouvre toujours en mode voiture, sauf si l'on vient
 // de le quitter volontairement (bouton « Quitter ») : on retrouve alors l'interface complète jusqu'au prochain lancement.
@@ -934,7 +951,9 @@ function activerModeVoiture({ geste = false } = {}) {
   etat.voix = true; // les réponses écrites (repli sans conversation en direct) sont lues aussi
   surchargeDelaiInactivite = INACTIVITE_VOITURE_MS;
   document.body.classList.add('mode-voiture');
-  uiVoiture.ecran.hidden = false; uiVoiture.reponse.textContent = '';
+  uiVoiture.ecran.hidden = false; uiVoiture.reponse.textContent = ''; uiVoiture.question.textContent = '';
+  const modele = etat.reglages.modeles?.[etat.reglages.modele];
+  uiVoiture.puce.textContent = `${modele ? modele.nom.replace(/\s[\d.]+$/, '') : 'Assistant'} · très court`; // la voix est forcée en « très court » en voiture
   fermerTiroir();
   demanderWakeLockVoiture();
   observerVoiture();
@@ -1010,9 +1029,12 @@ function rafraichirVoiture() {
   uiVoiture.bouton.textContent = libelle;
   uiVoiture.bouton.className = `voiture-bouton${classe ? ` ${classe}` : ''}`;
   uiVoiture.etat.textContent = texteEtat;
-  const bulles = ui.messages.querySelectorAll('.msg.assistant:not(.vide)');
-  const derniere = bulles[bulles.length - 1];
+  uiVoiture.onde.classList.toggle('active', classe === 'ecoute' || classe === 'parle');
+  const derniere = [...ui.messages.querySelectorAll('.msg.assistant:not(.vide)')].at(-1);
   if (derniere) { const t = derniere.textContent.trim(); if (t && t !== uiVoiture.reponse.textContent) uiVoiture.reponse.textContent = t; }
+  // Dernière question posée, au-dessus de la réponse.
+  const tq = [...ui.messages.querySelectorAll('.msg.user')].at(-1)?.textContent.trim() || '';
+  if (tq !== uiVoiture.question.textContent) uiVoiture.question.textContent = tq;
 }
 
 // Rappels et notifications (push relayé par sw.js) : lus par la voix de l'appel en cours, sinon par la synthèse vocale.

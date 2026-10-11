@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Mes outils</title>
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#262a30">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
   <style>
@@ -280,11 +280,16 @@
         <select id="voix"></select>
       </label>
       <div class="actions"><button id="btn-ecouter" class="btn btn-secondaire btn-petit">▶ Écouter cette voix</button><span id="etat-apercu" class="discret"></span></div>
-      <label>Longueur des réponses à la voix
+      <label>Modèle de réflexion (texte et délégations de la voix)
+        <select id="modele"></select>
+      </label>
+      <label>Longueur des réponses (texte et voix ; toujours très court en voiture)
         <select id="concision">
           <option value="tres_court">Très court (une phrase)</option>
           <option value="court">Court (une à deux phrases)</option>
           <option value="normal">Normal (l'essentiel)</option>
+          <option value="developpe">Développé (un ou deux paragraphes)</option>
+          <option value="tres_developpe">Très développé (réponse approfondie)</option>
         </select>
       </label>
       <label class="case"><input id="mains-libres" type="checkbox"> Mains libres : après un appel 📞, rester en veille et relancer la conversation au mot d'activation</label>
@@ -657,7 +662,8 @@
     const NOMS_VOIX = { marin: 'Marin (féminine, naturelle)', cedar: 'Cedar (masculine, naturelle)', alloy: 'Alloy', ash: 'Ash', ballad: 'Ballad', coral: 'Coral', echo: 'Echo', sage: 'Sage', shimmer: 'Shimmer', verse: 'Verse' };
     api('/api/reglages').then((r) => {
       for (const v of r.voixDisponibles) { const o = document.createElement('option'); o.value = v; o.textContent = NOMS_VOIX[v] || v; $('#voix').append(o); }
-      $('#voix').value = r.voix; $('#concision').value = r.concision;
+      for (const [cle, m] of Object.entries(r.modeles || {})) { const o = document.createElement('option'); o.value = cle; o.textContent = `${m.nom} — ${m.role} (${m.delai}, ${m.cout} par question)`; $('#modele').append(o); }
+      $('#voix').value = r.voix; $('#concision').value = r.concision; $('#modele').value = r.modele;
       $('#mains-libres').checked = Boolean(r.mainsLibres); $('#mot-activation').value = r.motActivation || 'assistant';
       $('#voiture-auto-appel').checked = r.voitureAutoAppel !== false;
       $('#iphone-voiture').checked = r.iphoneVoiture !== false;
@@ -695,8 +701,8 @@
       try { await lecteur.play(); } catch (e) { $('#etat-apercu').textContent = `Lecture impossible : ${e.message}`; }
     });
     $('#voix').addEventListener('change', () => { lecteur?.pause(); $('#etat-apercu').textContent = ''; });
-    for (const id of ['#voix', '#concision']) $(id).addEventListener('change', async () => {
-      try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voix: $('#voix').value, concision: $('#concision').value }) }); $('#etat-reglages').textContent = 'Enregistré ✓ Appliqué au prochain appel 📞.'; }
+    for (const id of ['#voix', '#concision', '#modele']) $(id).addEventListener('change', async () => {
+      try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voix: $('#voix').value, concision: $('#concision').value, modele: $('#modele').value }) }); $('#etat-reglages').textContent = 'Enregistré ✓ Appliqué au prochain message et au prochain appel.'; }
       catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }
     });
   </script>

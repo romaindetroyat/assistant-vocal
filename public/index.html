@@ -4,13 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Assistant</title>
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#262a30">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Assistant">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600&family=Manrope:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -26,73 +29,126 @@
     </form>
   </section>
 
-  <!-- Application -->
+  <!-- Application (phase 23, design « Ardoise ») : rail de navigation | parler | transcription -->
   <section id="ecran-app" class="ecran app" hidden>
-    <header class="barre">
-      <button id="btn-menu" class="btn-icone" aria-label="Conversations" title="Conversations">☰</button>
-      <h1 id="titre-conv">Assistant</h1>
-      <button id="btn-voix" class="btn-icone" aria-pressed="false" aria-label="Lecture à voix haute" title="Lecture à voix haute">🔈</button>
-      <button id="btn-mains-libres" class="btn-icone" aria-pressed="false" aria-label="Mode conversation" title="Mode conversation : réécoute après chaque réponse">🔁</button>
-      <button id="btn-notifs" class="btn-icone" aria-label="Notifications" title="Activer les notifications">🔔</button>
-      <button id="btn-appel" class="btn-icone" aria-label="Mode conversation" title="Conversation vocale en direct" hidden>📞</button>
-    </header>
-    <div id="bandeau-appel" class="bandeau-appel" hidden>
-      <span class="point-appel"></span>
-      <span id="appel-etat">Connexion…</span>
-      <button id="btn-raccrocher" class="btn btn-secondaire">Raccrocher</button>
-    </div>
+    <nav class="rail" aria-label="Navigation principale">
+      <span class="rail-logo" aria-hidden="true">A.</span>
+      <a href="/app" class="rail-lien actif" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/></svg>Parler</a>
+      <a href="/taches" class="rail-lien"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Organiser</a>
+      <a href="/documents" class="rail-lien"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Coffre</a>
+      <a href="/outils" class="rail-lien"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Réglages</a>
+      <button id="btn-mode-voiture" class="rail-voiture" type="button" title="Un seul bouton, conversation permanente, tout lu à voix haute"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14M6 17l1.5-6.5A2 2 0 0 1 9.4 9h5.2a2 2 0 0 1 1.9 1.5L18 17"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/></svg>Voiture</button>
+    </nav>
 
-    <aside id="tiroir" class="tiroir" hidden>
+    <main class="centre">
+      <header class="salut">
+        <h1 id="salut">Bonjour</h1>
+        <span id="date-jour" class="discret"></span>
+      </header>
+
+      <section class="scene" aria-label="Parler à l'assistant">
+        <div id="bandeau-appel" class="bandeau-appel" hidden>
+          <span class="point-appel"></span>
+          <span id="appel-etat">Connexion…</span>
+          <button id="btn-raccrocher" class="btn btn-secondaire btn-petit">Raccrocher</button>
+        </div>
+        <button id="btn-micro" class="micro" aria-pressed="false" aria-label="Parler (appui long : conversation en direct)" title="Touchez pour dicter, maintenez pour une conversation en direct">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <div id="micro-libelle" class="micro-libelle">Touchez pour parler</div>
+        <div id="etat" class="etat" hidden></div>
+        <div class="puces">
+          <button type="button" class="puce" data-dire="Fais-moi le brief du jour">Ma journée</button>
+          <button type="button" class="puce" data-dire="Quels sont mes mails importants non lus ?">Mes mails</button>
+          <button type="button" class="puce" data-dire="Qu'y a-t-il sur ma liste de courses ?">Courses</button>
+        </div>
+        <div class="composer">
+          <div id="pieces" class="pieces" hidden></div>
+          <div id="bandeau-veille" class="bandeau-veille" hidden>
+            <span class="point-veille"></span>
+            <span id="veille-etat">En veille · dites « assistant »</span>
+            <button id="btn-quitter-veille" class="btn btn-secondaire btn-petit">Quitter la veille</button>
+          </div>
+          <div class="ligne">
+            <label class="btn-icone" title="Joindre une image" aria-label="Joindre une image">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7-7L13 4.5a3.3 3.3 0 0 1 4.7 4.7L9.5 17.4a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6"/></svg>
+              <input id="input-image" type="file" accept="image/*" multiple hidden>
+            </label>
+            <label class="btn-icone btn-camera" title="Prendre une photo" aria-label="Prendre une photo">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+              <input id="input-camera" type="file" accept="image/*" capture="environment" hidden>
+            </label>
+            <textarea id="saisie" rows="1" placeholder="…ou écrivez ici" enterkeyhint="send" aria-label="Écrire un message"></textarea>
+            <button id="btn-envoyer" class="btn-icone btn-envoyer" aria-label="Envoyer" title="Envoyer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="dock" aria-label="Modèle et longueur des réponses">
+        <div class="curseur">
+          <div class="curseur-tete"><span>Réflexion</span><span id="valeur-modele" class="valeur"></span></div>
+          <input id="reglage-modele" type="range" min="0" max="2" step="1" value="2" aria-label="Modèle : du plus réactif au plus réfléchi">
+          <div class="curseur-bornes"><span>Réactif · Haiku</span><span>Sonnet</span><span>Réfléchi · Opus</span></div>
+        </div>
+        <div class="curseur">
+          <div class="curseur-tete"><span>Longueur</span><span id="valeur-longueur" class="valeur"></span></div>
+          <input id="reglage-longueur" type="range" min="0" max="4" step="1" value="1" aria-label="Longueur des réponses">
+          <div class="curseur-bornes"><span>Très court</span><span>Normal</span><span>Très développé</span></div>
+        </div>
+        <div class="estimation" aria-live="polite">
+          <span id="estimation-delai">≈ 7 s</span>
+          <span id="estimation-cout" class="discret">≈ 1 ct par question</span>
+        </div>
+      </section>
+    </main>
+
+    <aside class="panneau" aria-label="Transcription">
+      <div class="panneau-carte">
+        <header class="panneau-tete">
+          <span class="panneau-titre">Transcription</span>
+          <span id="titre-conv" class="panneau-conv">Assistant</span>
+          <button id="btn-nouvelle-panneau" class="panneau-bouton" type="button" title="Nouvelle conversation" aria-label="Nouvelle conversation">+</button>
+        </header>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <footer class="panneau-pied">
+          <button id="btn-historique" type="button">Historique</button>
+          <button id="btn-copier" type="button">Copier la transcription</button>
+        </footer>
+      </div>
+    </aside>
+
+    <aside id="tiroir" class="tiroir" hidden aria-label="Historique">
       <div class="tiroir-entete">
         <button id="btn-nouvelle" class="btn btn-primaire">+ Nouvelle conversation</button>
         <button id="btn-fermer-tiroir" class="btn-icone" aria-label="Fermer">✕</button>
       </div>
       <ul id="liste-conversations" class="liste-conv"></ul>
       <div class="tiroir-pied">
-        <a href="/taches" class="btn btn-secondaire" style="text-align:center;text-decoration:none">Mes tâches</a>
-        <a href="/documents" class="btn btn-secondaire" style="text-align:center;text-decoration:none">🗂️ Mes documents</a>
-        <a href="/outils" class="btn btn-secondaire" style="text-align:center;text-decoration:none">Mes outils</a>
-        <button id="btn-mode-voiture" class="btn btn-secondaire" type="button" title="Un seul bouton, conversation permanente, tout lu à voix haute">🚗 Mode voiture</button>
-        <button id="btn-raccourcis" class="btn btn-secondaire" type="button" title="Espace pour parler, Ctrl+Espace pour appeler…">⌨️ Raccourcis clavier</button>
-        <ul id="liste-outils" class="liste-outils"></ul>
+        <button id="btn-notifs" class="btn btn-secondaire" type="button" aria-pressed="false" hidden>Notifications sur cet appareil</button>
+        <button id="btn-raccourcis" class="btn btn-secondaire" type="button" title="Espace pour parler, Ctrl+Espace pour appeler…">Raccourcis clavier</button>
         <button id="btn-logout" class="btn btn-secondaire">Se déconnecter</button>
       </div>
     </aside>
     <div id="voile" class="voile" hidden></div>
 
-    <main id="messages" class="messages" aria-live="polite"></main>
-
-    <footer class="composer">
-      <div id="pieces" class="pieces" hidden></div>
-      <div id="bandeau-veille" class="bandeau-veille" hidden>
-        <span class="point-veille"></span>
-        <span id="veille-etat">En veille · dites « assistant »</span>
-        <button id="btn-quitter-veille" class="btn btn-secondaire btn-petit">Quitter la veille</button>
-      </div>
-      <div id="etat" class="etat" hidden></div>
-      <div class="ligne">
-        <label class="btn-icone" title="Photo ou image" aria-label="Joindre une image">
-          📎<input id="input-image" type="file" accept="image/*" multiple hidden>
-        </label>
-        <label class="btn-icone btn-camera" title="Prendre une photo" aria-label="Prendre une photo">
-          📷<input id="input-camera" type="file" accept="image/*" capture="environment" hidden>
-        </label>
-        <textarea id="saisie" rows="1" placeholder="Parlez, écrivez ou collez…" enterkeyhint="send"></textarea>
-        <button id="btn-vocal" class="btn-icone" aria-label="Enregistrer un vocal" title="Enregistrer un vocal (maintenir)">⏺</button>
-        <button id="btn-micro" class="btn-icone btn-micro" aria-pressed="false" aria-label="Dicter" title="Dicter : appui bref = jusqu'au silence, appui maintenu = tant que vous tenez">🎤</button>
-        <button id="btn-envoyer" class="btn-icone btn-envoyer" aria-label="Envoyer" title="Envoyer">➤</button>
-      </div>
-    </footer>
-
-    <!-- Mode voiture (phase 19) : écran sombre à fort contraste, un seul bouton géant, tout est lu à voix haute -->
+    <!-- Mode voiture (phases 19 et 23) : écran sombre, dernière réponse en grand, un gros bouton et « Fin » -->
     <section id="ecran-voiture" class="voiture" hidden aria-label="Mode voiture">
       <header class="voiture-barre">
-        <span id="voiture-etat" class="voiture-etat" aria-live="polite">Touchez pour parler</span>
-        <button id="btn-raccrocher-voiture" class="btn btn-secondaire" type="button" hidden>Raccrocher</button>
-        <button id="btn-quitter-voiture" class="btn btn-secondaire" type="button">Quitter</button>
+        <span class="voiture-titre">Voiture</span>
+        <span id="voiture-puce" class="voiture-puce"></span>
+        <button id="btn-quitter-voiture" class="voiture-fermer" type="button" aria-label="Quitter le mode voiture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </header>
-      <button id="btn-voiture" class="voiture-bouton" type="button">Parler</button>
-      <p id="voiture-reponse" class="voiture-reponse" aria-live="polite"></p>
+      <div class="voiture-echange">
+        <p id="voiture-question" class="voiture-question"></p>
+        <p id="voiture-reponse" class="voiture-reponse" aria-live="polite"></p>
+      </div>
+      <div id="voiture-onde" class="voiture-onde" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div id="voiture-etat" class="voiture-etat" aria-live="polite">Touchez pour parler</div>
+      <div class="voiture-boutons">
+        <button id="btn-voiture" class="voiture-bouton" type="button" aria-label="Parler ou couper la parole">Parler</button>
+        <button id="btn-raccrocher-voiture" class="voiture-fin" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15c4-4 12-4 16 0l-2 3-3-1v-3a9 9 0 0 0-6 0v3l-3 1z"/></svg>Fin</button>
+      </div>
+      <p class="voiture-note">Le micro se coupe après une minute de silence</p>
     </section>
   </section>
 

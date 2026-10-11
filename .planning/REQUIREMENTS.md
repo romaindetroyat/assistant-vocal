@@ -93,6 +93,13 @@
 - [x] **DOC-03** Outils chercher / lire (champs sensibles sur confirmation) / expirations ; rappel dans le brief
 - [x] **DOC-04** Page Mes documents, rangement depuis les pièces jointes et le partage
 
+### Interface et modèles (UI)
+- [x] **UI-01** Rail de navigation compartimenté, Voiture en accès direct
+- [x] **UI-02** Micro unifié (dictée / conversation), puces et saisie
+- [x] **UI-03** Transcription en écran partagé, copie, historique
+- [x] **UI-04** Choix du modèle (réactivité, coût) et de la longueur (5 niveaux)
+- [x] **UI-05** Boutons inutiles retirés ; mode voiture restylé
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -131,6 +138,7 @@
 | MET-01..02 | 20 | Validated (tests) |
 | EXT-01..04 | 21 | Validated (tests) |
 | DOC-01..04 | 22 | Validated (tests) |
+| UI-01..05 | 23 | Validated (tests + rendu) |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*
