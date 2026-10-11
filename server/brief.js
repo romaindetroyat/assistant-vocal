@@ -35,6 +35,7 @@ function consigneBrief({ serveurs, comptesGmail, trajets = false }) {
     comptesGmail.length
       ? `Appelle gmail_rechercher (requête « is:unread is:important newer_than:1d ») sur chaque compte connecté (${comptesGmail.join(', ')}) pour les e-mails importants non lus des dernières 24 heures.`
       : "Aucun compte Gmail n'est connecté : ne mentionne pas les e-mails.",
+    "Appelle document_expirations (jours 60) : s'il y a des documents à renouveler, ajoute une phrase courte (titre et date), sinon n'en parle pas.",
     "Si des listes de courses sont disponibles (outils courses_*) et que c'est utile aujourd'hui, mentionne-les en une phrase, sinon ignore-les.",
     ...(trajets ? ["Pour chaque rendez-vous ayant une adresse, appelle trajet_calculer depuis le domicile (origine vide) avec arriveeA = heure de début du rendez-vous, et indique l'heure de départ conseillée dans le brief (sans recopier les liens)."] : []),
   ];

@@ -59,7 +59,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     c.set('appareil', appareil);
     await next();
   };
-  const ROUTES_JETON = new Set(['/api/partage', '/api/raccourci']);
+  const ROUTES_JETON = new Set(['/api/partage', '/api/raccourci', '/api/documents']);
   // CORS pour l'extension de navigateur (phase 21) : seules les origines d'extension (chrome-extension://, moz-extension://)
   // sont autorisées, uniquement sur les routes à jeton. Le préflight OPTIONS passe avant l'authentification.
   const ORIGINE_EXTENSION = /^(chrome|moz)-extension:\/\/[a-z0-9-]+$/i;
@@ -304,6 +304,45 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     }
   });
 
+  // --- Coffre de documents (phase 22) : ajout par cookie ou jeton d'appareil, consultation par cookie seulement ---
+  app.post('/api/documents', async (c) => {
+    const form = await c.req.formData().catch(() => null);
+    const f = form?.get('fichier');
+    if (!(f instanceof File)) return c.json({ erreur: 'Fichier manquant (champ « fichier »)' }, 400);
+    try {
+      const { ajouterDocument } = await import('./documents.js');
+      const espace = String(form.get('espace') || '') || null;
+      return c.json(await ajouterDocument({ client: leClient(), octets: new Uint8Array(await f.arrayBuffer()), type: f.type, nom: f.name || 'document', espace }), 201);
+    } catch (e) {
+      if (!e.status) console.error('[documents]', e);
+      return c.json({ erreur: e.message }, e.status && e.status < 500 ? e.status : 500);
+    }
+  });
+  app.get('/api/documents', async (c) => {
+    if (!estConnecte(c)) return c.json({ erreur: 'Non authentifié' }, 401); // le jeton d'appareil ne sert qu'à l'ajout
+    const { listerDocuments } = await import('./documents.js');
+    return c.json(await listerDocuments({ espace: c.req.query('espace') || '', q: c.req.query('q') || '' }));
+  });
+  app.get('/api/documents/:id', async (c) => {
+    try { const { lireDocument } = await import('./documents.js'); return c.json(await lireDocument(c.req.param('id'), { reveler: c.req.query('reveler') === '1' })); }
+    catch (e) { return c.json({ erreur: e.message }, e.status || 500); }
+  });
+  app.put('/api/documents/:id', async (c) => {
+    try { const { modifierDocument } = await import('./documents.js'); return c.json(await modifierDocument(c.req.param('id'), await c.req.json().catch(() => ({})))); }
+    catch (e) { return c.json({ erreur: e.message }, e.status || 500); }
+  });
+  app.delete('/api/documents/:id', async (c) => {
+    try { const { supprimerDocument } = await import('./documents.js'); await supprimerDocument(c.req.param('id')); return c.json({ ok: true }); }
+    catch (e) { return c.json({ erreur: e.message }, e.status || 500); }
+  });
+  app.get('/api/documents/:id/fichier', async (c) => {
+    try {
+      const { lireFichier } = await import('./documents.js');
+      const { octets, type, nom } = await lireFichier(c.req.param('id'));
+      return c.body(octets, 200, { 'Content-Type': type, 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(nom)}`, 'Cache-Control': 'private, no-store' });
+    } catch (e) { return c.json({ erreur: e.message }, e.status || 500); }
+  });
+
   // Diagnostic de latence (session requise) : mesure le délai avant le premier événement selon les outils envoyés.
   app.post('/api/diag/latence', async (c) => {
     const { parametresMcp } = await import('./mcp.js');
@@ -510,6 +549,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   app.get('/connect/:nom', (c) => (estConnecte(c) ? fichier(c, '/connect.html') : c.redirect('/login')));
   app.get('/outils', (c) => (estConnecte(c) ? fichier(c, '/outils.html') : c.redirect('/login')));
   app.get('/taches', (c) => (estConnecte(c) ? fichier(c, '/taches.html') : c.redirect('/login')));
+  app.get('/documents', (c) => (estConnecte(c) ? fichier(c, '/documents.html') : c.redirect('/login')));
   app.get('/sw.js', async (c) => { const r = await fichier(c, '/sw.js'); const h = new Headers(r.headers); h.set('Cache-Control', 'no-cache'); return new Response(r.body, { status: r.status, headers: h }); });
   app.get('/*', (c) => fichier(c, new URL(c.req.url).pathname));
 
