@@ -304,6 +304,19 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     }
   });
 
+  // Journal de diagnostic envoyé par l'app (appels, coupures, mode voiture) : 300 derniers événements.
+  app.post('/api/diag/client', async (c) => {
+    const corps = await c.req.json().catch(() => ({}));
+    const evenements = Array.isArray(corps.evenements) ? corps.evenements.slice(-100) : [];
+    if (!evenements.length) return c.json({ ok: true, ajoutes: 0 });
+    const appareil = String(corps.ua || '').slice(0, 160);
+    const propres = evenements.map((e) => ({ t: String(e.t || '').slice(0, 30), type: String(e.type || '').slice(0, 40), details: String(e.details || '').slice(0, 200), voiture: Boolean(e.voiture), appareil }));
+    const actuel = (await store.lireValeur('diag-client')) || [];
+    await store.ecrireValeur('diag-client', [...actuel, ...propres].slice(-300));
+    return c.json({ ok: true, ajoutes: propres.length });
+  });
+  app.get('/api/diag/client', async (c) => c.json((await store.lireValeur('diag-client')) || []));
+
   // Diagnostic de latence (session requise) : mesure le délai avant le premier événement selon les outils envoyés.
   app.post('/api/diag/latence', async (c) => {
     const { parametresMcp } = await import('./mcp.js');

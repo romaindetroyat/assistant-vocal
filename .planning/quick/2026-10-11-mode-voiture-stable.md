@@ -1,0 +1,2 @@
+# Quick 2026-10-11 — Stabiliser le mode voiture
+Causes : un tap sur le gros bouton pendant l’appel raccrochait ; la veille mains libres forcée transcrivait le bruit de la route sur iPhone puis s’arrêtait ; aucune trace des coupures. Correctifs : tap = couper la parole à l’assistant (response.cancel), appui long ou bouton « Raccrocher » = fin d’appel ; plus de veille forcée en voiture ; journal de diagnostic client (appel, WebRTC, reconnexions, bruits ignorés, erreurs, visibilité) envoyé à /api/diag/client et relisible. Cache SW v33.

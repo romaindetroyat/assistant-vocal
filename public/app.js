@@ -77,6 +77,23 @@ async function apiAvecPosition(chemin, options = {}) {
 }
 function defiler() { ui.messages.scrollTop = ui.messages.scrollHeight; }
 
+// ---------- Journal de diagnostic (mode voiture, appels) ----------
+// Les derniers événements (appel, coupures réseau, bruits ignorés, erreurs) sont gardés en mémoire et envoyés au
+// serveur à la fin de chaque appel et quand l'app passe en arrière-plan, pour diagnostiquer les instabilités.
+const journalClient = [];
+function journal(type, details = '') {
+  journalClient.push({ t: new Date().toISOString(), type, details: String(details).slice(0, 200), voiture: Boolean(window.__voitureActif) });
+  if (journalClient.length > 100) journalClient.shift();
+}
+function envoyerJournal() {
+  if (!journalClient.length) return;
+  const corps = JSON.stringify({ ua: navigator.userAgent, evenements: journalClient.splice(0) });
+  try { if (!navigator.sendBeacon?.('/api/diag/client', new Blob([corps], { type: 'application/json' }))) fetch('/api/diag/client', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corps, keepalive: true }).catch(() => {}); } catch { /* ignoré */ }
+}
+document.addEventListener('visibilitychange', () => { journal('visibilite', document.hidden ? 'cachée' : 'visible'); if (document.hidden) envoyerJournal(); });
+window.addEventListener('error', (e) => journal('erreur-js', `${e.message} @${e.lineno}`));
+window.addEventListener('unhandledrejection', (e) => journal('promesse-rejetee', e.reason?.message || String(e.reason)));
+
 // ---------- Micro partagé (phase 21) ----------
 // Un seul flux `MediaStream` pour le vocal enregistré, la conversation en direct et la veille mains libres : demandé au
 // premier besoin, puis conservé (plus de nouvelle demande d'autorisation ni de délai d'ouverture). Il est fermé quand
@@ -595,11 +612,13 @@ const appel = creerConversationVocale({
     // Le micro de l'appel revient à l'app (micro partagé, pas de nouvelle demande de permission sur iPhone) ;
     // mains libres : on repasse en veille.
     micro.flux = appel.recupererFlux() || micro.flux;
+    envoyerJournal();
     if (etat.reglages.mainsLibres) setTimeout(demarrerVeille, 600);
     else planifierFermetureMicro();
   },
   delaiInactivite: () => surchargeDelaiInactivite ?? INACTIVITE_APPEL_MS, // même règle d'une minute partout
   conserverFlux: () => true, // le flux appartient à l'app (micro partagé), jamais fermé par l'appel
+  journal,
   contexte: () => (voiture.actif ? 'voiture' : ''),
 });
 async function demarrerAppel() {
@@ -870,9 +889,9 @@ window.addEventListener('blur', () => { if (raccourcis.espace) { raccourcis.espa
 // ---------- Mode voiture ----------
 // Un seul bouton géant, conversation permanente, tout lu à voix haute, écran sombre maintenu allumé (phase 19).
 // Activation : `?mode=voiture` (icône d'écran d'accueil, raccourci Siri) ou bouton « Mode voiture » du tiroir.
-// Pendant le mode, les réglages sont surchargés localement, jamais écrits sur le serveur : mains libres forcé (après
-// chaque appel, la veille au mot d'activation reprend d'elle-même), délai d'inactivité de l'appel 120 s, concision
-// « très court » et consignes « conducteur » via `contexte: 'voiture'` (session Realtime et délégation à Claude).
+// Pendant le mode, les réglages sont surchargés localement, jamais écrits sur le serveur : pas de veille au mot
+// d'activation (bruit de la route), fin d'appel après une minute de silence, concision « très court » et consignes
+// « conducteur » via `contexte: 'voiture'`. Gros bouton : tap = parler / couper la parole, appui long = raccrocher.
 // L'écran se met à jour en observant le DOM existant (bandeaux d'appel et de veille, état, bulles) : aucune dépendance
 // vers le reste du fichier en dehors des trois lignes marquées « phase 19 » / « mode voiture ».
 const INACTIVITE_VOITURE_MS = SILENCE_MAX_MS;
@@ -894,7 +913,10 @@ function activerModeVoiture({ geste = false } = {}) {
   if (voiture.actif || !etat.moi) return;
   voiture.actif = true; voiture.premierTap = false;
   voiture.sauvegarde = { mainsLibres: etat.reglages.mainsLibres, voix: etat.voix };
-  etat.reglages.mainsLibres = true; // surcharge locale : veille après chaque appel, micro conservé
+  // Pas de veille au mot d'activation en voiture : sur iPhone elle transcrit le bruit de la route et de la radio.
+  // Après une minute de silence, l'appel se termine et l'écran revient sur « Touchez pour parler ».
+  etat.reglages.mainsLibres = false;
+  window.__voitureActif = true; journal('voiture', 'activé');
   etat.voix = true; // les réponses écrites (repli sans conversation en direct) sont lues aussi
   surchargeDelaiInactivite = INACTIVITE_VOITURE_MS;
   document.body.classList.add('mode-voiture');
@@ -911,6 +933,7 @@ function activerModeVoiture({ geste = false } = {}) {
 function quitterModeVoiture() {
   if (!voiture.actif) return;
   voiture.actif = false;
+  window.__voitureActif = false; journal('voiture', 'quitté'); envoyerJournal();
   try { sessionStorage.setItem('voitureQuitte', '1'); } catch { /* ignoré */ }
   surchargeDelaiInactivite = null;
   const s = voiture.sauvegarde || {}; voiture.sauvegarde = null;
@@ -963,11 +986,13 @@ function rafraichirVoiture() {
     else if (/connexion/i.test(e)) { libelle = 'Connexion…'; classe = 'reflechit'; }
     else if (/erreur/i.test(e)) { libelle = 'Réessayer'; }
     else { libelle = 'En écoute'; classe = 'ecoute'; }
-    texteEtat = e || 'Conversation en cours';
+    if (classe === 'parle') texteEtat = 'Touchez pour couper la parole · appui long pour raccrocher';
+    if (classe !== 'parle') texteEtat = e || 'Conversation en cours';
   } else if (dictee.actif) { libelle = 'En écoute'; classe = 'ecoute'; texteEtat = 'Je vous écoute…'; }
   else if (etat.envoiEnCours) { libelle = 'Je réfléchis…'; classe = 'reflechit'; texteEtat = 'Je réfléchis…'; }
   else if (veille.actif) { classe = 'veille'; texteEtat = `En veille · dites « ${etat.reglages.motActivation || 'assistant'} »`; }
   else if (!ui.etat.hidden && ui.etat.textContent) texteEtat = ui.etat.textContent;
+  const raccrocher = $('#btn-raccrocher-voiture'); if (raccrocher) raccrocher.hidden = !appel.actif;
   uiVoiture.bouton.textContent = libelle;
   uiVoiture.bouton.className = `voiture-bouton${classe ? ` ${classe}` : ''}`;
   uiVoiture.etat.textContent = texteEtat;
@@ -992,11 +1017,17 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Gros bouton : un tap pendant l'appel coupe la parole à l'assistant (on peut parler aussitôt), sans raccrocher ;
+// un appui long (≥ 0,8 s) ou le bouton « Raccrocher » termine l'appel. Hors appel, un tap lance la conversation.
+let appuiVoiture = 0;
+uiVoiture.bouton.addEventListener('pointerdown', () => { appuiVoiture = Date.now(); });
 uiVoiture.bouton.addEventListener('click', () => {
-  if (appel.actif) appel.arreter(); // raccrocher : la veille reprend (mains libres forcé)
-  else if (dictee.actif) arreterDictee({ envoyer: true });
-  else lancerParoleVoiture();
+  const long = appuiVoiture && Date.now() - appuiVoiture >= 800; appuiVoiture = 0;
+  if (appel.actif) { if (long) appel.arreter('Raccroché'); else appel.interrompre(); return; }
+  if (dictee.actif) { arreterDictee({ envoyer: true }); return; }
+  lancerParoleVoiture();
 });
+$('#btn-raccrocher-voiture')?.addEventListener('click', () => { if (appel.actif) appel.arreter('Raccroché'); });
 uiVoiture.ecran.addEventListener('pointerdown', (e) => {
   if (!voiture.actif || voiture.premierTap || etat.reglages.voitureAutoAppel === false) return;
   if (e.target.closest('button')) return; // les boutons gèrent leur propre clic

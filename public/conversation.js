@@ -6,7 +6,7 @@
 // permission (indispensable sur iPhone) ; `recupererFlux()` transfère ce flux à l'appelant, `demarrer(id, { flux })` le rend.
 // Contexte : `contexte()` (chaîne, '' = aucun) est joint aux corps JSON de /api/voice/session et /api/voice/ask ('voiture' en
 // mode voiture) ; `dire(texte)` fait annoncer un texte par la voix en cours (rappel, notification) sans passer par Claude.
-export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false, contexte = () => '' }) {
+export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false, contexte = () => '', journal = () => {} }) {
   let pc = null; let canal = null; let flux = null; let audioEl = null; let conversationId = null;
   let actif = false; let reconnexions = 0; let minuteurDeco = null; let minuteurInactivite = null;
   const enCours = new Set(); const resultatsEnAttente = [];
@@ -45,6 +45,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     pc.onconnectionstatechange = () => {
       if (monPc !== pc || !actif) return;
       const s = monPc.connectionState;
+      journal('webrtc', s);
       if (s === 'connected') { clearTimeout(minuteurDeco); reconnexions = 0; }
       else if (s === 'disconnected') { surEtat('Connexion instable…'); clearTimeout(minuteurDeco); minuteurDeco = setTimeout(() => { if (actif && monPc === pc && monPc.connectionState !== 'connected') reconnecter(`état ${monPc.connectionState}`); }, 6000); }
       else if (s === 'failed' || s === 'closed') reconnecter(`état ${s}`);
@@ -60,6 +61,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
 
   async function reconnecter(raison) {
     if (!actif) return;
+    journal('reconnexion', `${reconnexions + 1} : ${raison}`);
     fermerPc();
     if (reconnexions >= MAX_RECONNEXIONS) { arreter(`Connexion perdue (${raison})`); return; }
     reconnexions++;
@@ -107,7 +109,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
       case 'conversation.item.input_audio_transcription.completed': {
         const t = (ev.transcript || '').trim();
         if (transcriptionValide(t)) { surTexteUtilisateur(t); repondre(); }
-        else { clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); if (ev.item_id) envoyer({ type: 'conversation.item.delete', item_id: ev.item_id }); }
+        else { journal('bruit-ignore', t.slice(0, 40)); clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); if (ev.item_id) envoyer({ type: 'conversation.item.delete', item_id: ev.item_id }); }
         break;
       }
       case 'conversation.item.input_audio_transcription.failed': clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); break;
@@ -122,7 +124,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
         }
         break;
       }
-      case 'error': console.warn('[realtime]', ev.error); surEtat(`Erreur : ${ev.error?.message || 'inconnue'}`); break;
+      case 'error': journal('erreur-realtime', ev.error?.message || 'inconnue'); console.warn('[realtime]', ev.error); surEtat(`Erreur : ${ev.error?.message || 'inconnue'}`); break;
       default: break;
     }
   }
@@ -153,6 +155,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
 
   function arreter(raison) {
     if (!actif) return;
+    journal('fin-appel', raison || 'raccroché');
     actif = false;
     fermerPc();
     if (!conserverFlux()) { flux?.getTracks().forEach((t) => t.stop()); flux = null; }
@@ -174,5 +177,14 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     return livre;
   }
 
-  return { demarrer, arreter, recupererFlux, dire, get actif() { return actif; }, get conversationId() { return conversationId; } };
+  // Coupe la parole à l'assistant (sans raccrocher) : l'utilisateur peut parler aussitôt.
+  function interrompre() {
+    const ok = envoyer({ type: 'response.cancel' });
+    envoyer({ type: 'output_audio_buffer.clear' });
+    armerInactivite();
+    journal('interruption', ok ? 'ok' : 'canal fermé');
+    return ok;
+  }
+
+  return { demarrer, arreter, recupererFlux, interrompre, dire, get actif() { return actif; }, get conversationId() { return conversationId; } };
 }
