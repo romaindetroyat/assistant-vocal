@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v4 « Quotidien » en cours : phases 20 (météo) et 21 (extension Chromium, raccourcis, autorisations) livrées le 2026-10-10 ; v3 à valider sur iPhone par Romain
-- Last action: phase 21 en deux chantiers parallèles (A extension + CORS, B raccourcis/micro/autorisations), cache SW v30 (anti-bruit vocal, iPhone en mode voiture, latence ÷2 et coût ÷18, suivi de consommation), cache SW v28 — 2026-10-10
+- Milestone: v4 « Quotidien » en cours : phases 20 (météo), 21 (extension, raccourcis, autorisations), 22 (coffre de documents) livrées
+- Last action: phase 22 coffre de documents + tâche rapide « mode voiture stable » (journal de diagnostic client), cache SW v34 — 2026-10-11
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 91 (`npm test`)
+- Tests : 99 (`npm test`)
 
 ## Decisions Log
 
@@ -27,6 +27,8 @@
 | 2026-10-10 | Trajets via Google Routes (clé saisie dans l'app) | Trafic réel et transports ; cohérent avec « connexions depuis l'app » |
 | 2026-10-10 | Veille iPhone par écoute locale + transcription courte (OpenAI) | SpeechRecognition inutilisable sur iOS |
 | 2026-10-10 | Météo via Open-Meteo (ECMWF + AROME) plutôt que l'API Meteored | Pas d'API Meteored documentée publiquement ; mêmes modèles, gratuit, sans clé |
+| 2026-10-11 | Coffre chiffré côté serveur (AES-GCM) avec fiches extraites par Claude, KV en attendant R2 | Sécurité sans tiers ; usage vocal conservé |
+| 2026-10-11 | Mode voiture sans veille forcée, tap = couper la parole | Le tap raccrochait ; la veille transcrivait le bruit de la route |
 | 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
 ## Blockers
@@ -34,6 +36,9 @@
 - Aucun. Point d'attention : Agenda Hub exige un retour par collage (adresse du Worker non autorisée).
 
 ## Next
+
+- Mode voiture : lire `GET /api/diag/client` après le prochain trajet de Romain pour diagnostiquer les coupures restantes
+- Coffre : activer R2 (tableau de bord Cloudflare) puis décommenter le binding DOCS ; définir un secret DOCS_KEY dédié
 
 - Usage quotidien et retours de Romain (concision, voix, tâches)
 - Décision : Opus 5.5 conservé partout, suivi de consommation dans Mes outils pour juger sur pièces

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mes documents</title>
+  <meta name="theme-color" content="#0f1115">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body { overflow: auto; }
+    main { max-width: 680px; margin: 0 auto; padding: 20px var(--gouttiere) 48px; display: flex; flex-direction: column; gap: 14px; }
+    .onglets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .onglets button { border: 1px solid var(--bordure); background: var(--fond-2); color: var(--texte); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    .onglets button[aria-pressed="true"] { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); }
+    .ligne { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    input, select { padding: 9px; border-radius: 10px; border: 1px solid var(--bordure); background: var(--fond-2); color: var(--texte); font: inherit; }
+    #recherche { flex: 1; min-width: 180px; }
+    details.doc { border-top: 1px solid var(--bordure); padding: 10px 0; }
+    details.doc summary { cursor: pointer; list-style: none; }
+    details.doc summary::-webkit-details-marker { display: none; }
+    .titre { font-weight: 600; }
+    .meta { font-size: 13px; color: var(--texte-2); }
+    .meta .alerte { color: var(--erreur); font-weight: 600; }
+    .avalider { font-size: 12px; background: var(--accent); color: var(--accent-texte); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+    .champ { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr auto; gap: 6px; align-items: center; margin: 4px 0; }
+    .champ input { width: 100%; box-sizing: border-box; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .discret { color: var(--texte-2); font-size: 13px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 style="margin:0">Mes documents</h1>
+    <p class="discret">Coffre chiffré (AES-256) : les fichiers et les champs sensibles sont chiffrés sur le serveur avec une clé qui ne le quitte pas. L'assistant répond depuis les fiches et ne lit un champ sensible qu'après votre confirmation orale.</p>
+    <form class="ligne" id="form-ajout">
+      <input type="file" id="fichier" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+      <select id="espace-ajout"><option value="">Espace auto</option><option value="perso">Perso</option><option value="pro">Pro</option></select>
+      <button class="btn btn-primaire" type="submit">Ajouter</button>
+    </form>
+    <p id="etat" class="discret" role="status"></p>
+    <div class="ligne">
+      <div class="onglets"><button data-espace="" aria-pressed="true">Tous</button><button data-espace="perso">Perso</button><button data-espace="pro">Pro</button></div>
+      <input id="recherche" type="search" placeholder="Rechercher (permis, Durand, assurance…)">
+    </div>
+    <div id="liste"></div>
+    <p><a href="/app">← Retour à l'assistant</a></p>
+  </main>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const MASQUE = '(sensible : demande ma confirmation orale explicite pour le lire)';
+    const TYPES = ['identite', 'vehicule', 'banque', 'assurance', 'sante', 'logement', 'contrat', 'facture', 'client', 'autre'];
+    let espace = ''; let minuteur = null;
+    async function api(chemin, options = {}) {
+      const r = await fetch(chemin, options);
+      if (r.status === 401) { location.href = '/login?next=/documents'; throw new Error('Session expirée'); }
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json.erreur || `HTTP ${r.status}`);
+      return json;
+    }
+    const echapper = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const dateFr = (iso) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+    function expiration(iso) {
+      if (!iso) return '';
+      const jours = Math.round((new Date(`${iso}T12:00:00Z`) - Date.now()) / 86400000);
+      if (jours < 0) return `<span class="alerte">expiré le ${dateFr(iso)}</span>`;
+      if (jours <= 60) return `<span class="alerte">expire le ${dateFr(iso)}</span>`;
+      return `expire le ${dateFr(iso)}`;
+    }
+    async function charger() {
+      const q = $('#recherche').value.trim();
+      const liste = await api(`/api/documents?espace=${encodeURIComponent(espace)}&q=${encodeURIComponent(q)}`).catch((e) => { $('#etat').textContent = e.message; return []; });
+      const conteneur = $('#liste'); conteneur.innerHTML = '';
+      if (!liste.length) { conteneur.innerHTML = `<p class="discret">${q ? 'Aucun document ne correspond.' : 'Aucun document pour l\'instant : ajoutez une photo ou un PDF, ou partagez-le à l\'assistant avec « range dans le coffre ».'}</p>`; return; }
+      for (const e of liste) conteneur.append(carte(e));
+    }
+    function carte(e) {
+      const d = document.createElement('details'); d.className = 'doc'; d.dataset.id = e.id;
+      d.innerHTML = `<summary><div class="titre">${echapper(e.titre)}${e.valideLe ? '' : '<span class="avalider">à valider</span>'}</div><div class="meta">${echapper(e.espace)} · ${echapper(e.type)}${e.personne ? ` · ${echapper(e.personne)}` : ''}${e.dateExpiration ? ` · ${expiration(e.dateExpiration)}` : ''}</div></summary><div class="corps discret">Chargement…</div>`;
+      d.addEventListener('toggle', () => { if (d.open && !d.dataset.charge) ouvrir(d, false); });
+      return d;
+    }
+    async function ouvrir(d, reveler) {
+      const corps = d.querySelector('.corps');
+      try {
+        const f = await api(`/api/documents/${d.dataset.id}${reveler ? '?reveler=1' : ''}`);
+        d.dataset.charge = '1';
+        corps.className = 'corps';
+        corps.innerHTML = `
+          <div class="ligne"><input class="f-titre" value="${echapper(f.titre)}" style="flex:1"><select class="f-espace"><option value="perso">Perso</option><option value="pro">Pro</option></select><select class="f-type">${TYPES.map((t) => `<option>${t}</option>`).join('')}</select></div>
+          <div class="ligne" style="margin-top:6px"><input class="f-personne" placeholder="Personne / client" value="${echapper(f.personne)}"><input class="f-organisme" placeholder="Organisme" value="${echapper(f.organisme)}"></div>
+          <div class="ligne" style="margin-top:6px"><label class="discret">Date <input type="date" class="f-date" value="${f.dateDocument || ''}"></label><label class="discret">Expiration <input type="date" class="f-exp" value="${f.dateExpiration || ''}"></label></div>
+          ${f.resume ? `<p class="discret">${echapper(f.resume)}</p>` : ''}
+          <div class="champs">${f.champs.map((c) => champHtml(c)).join('')}</div>
+          <button type="button" class="btn btn-secondaire btn-petit ajouter-champ">+ Champ</button>
+          <div class="actions">
+            <button type="button" class="btn btn-primaire btn-petit enregistrer">${f.valideLe ? 'Enregistrer' : 'Valider la fiche'}</button>
+            ${f.champs.some((c) => c.sensible) && !reveler ? '<button type="button" class="btn btn-secondaire btn-petit reveler">Afficher les champs sensibles</button>' : ''}
+            <a class="btn btn-secondaire btn-petit" href="/api/documents/${d.dataset.id}/fichier" target="_blank" rel="noopener">Ouvrir l'original</a>
+            <button type="button" class="btn btn-secondaire btn-petit supprimer">Supprimer</button>
+          </div>`;
+        corps.querySelector('.f-espace').value = f.espace; corps.querySelector('.f-type').value = f.type;
+        corps.querySelector('.ajouter-champ').onclick = () => corps.querySelector('.champs').insertAdjacentHTML('beforeend', champHtml({ nom: '', valeur: '', sensible: false }));
+        corps.querySelector('.reveler')?.addEventListener('click', () => ouvrir(d, true));
+        corps.querySelector('.enregistrer').onclick = () => enregistrer(d);
+        corps.querySelector('.supprimer').onclick = async () => { if (!confirm(`Supprimer définitivement « ${f.titre} » et son fichier ?`)) return; await api(`/api/documents/${d.dataset.id}`, { method: 'DELETE' }); d.remove(); };
+      } catch (e) { corps.textContent = e.message; }
+    }
+    function champHtml(c) {
+      const masque = c.valeur === MASQUE;
+      return `<div class="champ"><input class="c-nom" value="${echapper(c.nom)}" placeholder="Nom"><input class="c-valeur" value="${echapper(c.valeur)}" placeholder="Valeur" ${masque ? 'readonly' : ''}><label class="discret" title="Sensible : chiffré, lu seulement après confirmation"><input type="checkbox" class="c-sensible" ${c.sensible ? 'checked' : ''}> 🔒</label></div>`;
+    }
+    async function enregistrer(d) {
+      const c = d.querySelector('.corps');
+      const champs = [...c.querySelectorAll('.champ')].map((l) => ({ nom: l.querySelector('.c-nom').value, valeur: l.querySelector('.c-valeur').value, sensible: l.querySelector('.c-sensible').checked }));
+      try {
+        await api(`/api/documents/${d.dataset.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ titre: c.querySelector('.f-titre').value, espace: c.querySelector('.f-espace').value, type: c.querySelector('.f-type').value, personne: c.querySelector('.f-personne').value, organisme: c.querySelector('.f-organisme').value, dateDocument: c.querySelector('.f-date').value || null, dateExpiration: c.querySelector('.f-exp').value || null, champs, valider: true }) });
+        $('#etat').textContent = 'Fiche enregistrée ✓';
+        await charger();
+      } catch (e) { $('#etat').textContent = `Erreur : ${e.message}`; }
+    }
+    $('#form-ajout').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = $('#fichier').files[0]; if (!f) return;
+      const form = new FormData(); form.append('fichier', f); if ($('#espace-ajout').value) form.append('espace', $('#espace-ajout').value);
+      $('#etat').textContent = 'Chiffrement et extraction de la fiche en cours…';
+      try {
+        const doc = await api('/api/documents', { method: 'POST', body: form });
+        $('#etat').textContent = `Ajouté : ${doc.titre}. Vérifiez puis validez la fiche.`;
+        $('#fichier').value = '';
+        await charger();
+        const carteDoc = document.querySelector(`details.doc[data-id="${doc.id}"]`); if (carteDoc) carteDoc.open = true;
+      } catch (err) { $('#etat').textContent = `Erreur : ${err.message}`; }
+    });
+    for (const b of document.querySelectorAll('.onglets button')) b.addEventListener('click', () => { espace = b.dataset.espace; for (const x of document.querySelectorAll('.onglets button')) x.setAttribute('aria-pressed', String(x === b)); charger(); });
+    $('#recherche').addEventListener('input', () => { clearTimeout(minuteur); minuteur = setTimeout(charger, 250); });
+    charger();
+  </script>
+</body>
+</html>

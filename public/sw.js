@@ -1,8 +1,8 @@
 // Service worker : app shell en cache, réseau pour l'API, notifications push.
-const CACHE = 'assistant-v33';
+const CACHE = 'assistant-v34';
 const CACHE_PARTAGE = 'partage';
 const CLE_PARTAGE = '/partage/attente';
-const SHELL = ['/app', '/login', '/styles.css', '/app.js', '/conversation.js', '/taches.html', '/outils.html', '/manifest.webmanifest', '/icons/icon.svg'];
+const SHELL = ['/app', '/login', '/styles.css', '/app.js', '/conversation.js', '/taches.html', '/documents.html', '/outils.html', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -5,6 +5,8 @@
   "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat"],
   "kv_namespaces": [{ "binding": "DATA", "id": "86626561bfdf4aae803f9d00762e69fe" }],
+  // Coffre de documents : décommenter quand R2 est activé et le bucket créé (sinon les fichiers vont dans KV).
+  // "r2_buckets": [{ "binding": "DOCS", "bucket_name": "assistant-vocal-documents" }],
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "ASSISTANT_NAME": "Assistant",

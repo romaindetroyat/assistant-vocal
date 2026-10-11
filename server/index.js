@@ -16,6 +16,7 @@ import { transcriptionDisponible } from './transcribe.js';
 import { demarrerPlanificateur } from './scheduler.js';
 import { utiliserBackend } from './store.js';
 import { creerBackendFs } from './store-fs.js';
+import { utiliserBlobs, creerBlobsFs } from './blobs.js';
 import { infosBuild } from './version.js';
 
 const ici = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,7 @@ const clientAnthropic = () => new Anthropic({ defaultHeaders: process.env.ANTHRO
 
 export function creerApplicationNode({ client = clientAnthropic(), serveurs = chargerServeursMcp() } = {}) {
   utiliserBackend(creerBackendFs(config.dataDir));
+  utiliserBlobs(creerBlobsFs(config.dataDir));
   return creerApplication({ client, serveurs, fichier: (c, chemin) => statique.fetch(new Request(new URL(chemin, c.req.url))), version: infosBuild() });
 }
 

@@ -87,6 +87,12 @@
 - [x] **EXT-03** Micro accordé une fois et conservé ; position mise en cache une heure
 - [x] **EXT-04** Section « Autorisations » dans Mes outils (états, demande, marche à suivre Chrome / iPhone)
 
+### Coffre de documents (DOC)
+- [x] **DOC-01** Ajout chiffré (AES-256-GCM) d'images et PDF, stockage R2 ou KV
+- [x] **DOC-02** Fiche structurée extraite par Claude, validée et corrigée par l'utilisateur
+- [x] **DOC-03** Outils chercher / lire (champs sensibles sur confirmation) / expirations ; rappel dans le brief
+- [x] **DOC-04** Page Mes documents, rangement depuis les pièces jointes et le partage
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -124,6 +130,7 @@
 | VOI-01..03 | 19 | Validated (tests) |
 | MET-01..02 | 20 | Validated (tests) |
 | EXT-01..04 | 21 | Validated (tests) |
+| DOC-01..04 | 22 | Validated (tests) |
 
 ---
 *Last updated: 2026-10-10 after passage en mode GSD complet*

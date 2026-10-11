@@ -60,7 +60,8 @@ Siri de la 18). Plans détaillés dans `.planning/phases/16-…` à `19-…`. Pr
 |-------|--------|------|
 | 20 — Météo | Complete | Outil meteo (Open-Meteo : ECMWF IFS + AROME, modèles de tameteo.com), tranches de journée, conseil, météo dans le brief |
 | 21 — Extension Chromium, raccourcis, autorisations | Complete | extension/ (MV3, raccourcis globaux, menus clic droit, fenêtre dédiée, CORS), raccourcis dans l'app, micro conservé, position 1 h, section Autorisations |
+| 22 — Coffre de documents chiffré | Complete | Fiches extraites par Claude, AES-256-GCM, champs sensibles sur confirmation, page Mes documents, partage « range dans le coffre », expirations dans le brief (KV en attendant R2) |
 
 ## Progress
 
-21 phases livrées sur 21 (v1 à v4 en cours). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.
+22 phases livrées sur 22 (v1 à v4 en cours). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.

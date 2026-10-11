@@ -175,3 +175,5 @@ kbd { font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 
 .tableau { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .tableau th, .tableau td { text-align: right; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--bordure, #333); }
 .tableau th:first-child, .tableau td:first-child { text-align: left; }
+
+.piece .piece-coffre { position: absolute; left: 2px; top: 2px; border: 0; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; line-height: 1; padding: 3px 4px; cursor: pointer; }

@@ -10,3 +10,5 @@ process.env.MCP_CONFIG = path.join(process.env.DATA_DIR, 'absent.json');
 import { utiliserBackend } from '../server/store.js';
 import { creerBackendFs } from '../server/store-fs.js';
 utiliserBackend(creerBackendFs(process.env.DATA_DIR));
+import { utiliserBlobs, creerBlobsFs } from '../server/blobs.js';
+utiliserBlobs(creerBlobsFs(process.env.DATA_DIR));

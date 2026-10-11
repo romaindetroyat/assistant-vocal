@@ -45,9 +45,22 @@ export function validerImage(image) {
  * Traite un partage : message [image] + texte composé dans la conversation « Partages », tour Claude avec effort voix,
  * push « Partage traité ». Retourne { texte, conversationId }.
  */
-export async function traiterPartage({ client, serveurs = [], nonConnectes = [], texte = '', url = '', consigne = '', image = null, envoyer = envoyerNotification }) {
+// Consigne « range dans le coffre », « classe ce document »… : le fichier part dans le coffre au lieu de la conversation.
+export const CONSIGNE_COFFRE = /coffre|classe|range|archive/i;
+
+export async function traiterPartage({ client, serveurs = [], nonConnectes = [], texte = '', url = '', consigne = '', image = null, document = null, envoyer = envoyerNotification }) {
   if (!client) throw new Error('Client Anthropic absent');
   texte = String(texte || '').trim(); url = String(url || '').trim(); consigne = String(consigne || '').trim();
+  if (CONSIGNE_COFFRE.test(consigne) && (image || document)) {
+    const { ajouterDocument } = await import('./documents.js');
+    const fichier = document || { octets: depuisBase64Image(image), type: image.media_type, nom: 'partage.jpg' };
+    const espace = /\bpro\b|client|professionnel/i.test(consigne) ? 'pro' : /\bperso\b|personnel/i.test(consigne) ? 'perso' : null;
+    const doc = await ajouterDocument({ client, octets: fichier.octets, type: fichier.type, nom: fichier.nom, espace });
+    const texteReponse = `Document ajouté au coffre ${doc.espace} : ${doc.titre}. Vérifiez la fiche dans Mes documents.`;
+    if (pushDisponible()) { try { await envoyer({ titre: 'Document rangé', corps: tronquer(texteReponse), url: '/documents', tag: 'coffre' }); } catch { /* ignoré */ } }
+    return { texte: texteReponse, documentId: doc.id };
+  }
+  if (document && !image) throw Object.assign(new Error('Un PDF partagé doit être rangé dans le coffre : ajoutez la consigne « range dans le coffre ».'), { status: 415 });
   const img = validerImage(image);
   if (!texte && !url && !img) throw Object.assign(new Error('Rien à partager : texte, url ou image requis'), { status: 400 });
   const { executerTour } = await import('./chat.js');
@@ -73,6 +86,8 @@ export async function traiterPartage({ client, serveurs = [], nonConnectes = [],
   return { texte: reponse, conversationId: conversation.id };
 }
 
+const depuisBase64Image = (image) => Uint8Array.from(atob(String(image?.data || '')), (ch) => ch.charCodeAt(0));
+
 // Lit le corps d'une requête de partage : JSON { texte, url, consigne, image } ou multipart (fichier image → base64).
 export async function lireCorpsPartage(req) {
   const type = req.header('content-type') || '';
@@ -84,12 +99,15 @@ export async function lireCorpsPartage(req) {
   if (!form) return {};
   const champ = (n) => String(form.get(n) || '');
   const fichier = form.get('fichier') || form.get('fichiers');
-  let image = null;
-  if (fichier instanceof File) {
+  let image = null; let document = null;
+  if (fichier instanceof File && (fichier.type === 'application/pdf' || /\.pdf$/i.test(fichier.name))) {
+    if (fichier.size > 20 * 1024 * 1024) throw Object.assign(new Error('Fichier trop volumineux (20 Mo maximum)'), { status: 413 });
+    document = { octets: new Uint8Array(await fichier.arrayBuffer()), type: 'application/pdf', nom: fichier.name || 'document.pdf' };
+  } else if (fichier instanceof File) {
     if (fichier.size > TAILLE_MAX_IMAGE) throw Object.assign(new Error('Image trop volumineuse (8 Mo maximum)'), { status: 413 });
     const octets = new Uint8Array(await fichier.arrayBuffer());
     let binaire = ''; for (let i = 0; i < octets.length; i += 0x8000) binaire += String.fromCharCode(...octets.subarray(i, i + 0x8000));
     image = { media_type: fichier.type || (/\.hei[cf]$/i.test(fichier.name) ? 'image/heic' : ''), data: btoa(binaire) };
   }
-  return { texte: champ('texte') || champ('text') || champ('title'), url: champ('url'), consigne: champ('consigne'), image };
+  return { texte: champ('texte') || champ('text') || champ('title'), url: champ('url'), consigne: champ('consigne'), image, document };
 }
