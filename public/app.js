@@ -118,7 +118,7 @@ async function obtenirMicro() {
   if (microVivant()) return micro.flux;
   if (micro.enCours) return micro.enCours;
   const generation = micro.generation;
-  micro.enCours = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+  micro.enCours = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true } }) // voiceIsolation : isolement de la voix là où le navigateur le propose (ignoré sinon)
     .then((flux) => {
       if (generation !== micro.generation) { flux.getTracks().forEach((t) => t.stop()); journal('micro', 'accordé après l\'arrêt : éteint'); throw new Error('Écoute arrêtée'); }
       micro.tous.add(flux); micro.flux = flux; journal('micro', 'ouvert');
@@ -161,7 +161,12 @@ $('#btn-logout').addEventListener('click', async () => { fermerMicro(); await fe
 
 // ---------- Démarrage ----------
 async function demarrer() {
-  try { etat.moi = await api('/api/me'); } catch { return; }
+  try { etat.moi = await api('/api/me'); }
+  catch (e) {
+    // Hors connexion (app installée ouverte sans réseau) : message clair plutôt que l'écran de mot de passe.
+    if (!navigator.onLine || e instanceof TypeError) { ui.app.hidden = true; ui.login.hidden = false; ui.loginErreur.textContent = 'Pas de connexion Internet : l\'assistant en a besoin. Réessayez dès que le réseau revient.'; window.addEventListener('online', () => location.reload(), { once: true }); }
+    return;
+  }
   ui.login.hidden = true; ui.app.hidden = false;
   document.title = etat.moi.assistantName;
   afficherSalut();
@@ -513,8 +518,9 @@ function demarrerDictee({ maintien = false } = {}) {
 function lancerReconnaissance() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  // Mode « phrase » (le plus fiable partout) enchaîné automatiquement tant que l'écoute est active.
-  rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  // Chrome et Edge (ordinateur, extension) : écoute continue, sans coupure entre deux phrases ; Safari / iPhone : mode
+  // « phrase » enchaîné, le seul fiable chez eux.
+  rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = !estSafari; rec.maxAlternatives = 1;
   let finalSession = ''; let aRecu = false; let erreur = null;
   const debut = Date.now();
   rec.onresult = (e) => {

@@ -48,7 +48,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     if (!actif) return; // raccroché pendant la connexion : ne pas ouvrir le micro
     conversationId = session.conversationId;
     if (!flux) {
-      const f = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const f = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true } });
       if (!actif) { f.getTracks().forEach((t) => t.stop()); return; }
       flux = f;
     }
@@ -114,14 +114,27 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     return mots.length === 1 && MOTS_SEULS.has(mots[0]);
   }
   let minuteurTranscription = null;
-  function repondre() { clearTimeout(minuteurTranscription); minuteurTranscription = null; envoyer({ type: 'response.create' }); }
+  function repondre() { clearTimeout(minuteurTranscription); minuteurTranscription = null; clearTimeout(minuteurFinPhrase); minuteurFinPhrase = null; envoyer({ type: 'response.create' }); }
+  // Fin de phrase : la réponse ne part qu'après un court délai de silence (plus long si la phrase semble inachevée). Si
+  // l'utilisateur reprend la parole avant, on attend la suite : la demande complète part d'un bloc, sans couper sa phrase.
+  const FIN_PHRASE_MS = 1200; const PHRASE_INACHEVEE_MS = 2200;
+  let minuteurFinPhrase = null;
+  const delaiFinPhrase = (t) => (/[.?!…]$/.test(t) && !/\b(et|ou|mais|donc|alors|de|du|des|le|la|les|un|une|à|pour|avec|que|qui|en)\W*$/i.test(t) ? FIN_PHRASE_MS : PHRASE_INACHEVEE_MS);
+  function repondreApresSilence(t) {
+    clearTimeout(minuteurFinPhrase);
+    minuteurFinPhrase = setTimeout(() => { minuteurFinPhrase = null; repondre(); }, delaiFinPhrase(t));
+  }
 
   async function traiter(ev) {
     // Seuls une vraie demande (transcription valide, plus bas) ou une réponse de l'assistant prolongent l'appel : le bruit
     // ambiant (détections de parole sans texte valable) ne doit pas garder le micro ouvert indéfiniment.
     if (ev.type?.startsWith('response.')) armerInactivite();
     switch (ev.type) {
-      case 'input_audio_buffer.speech_started': surEtat('Je vous écoute…'); break;
+      case 'input_audio_buffer.speech_started':
+        surEtat('Je vous écoute…');
+        // L'utilisateur reprend : on annule la réponse prévue (et le repli de 4 s) et on attend la fin de sa phrase.
+        if (minuteurFinPhrase || minuteurTranscription) { clearTimeout(minuteurFinPhrase); minuteurFinPhrase = null; clearTimeout(minuteurTranscription); minuteurTranscription = null; journal('suite-phrase', ''); }
+        break;
       case 'input_audio_buffer.speech_stopped': surEtat('…'); break;
       case 'input_audio_buffer.committed':
         // Si la transcription n'arrive pas (panne du service), on répond quand même après 4 s plutôt que de rester muet.
@@ -130,11 +143,11 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
         break;
       case 'conversation.item.input_audio_transcription.completed': {
         const t = (ev.transcript || '').trim();
-        if (transcriptionValide(t)) { armerInactivite(); surTexteUtilisateur(t); repondre(); }
+        if (transcriptionValide(t)) { armerInactivite(); surTexteUtilisateur(t); clearTimeout(minuteurTranscription); minuteurTranscription = null; repondreApresSilence(t); }
         else { journal('bruit-ignore', t.slice(0, 40)); clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); if (ev.item_id) envoyer({ type: 'conversation.item.delete', item_id: ev.item_id }); }
         break;
       }
-      case 'conversation.item.input_audio_transcription.failed': clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); break;
+      case 'conversation.item.input_audio_transcription.failed': clearTimeout(minuteurFinPhrase); minuteurFinPhrase = null; clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); break;
       case 'response.output_audio_transcript.done': if (ev.transcript?.trim()) surTexteAssistant(ev.transcript.trim()); surEtat('Je vous écoute'); break;
       case 'response.output_audio.delta': case 'response.output_audio_transcript.delta': surEtat('Je parle…'); break;
       case 'output_audio_buffer.stopped': case 'output_audio_buffer.cleared':

@@ -29,7 +29,8 @@ Règle principale : dès que l'utilisateur demande une information, une action, 
 Quand l'outil répond, restitue la réponse à l'oral, fidèlement, sans lire de symboles ni de mise en forme.
 Longueur de tes réponses : ${consigneConcision(concision)}
 Tu peux répondre directement, sans outil, aux salutations, remerciements et bavardages simples.
-Si l'utilisateur t'interrompt, arrête-toi et écoute.${voiture ? `\n${CONSIGNE_VOITURE_REALTIME}` : ''}`;
+Si l'utilisateur t'interrompt, arrête-toi et écoute.
+N'écoute que la personne qui s'adresse à toi : ignore les voix et sons d'arrière-plan (radio, télévision, vidéo, autres conversations) et ne réponds jamais à ce qui ne t'est pas adressé. Si une demande semble coupée au milieu, attends la suite au lieu d'appeler l'outil.${voiture ? `\n${CONSIGNE_VOITURE_REALTIME}` : ''}`;
 }
 
 export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VOICE || 'marin', concision: 'court' }, { contexte = null } = {}) {
@@ -38,10 +39,11 @@ export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VO
     model: modeleVoix(),
     output_modalities: ['audio'],
     audio: {
-      // Détection de tour peu empressée + réduction de bruit « champ lointain » (haut-parleur du téléphone, voiture) ;
+      // Détection de tour peu empressée + réduction de bruit « champ lointain » en voiture, « champ proche » ailleurs
+      // (ordinateur, casque : la voix proche est gardée, le bruit de la pièce atténué) ;
       // la réponse n'est pas créée automatiquement : le navigateur la déclenche après avoir filtré la transcription
       // (bruits, échos et fragments ne provoquent plus de réponse).
-      input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, noise_reduction: { type: 'far_field' }, turn_detection: { type: 'semantic_vad', eagerness: 'low', create_response: false, interrupt_response: true } },
+      input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, noise_reduction: { type: contexte === CONTEXTE_VOITURE ? 'far_field' : 'near_field' }, turn_detection: { type: 'semantic_vad', eagerness: 'low', create_response: false, interrupt_response: true } },
       output: { voice: reglages.voix || env().OPENAI_REALTIME_VOICE || 'marin' },
     },
     instructions: instructionsVoix(reglages, { contexte }),

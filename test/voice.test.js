@@ -23,10 +23,13 @@ test('session vocale : 501 sans clé, configuration et jeton éphémère avec cl
   process.env.OPENAI_API_KEY = 'sk-test';
   const session = configurationSession();
   assert.equal(session.model, 'gpt-realtime-2.1-mini');
-  // Anti-bruit : pas de réponse automatique (le navigateur filtre la transcription), VAD peu empressée, champ lointain.
+  // Anti-bruit : pas de réponse automatique (le navigateur filtre la transcription), VAD peu empressée, champ proche
+  // hors voiture, champ lointain en voiture ; voix d'arrière-plan ignorées.
   assert.equal(session.audio.input.turn_detection.create_response, false);
   assert.equal(session.audio.input.turn_detection.eagerness, 'low');
-  assert.equal(session.audio.input.noise_reduction.type, 'far_field');
+  assert.equal(session.audio.input.noise_reduction.type, 'near_field');
+  assert.equal(configurationSession({ concision: 'court' }, { contexte: 'voiture' }).audio.input.noise_reduction.type, 'far_field');
+  assert.match(session.instructions, /arrière-plan/);
   assert.equal(session.tools[0].name, 'demander_assistant');
   assert.match(session.instructions, /demander_assistant/);
   const appels = [];

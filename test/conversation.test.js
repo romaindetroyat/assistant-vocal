@@ -96,3 +96,24 @@ test('raccrocher pendant la connexion : le micro n\'est jamais ouvert ensuite', 
   assert.equal(demandes, 0, 'aucune demande de micro après l\'arrêt');
   assert.equal(appel.actif, false);
 });
+
+test('fin de phrase : la réponse attend un silence, et attend la suite si l\'utilisateur reprend la parole', async () => {
+  const { flux, canal } = navigateurSimule();
+  const { creerConversationVocale } = await import('../public/conversation.js');
+  const api = async () => ({ conversationId: 'c5', model: 'm', value: 'v' });
+  const appel = creerConversationVocale({ api, surEtat() {}, surTexteUtilisateur() {}, surTexteAssistant() {}, surOutils() {}, surFin() {}, conserverFlux: () => true });
+  await appel.demarrer(null, { flux });
+  canal.onopen();
+  const recevoir = (ev) => canal.onmessage({ data: JSON.stringify(ev) });
+  const reponses = () => canal.envoyes.filter((e) => e.type === 'response.create').length;
+  recevoir({ type: 'conversation.item.input_audio_transcription.completed', transcript: 'Rappelle-moi demain de' });
+  await new Promise((r) => setTimeout(r, 1300));
+  assert.equal(reponses(), 0, 'phrase inachevée : on attend encore');
+  recevoir({ type: 'input_audio_buffer.speech_started' }); // il reprend
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal(reponses(), 0, 'reprise de parole : pas de réponse');
+  recevoir({ type: 'conversation.item.input_audio_transcription.completed', transcript: 'appeler le garage.' });
+  await new Promise((r) => setTimeout(r, 1300));
+  assert.equal(reponses(), 1, 'une seule réponse, pour la demande complète');
+  appel.arreter();
+});
