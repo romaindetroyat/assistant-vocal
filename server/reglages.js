@@ -12,7 +12,7 @@ export const CONCISIONS = {
 };
 // Modèle de réflexion (Claude) choisi dans l'application : délai et coût par question indicatifs, cache compris.
 export const MODELES = {
-  auto: { id: null, nom: 'Automatique', role: 'Haiku pour les questions simples, Opus pour les vraies tâches', delai: '≈ 2 à 7 s', cout: '≈ 0,05 à 1 ct' },
+  auto: { id: null, nom: 'Automatique', role: 'Haiku pour les questions simples, Sonnet pour chercher une information, Opus pour les vraies tâches', delai: '≈ 2 à 7 s', cout: '≈ 0,05 à 1 ct' },
   haiku: { id: 'claude-haiku-5-5', nom: 'Haiku 5.5', role: 'Instantané, pour les questions simples', delai: '≈ 2 s', cout: '≈ 0,05 ct' },
   sonnet: { id: 'claude-sonnet-5-5', nom: 'Sonnet 5.5', role: 'Rapide et précis au quotidien', delai: '≈ 4 s', cout: '≈ 0,5 ct' },
   opus: { id: 'claude-opus-5-5', nom: 'Opus 5.5', role: 'Le plus fin, pour les vraies tâches', delai: '≈ 7 s', cout: '≈ 1 ct' },

@@ -26,6 +26,8 @@ test('règles : questions simples → Haiku ; rédaction, analyse, pièce jointe
     assert.equal(choisirModeleAuto(q).cle, 'opus', q);
   assert.equal(choisirModeleAuto([{ type: 'image', source: {} }, { type: 'text', text: 'ça ?' }]).cle, 'opus');
   assert.equal(choisirModeleAuto('a'.repeat(300)).cle, 'opus');
+  for (const q of ['Le résultat du match de Toulon rugby hier soir', 'Quelles sont les actualités ?', 'Combien coûte une Tesla Model Y ?', 'Qui a gagné le Grand Prix ?'])
+    assert.equal(choisirModeleAuto(q).cle, 'sonnet', q);
 });
 
 test('chat en mode auto : Haiku pour une question simple, Opus pour une tâche ; événement modele', async () => {
