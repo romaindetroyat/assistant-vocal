@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v5 « Plus malin » : phases 24 (modèle automatique) et 25 (assistant proactif) livrées — 2026-10-11
-- Last action: tâche rapide « routage : Sonnet pour chercher une information » (question rugby mal traitée), cache SW v43 — 2026-10-17
+- Last action: tâche rapide « appui maintenu pour parler, position mémorisée 3 h » (réglage parole), cache SW v44 — 2026-10-17
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 115 (`npm test`)
+- Tests : 116 (`npm test`)
 
 ## Decisions Log
 

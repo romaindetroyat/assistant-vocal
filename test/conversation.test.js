@@ -117,3 +117,30 @@ test('fin de phrase : la réponse attend un silence, et attend la suite si l\'ut
   assert.equal(reponses(), 1, 'une seule réponse, pour la demande complète');
   appel.arreter();
 });
+
+test('appui maintenu : micro muet hors appui, ouvert pendant, tour validé au relâchement, réponse sans attendre', async () => {
+  const { piste, flux, canal } = navigateurSimule();
+  const { creerConversationVocale } = await import('../public/conversation.js');
+  const corps = [];
+  const api = async (_c, o) => { corps.push(JSON.parse(o.body)); return { conversationId: 'c6', model: 'm', value: 'v' }; };
+  const appel = creerConversationVocale({ api, surEtat() {}, surTexteUtilisateur() {}, surTexteAssistant() {}, surOutils() {}, surFin() {}, conserverFlux: () => true, maintenir: () => true });
+  await appel.demarrer(null, { flux });
+  canal.onopen();
+  assert.equal(corps[0].parole, 'maintenir', 'session sans détection de tour');
+  assert.equal(piste.enabled, false, 'micro muet tant qu\'on n\'appuie pas');
+  appel.commencerParole();
+  assert.equal(piste.enabled, true);
+  assert.ok(canal.envoyes.some((e) => e.type === 'input_audio_buffer.clear'));
+  await new Promise((r) => setTimeout(r, 350));
+  appel.finirParole();
+  assert.equal(piste.enabled, false);
+  assert.ok(canal.envoyes.some((e) => e.type === 'input_audio_buffer.commit'));
+  canal.onmessage({ data: JSON.stringify({ type: 'conversation.item.input_audio_transcription.completed', transcript: 'Quel temps demain ?' }) });
+  assert.equal(canal.envoyes.filter((e) => e.type === 'response.create').length, 1, 'réponse immédiate');
+  // Appui trop court : rien n'est envoyé.
+  const commits = canal.envoyes.filter((e) => e.type === 'input_audio_buffer.commit').length;
+  appel.commencerParole(); appel.finirParole();
+  assert.equal(canal.envoyes.filter((e) => e.type === 'input_audio_buffer.commit').length, commits);
+  appel.arreter();
+  assert.equal(piste.enabled, true, 'micro partagé rendu actif');
+});

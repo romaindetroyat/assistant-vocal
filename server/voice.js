@@ -33,7 +33,8 @@ Si l'utilisateur t'interrompt, arrête-toi et écoute.
 N'écoute que la personne qui s'adresse à toi : ignore les voix et sons d'arrière-plan (radio, télévision, vidéo, autres conversations) et ne réponds jamais à ce qui ne t'est pas adressé. Si une demande semble coupée au milieu, attends la suite au lieu d'appeler l'outil.${voiture ? `\n${CONSIGNE_VOITURE_REALTIME}` : ''}`;
 }
 
-export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VOICE || 'marin', concision: 'court' }, { contexte = null } = {}) {
+// `maintenir` : appui maintenu pour parler (le navigateur ouvre et ferme le micro et valide le tour) : pas de détection de tour.
+export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VOICE || 'marin', concision: 'court' }, { contexte = null, maintenir = false } = {}) {
   return {
     type: 'realtime',
     model: modeleVoix(),
@@ -43,7 +44,7 @@ export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VO
       // (ordinateur, casque : la voix proche est gardée, le bruit de la pièce atténué) ;
       // la réponse n'est pas créée automatiquement : le navigateur la déclenche après avoir filtré la transcription
       // (bruits, échos et fragments ne provoquent plus de réponse).
-      input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, noise_reduction: { type: contexte === CONTEXTE_VOITURE ? 'far_field' : 'near_field' }, turn_detection: { type: 'semantic_vad', eagerness: 'low', create_response: false, interrupt_response: true } },
+      input: { transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' }, noise_reduction: { type: contexte === CONTEXTE_VOITURE ? 'far_field' : 'near_field' }, turn_detection: maintenir ? null : { type: 'semantic_vad', eagerness: 'low', create_response: false, interrupt_response: true } },
       output: { voice: reglages.voix || env().OPENAI_REALTIME_VOICE || 'marin' },
     },
     instructions: instructionsVoix(reglages, { contexte }),
@@ -53,12 +54,12 @@ export function configurationSession(reglages = { voix: env().OPENAI_REALTIME_VO
 }
 
 // Crée un jeton éphémère pour que le navigateur se connecte directement à OpenAI en WebRTC.
-export async function creerJetonEphemere(fetchImpl = fetch, { contexte = null } = {}) {
+export async function creerJetonEphemere(fetchImpl = fetch, { contexte = null, maintenir = false } = {}) {
   const reglages = await lireReglages();
   const r = await fetchImpl('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env().OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session: configurationSession(reglages, { contexte }) }),
+    body: JSON.stringify({ session: configurationSession(reglages, { contexte, maintenir }) }),
   });
   const json = await r.json().catch(() => ({}));
   if (!r.ok || !json.value) throw new Error(json.error?.message || `OpenAI : HTTP ${r.status}`);

@@ -291,6 +291,12 @@
         <select id="voix"></select>
       </label>
       <div class="actions"><button id="btn-ecouter" class="btn btn-secondaire btn-petit">▶ Écouter cette voix</button><span id="etat-apercu" class="discret"></span></div>
+      <label>Façon de parler à l'assistant
+        <select id="parole">
+          <option value="maintenir">Maintenir le bouton pendant que je parle (le micro n'écoute que pendant l'appui)</option>
+          <option value="mains_libres">Mains libres : l'assistant détecte seul la fin de ma phrase</option>
+        </select>
+      </label>
       <label>Modèle de réflexion (texte et délégations de la voix)
         <select id="modele"></select>
       </label>
@@ -697,7 +703,7 @@
     api('/api/reglages').then((r) => {
       for (const v of r.voixDisponibles) { const o = document.createElement('option'); o.value = v; o.textContent = NOMS_VOIX[v] || v; $('#voix').append(o); }
       for (const [cle, m] of Object.entries(r.modeles || {})) { const o = document.createElement('option'); o.value = cle; o.textContent = `${m.nom} — ${m.role} (${m.delai}, ${m.cout} par question)`; $('#modele').append(o); }
-      $('#voix').value = r.voix; $('#concision').value = r.concision; $('#modele').value = r.modele;
+      $('#voix').value = r.voix; $('#concision').value = r.concision; $('#modele').value = r.modele; $('#parole').value = r.parole || 'maintenir';
       $('#mains-libres').checked = Boolean(r.mainsLibres); $('#mot-activation').value = r.motActivation || 'assistant';
       $('#voiture-auto-appel').checked = r.voitureAutoAppel !== false;
       $('#iphone-voiture').checked = r.iphoneVoiture !== false;
@@ -735,8 +741,8 @@
       try { await lecteur.play(); } catch (e) { $('#etat-apercu').textContent = `Lecture impossible : ${e.message}`; }
     });
     $('#voix').addEventListener('change', () => { lecteur?.pause(); $('#etat-apercu').textContent = ''; });
-    for (const id of ['#voix', '#concision', '#modele']) $(id).addEventListener('change', async () => {
-      try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voix: $('#voix').value, concision: $('#concision').value, modele: $('#modele').value }) }); $('#etat-reglages').textContent = 'Enregistré ✓ Appliqué au prochain message et au prochain appel.'; }
+    for (const id of ['#voix', '#concision', '#modele', '#parole']) $(id).addEventListener('change', async () => {
+      try { await api('/api/reglages', { method: 'PUT', body: JSON.stringify({ voix: $('#voix').value, concision: $('#concision').value, modele: $('#modele').value, parole: $('#parole').value }) }); $('#etat-reglages').textContent = 'Enregistré ✓ Appliqué au prochain message et au prochain appel.'; }
       catch (e) { $('#etat-reglages').textContent = `Erreur : ${e.message}`; }
     });
   </script>

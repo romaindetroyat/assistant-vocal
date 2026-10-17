@@ -28,6 +28,7 @@ test('session vocale : 501 sans clé, configuration et jeton éphémère avec cl
   assert.equal(session.audio.input.turn_detection.create_response, false);
   assert.equal(session.audio.input.turn_detection.eagerness, 'low');
   assert.equal(session.audio.input.noise_reduction.type, 'near_field');
+  assert.equal(configurationSession({ concision: 'court' }, { maintenir: true }).audio.input.turn_detection, null, 'appui maintenu : pas de détection de tour');
   assert.equal(configurationSession({ concision: 'court' }, { contexte: 'voiture' }).audio.input.noise_reduction.type, 'far_field');
   assert.match(session.instructions, /arrière-plan/);
   assert.equal(session.tools[0].name, 'demander_assistant');

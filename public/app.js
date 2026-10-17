@@ -50,17 +50,23 @@ function texteALire(texte) {
 function setEtat(texte) { ui.etat.textContent = texte || ''; ui.etat.hidden = !texte; }
 
 // ---------- Position (réglage « partager ma position ») ----------
-// Jointe aux messages et aux délégations vocales pour les trajets « depuis ici » ; cache de 60 min (phase 21 : la
-// position n'est demandée au navigateur qu'une fois par heure au plus) ; échec silencieux.
-const POSITION_CACHE_MS = 60 * 60_000;
+// Jointe aux messages et aux délégations vocales pour les trajets « depuis ici ». Pour ne pas redemander l'autorisation à
+// chaque lancement (l'app installée sur iPhone l'oublie), la position est gardée 3 h dans le stockage local et n'est
+// redemandée au navigateur que si la question en a besoin (trajet, « ici », « près de », météo sans lieu…) ou si
+// l'autorisation est déjà accordée (aucune fenêtre dans ce cas). Échec silencieux.
+const POSITION_CACHE_MS = 3 * 60 * 60_000;
 const position = { valeur: null, obtenueLe: 0, enCours: null };
-async function obtenirPosition() {
+try { const p = JSON.parse(localStorage.getItem('position') || 'null'); if (p?.t && Date.now() - p.t < POSITION_CACHE_MS) { position.valeur = p.valeur; position.obtenueLe = p.t; } } catch { /* ignoré */ }
+const BESOIN_POSITION = /\b(ici|autour|pr[eè]s|proche|coin|trajet|itin[ée]raire|combien de temps|route|bouchons?|trafic|aller [àa]|o[uù] suis|m[ée]t[ée]o|temps qu.il fait|pleuvoir|pluie|soleil|restaurants?|pharmacie|boulangerie|station|essence|parking|adresse|lieu)\b/i;
+async function obtenirPosition(texte = '') {
   if (!etat.reglages.partagerPosition || !navigator.geolocation) return null;
   if (position.valeur && Date.now() - position.obtenueLe < POSITION_CACHE_MS) return position.valeur;
+  const autorisee = await navigator.permissions?.query({ name: 'geolocation' }).then((p) => p.state === 'granted').catch(() => false);
+  if (!autorisee && !BESOIN_POSITION.test(String(texte))) return null; // pas de fenêtre d'autorisation pour rien
   if (!position.enCours) {
     position.enCours = new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        (p) => { position.valeur = { lat: p.coords.latitude, lng: p.coords.longitude, precision: Math.round(p.coords.accuracy || 0) }; position.obtenueLe = Date.now(); resolve(position.valeur); },
+        (p) => { position.valeur = { lat: p.coords.latitude, lng: p.coords.longitude, precision: Math.round(p.coords.accuracy || 0) }; position.obtenueLe = Date.now(); try { localStorage.setItem('position', JSON.stringify({ valeur: position.valeur, t: position.obtenueLe })); } catch { /* ignoré */ } resolve(position.valeur); },
         () => resolve(position.valeur), // refus ou échec : dernière position connue, sinon rien
         { enableHighAccuracy: false, timeout: 8000, maximumAge: POSITION_CACHE_MS },
       );
@@ -71,7 +77,7 @@ async function obtenirPosition() {
 // Variante de api() qui joint la position aux délégations vocales (/api/voice/ask).
 async function apiAvecPosition(chemin, options = {}) {
   if (chemin === '/api/voice/ask' && options.body) {
-    const pos = await obtenirPosition();
+    const pos = await obtenirPosition(JSON.parse(options.body).message);
     if (pos) options = { ...options, body: JSON.stringify({ ...JSON.parse(options.body), position: pos }) };
   }
   return api(chemin, options);
@@ -404,7 +410,7 @@ async function envoyer() {
   let ligneOutils = null; let badgeActif = null; let texteRecu = ''; let texteFinal = '';
   defiler();
   try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: etat.conversationId, content, position: await obtenirPosition() }) });
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId: etat.conversationId, content, position: await obtenirPosition(texte) }) });
     if (r.status === 401) { afficherLogin(); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).erreur || `HTTP ${r.status}`);
     for await (const ev of lireSSE(r.body)) {
@@ -577,10 +583,33 @@ function envoyer_() { envoyer(); }
 // Bouton micro (phase 23) : toucher = dictée jusqu'au silence (vocal transcrit si la dictée n'existe pas) ;
 // maintenir ≥ 0,6 s puis relâcher = conversation vocale en direct ; pendant un appel, toucher = raccrocher.
 // L'appel part au relâchement : c'est un geste utilisateur, exigé par Safari pour le micro et le son.
+// ---------- Appui maintenu pour parler (réglage « parole » = maintenir, par défaut) ----------
+// Le micro n'écoute que pendant l'appui : appuyer = parler (coupe la parole à l'assistant), relâcher = envoyer. Le premier
+// appui ouvre la conversation (une seconde de connexion, l'écoute commence dès qu'elle est prête si l'on appuie encore).
+// Sans conversation vocale configurée, l'appui maintenu fait une dictée envoyée au relâchement.
+function modeMaintenir() { return etat.reglages.parole !== 'mains_libres'; }
+const appuiParole = { actif: false };
+async function debutAppuiParole() {
+  appuiParole.actif = true;
+  window.speechSynthesis?.cancel();
+  if (!etat.moi?.voix) { demarrerDictee({ maintien: true }); return; }
+  if (appel.actif) { appel.commencerParole(); return; }
+  setEtat('Connexion…');
+  await demarrerAppel();
+  if (appel.actif) { if (appuiParole.actif) appel.commencerParole(); else setEtat('Prêt : maintenez le bouton pendant que vous parlez'); }
+}
+function finAppuiParole() {
+  if (!appuiParole.actif) return;
+  appuiParole.actif = false;
+  if (!etat.moi?.voix) { arreterDictee({ envoyer: true }); return; }
+  if (appel.actif) appel.finirParole();
+}
+
 const APPUI_LONG_MS = 600;
 const appuiMicro = { debut: 0, minuteur: null, long: false };
 ui.btnMicro.addEventListener('pointerdown', (e) => {
   e.preventDefault(); ui.btnMicro.setPointerCapture?.(e.pointerId);
+  if (modeMaintenir()) { ui.btnMicro.classList.add('long'); debutAppuiParole(); return; }
   appuiMicro.debut = Date.now(); appuiMicro.long = false;
   clearTimeout(appuiMicro.minuteur);
   if (appel.actif || dictee.actif || etat.enregistreur || !etat.moi?.voix) return;
@@ -599,13 +628,14 @@ function finAppuiMicro(annule = false) {
   if (window.SpeechRecognition || window.webkitSpeechRecognition) demarrerDictee();
   else demarrerEnregistrement();
 }
-ui.btnMicro.addEventListener('pointerup', () => finAppuiMicro());
-ui.btnMicro.addEventListener('pointercancel', () => finAppuiMicro(true));
+ui.btnMicro.addEventListener('pointerup', () => { if (modeMaintenir()) { ui.btnMicro.classList.remove('long'); finAppuiParole(); libelleMicro(); return; } finAppuiMicro(); });
+ui.btnMicro.addEventListener('pointercancel', () => { if (modeMaintenir()) { ui.btnMicro.classList.remove('long'); finAppuiParole(); libelleMicro(); return; } finAppuiMicro(true); });
 ui.btnMicro.addEventListener('contextmenu', (e) => e.preventDefault());
 ui.btnMicro.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { appuiMicro.debut = Date.now(); finAppuiMicro(); } } });
 function libelleMicro() {
   let t = etat.moi?.voix ? 'Touchez pour parler' : 'Touchez pour dicter';
-  if (appel.actif || !ui.bandeauAppel.hidden) t = 'Touchez pour raccrocher';
+  if (modeMaintenir()) t = appel.parle || dictee.actif ? 'Je vous écoute… relâchez pour envoyer' : 'Maintenez pour parler';
+  else if (appel.actif || !ui.bandeauAppel.hidden) t = 'Touchez pour raccrocher';
   else if (dictee.actif) t = 'Je vous écoute…';
   else if (etat.enregistreur) t = 'Touchez pour envoyer';
   ui.microLibelle.textContent = t;
@@ -700,6 +730,7 @@ const appel = creerConversationVocale({
   conserverFlux: () => true, // le flux appartient à l'app (micro partagé), jamais fermé par l'appel
   journal,
   contexte: () => (voiture.actif ? 'voiture' : ''),
+  maintenir: () => modeMaintenir(),
 });
 async function demarrerAppel() {
   if (appel.actif) return;
@@ -1030,7 +1061,7 @@ function activerModeVoiture({ geste = false } = {}) {
   rafraichirVoiture();
   // Lancement de la conversation : tout de suite si l'activation vient d'un geste (bouton du menu) ; depuis un lien,
   // iOS exige un geste → au premier tap sur l'écran (réglage voitureAutoAppel) ou sur le bouton « Parler ».
-  if (geste && etat.reglages.voitureAutoAppel !== false) lancerParoleVoiture();
+  if (geste && etat.reglages.voitureAutoAppel !== false && !modeMaintenir()) lancerParoleVoiture();
 }
 
 function quitterModeVoiture() {
@@ -1082,7 +1113,16 @@ function observerVoiture() {
 function rafraichirVoiture() {
   if (!voiture.actif) return;
   let libelle = 'Parler'; let classe = ''; let texteEtat = 'Touchez pour parler';
-  if (appel.actif) {
+  if (modeMaintenir()) {
+    // Appui maintenu : « Maintenez pour parler », « Parlez… » pendant l'appui, puis réflexion et réponse.
+    const e = ui.appelEtat.textContent || '';
+    libelle = 'Maintenez pour parler'; texteEtat = 'Maintenez le bouton pendant que vous parlez';
+    if (appel.parle || dictee.actif || (appuiParole.actif && !etat.moi?.voix)) { libelle = 'Parlez…'; classe = 'ecoute'; texteEtat = 'Relâchez pour envoyer'; }
+    else if (appel.actif && /je parle/i.test(e)) { libelle = 'Je réponds…'; classe = 'parle'; texteEtat = 'Maintenez pour me couper et parler'; }
+    else if ((appel.actif && /réfléchis/i.test(e)) || etat.envoiEnCours) { libelle = 'Je réfléchis…'; classe = 'reflechit'; texteEtat = 'Je réfléchis…'; }
+    else if (appuiParole.actif || (appel.actif && /connexion/i.test(e))) { libelle = 'Connexion…'; classe = 'reflechit'; texteEtat = 'Gardez le doigt appuyé'; }
+    else if (!ui.etat.hidden && ui.etat.textContent && !appel.actif) texteEtat = ui.etat.textContent;
+  } else if (appel.actif) {
     const e = ui.appelEtat.textContent || '';
     if (/je parle/i.test(e)) { libelle = 'Je réponds…'; classe = 'parle'; }
     else if (/réfléchis/i.test(e)) { libelle = 'Je réfléchis…'; classe = 'reflechit'; }
@@ -1128,8 +1168,14 @@ if ('serviceWorker' in navigator) {
 // sinon (écoute, réflexion), un tap coupe le micro en raccrochant. Appui long (≥ 0,8 s) ou « Fin » : raccrocher.
 // Hors appel, un tap lance la conversation.
 let appuiVoiture = 0;
-uiVoiture.bouton.addEventListener('pointerdown', () => { appuiVoiture = Date.now(); });
+uiVoiture.bouton.addEventListener('pointerdown', (e) => {
+  if (modeMaintenir()) { e.preventDefault(); uiVoiture.bouton.setPointerCapture?.(e.pointerId); voiture.premierTap = true; preparerContexteAudio(); debutAppuiParole().then(rafraichirVoiture); rafraichirVoiture(); return; }
+  appuiVoiture = Date.now();
+});
+for (const evt of ['pointerup', 'pointercancel']) uiVoiture.bouton.addEventListener(evt, () => { if (modeMaintenir()) { finAppuiParole(); rafraichirVoiture(); } });
+uiVoiture.bouton.addEventListener('contextmenu', (e) => e.preventDefault());
 uiVoiture.bouton.addEventListener('click', () => {
+  if (modeMaintenir()) return; // géré à l'appui et au relâchement
   const long = appuiVoiture && Date.now() - appuiVoiture >= 800; appuiVoiture = 0;
   if (appel.actif) {
     if (!long && /je parle/i.test(ui.appelEtat.textContent || '')) appel.interrompre();
@@ -1141,7 +1187,7 @@ uiVoiture.bouton.addEventListener('click', () => {
 });
 $('#btn-raccrocher-voiture')?.addEventListener('click', () => arreterEcoute('Raccroché'));
 uiVoiture.ecran.addEventListener('pointerdown', (e) => {
-  if (!voiture.actif || voiture.premierTap || etat.reglages.voitureAutoAppel === false) return;
+  if (!voiture.actif || voiture.premierTap || etat.reglages.voitureAutoAppel === false || modeMaintenir()) return;
   if (e.target.closest('button')) return; // les boutons gèrent leur propre clic
   lancerParoleVoiture();
 });

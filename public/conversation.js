@@ -6,7 +6,7 @@
 // permission (indispensable sur iPhone) ; `recupererFlux()` transfère ce flux à l'appelant, `demarrer(id, { flux })` le rend.
 // Contexte : `contexte()` (chaîne, '' = aucun) est joint aux corps JSON de /api/voice/session et /api/voice/ask ('voiture' en
 // mode voiture) ; `dire(texte)` fait annoncer un texte par la voix en cours (rappel, notification) sans passer par Claude.
-export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false, contexte = () => '', journal = () => {} }) {
+export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, surTexteAssistant, surOutils, surFin, delaiInactivite = () => 0, conserverFlux = () => false, contexte = () => '', journal = () => {}, maintenir = () => false }) {
   let pc = null; let canal = null; let flux = null; let audioEl = null; let conversationId = null;
   let actif = false; let reconnexions = 0; let minuteurDeco = null; let minuteurInactivite = null;
   const enCours = new Set(); const resultatsEnAttente = [];
@@ -16,12 +16,18 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
   // l'utilisateur coupe la parole, ou au plus tard MICRO_SECOURS_MS après la livraison du résultat.
   const MICRO_SECOURS_MS = 45_000;
   let microCoupe = false; let attenteLecture = false; let minuteurMicro = null;
+  // Appui maintenu (`maintenir()`) : la piste n'est active que pendant l'appui (`parleEnCours`).
+  let parleEnCours = false; let debutParole = 0;
+  function appliquerPiste() {
+    const actifMicro = (maintenir() ? parleEnCours : true) && !microCoupe;
+    for (const piste of flux?.getAudioTracks() || []) piste.enabled = actifMicro;
+  }
   function couperMicro(coupe) {
     clearTimeout(minuteurMicro); minuteurMicro = null;
     if (!coupe) attenteLecture = false;
     if (microCoupe === coupe) return;
     microCoupe = coupe;
-    for (const piste of flux?.getAudioTracks() || []) piste.enabled = !coupe;
+    appliquerPiste();
     journal('micro', coupe ? 'coupé pendant la recherche' : 'rouvert');
   }
 
@@ -44,7 +50,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
 
   async function connecter() {
     surEtat(reconnexions ? `Reconnexion (${reconnexions})…` : 'Connexion…');
-    const session = await api('/api/voice/session', { method: 'POST', body: JSON.stringify({ conversationId, contexte: contexte() || undefined }) });
+    const session = await api('/api/voice/session', { method: 'POST', body: JSON.stringify({ conversationId, contexte: contexte() || undefined, parole: maintenir() ? 'maintenir' : undefined }) });
     if (!actif) return; // raccroché pendant la connexion : ne pas ouvrir le micro
     conversationId = session.conversationId;
     if (!flux) {
@@ -55,6 +61,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     if (!audioEl) { audioEl = document.createElement('audio'); audioEl.autoplay = true; audioEl.playsInline = true; document.body.append(audioEl); }
     pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; audioEl.play?.().catch(() => {}); };
+    appliquerPiste(); // appui maintenu : micro muet tant qu'on n'appuie pas
     for (const piste of flux.getTracks()) pc.addTrack(piste, flux);
     const monPc = pc;
     canal = pc.createDataChannel('oai-events');
@@ -143,7 +150,7 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
         break;
       case 'conversation.item.input_audio_transcription.completed': {
         const t = (ev.transcript || '').trim();
-        if (transcriptionValide(t)) { armerInactivite(); surTexteUtilisateur(t); clearTimeout(minuteurTranscription); minuteurTranscription = null; repondreApresSilence(t); }
+        if (transcriptionValide(t)) { armerInactivite(); surTexteUtilisateur(t); clearTimeout(minuteurTranscription); minuteurTranscription = null; if (maintenir()) repondre(); else repondreApresSilence(t); }
         else { journal('bruit-ignore', t.slice(0, 40)); clearTimeout(minuteurTranscription); minuteurTranscription = null; surEtat('Je vous écoute'); if (ev.item_id) envoyer({ type: 'conversation.item.delete', item_id: ev.item_id }); }
         break;
       }
@@ -199,7 +206,9 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     if (!actif) return;
     journal('fin-appel', raison || 'raccroché');
     actif = false;
+    parleEnCours = false;
     couperMicro(false); // le flux est rendu à l'app (micro partagé) : jamais désactivé
+    for (const piste of flux?.getAudioTracks() || []) piste.enabled = true;
     fermerPc();
     if (!conserverFlux()) { flux?.getTracks().forEach((t) => t.stop()); flux = null; }
     // L'élément audio est conservé : « débloqué » par le premier appel (geste), il peut rejouer sans geste sur Safari (veille).
@@ -230,5 +239,27 @@ export function creerConversationVocale({ api, surEtat, surTexteUtilisateur, sur
     return ok;
   }
 
-  return { demarrer, arreter, recupererFlux, interrompre, dire, get actif() { return actif; }, get conversationId() { return conversationId; }, get microCoupe() { return microCoupe; } };
+  // Appui maintenu : début (coupe la parole à l'assistant, vide le tampon, ouvre le micro) et fin (ferme le micro, valide le
+  // tour ; un appui de moins de 0,3 s est ignoré). La réponse part dès la transcription, sans attendre de silence.
+  function commencerParole() {
+    if (!actif) return false;
+    if (attenteLecture || microCoupe) couperMicro(false);
+    envoyer({ type: 'response.cancel' }); envoyer({ type: 'output_audio_buffer.clear' });
+    envoyer({ type: 'input_audio_buffer.clear' });
+    parleEnCours = true; debutParole = Date.now(); appliquerPiste();
+    armerInactivite(); surEtat('Je vous écoute… relâchez pour envoyer');
+    journal('appui', 'début');
+    return true;
+  }
+  function finirParole() {
+    if (!parleEnCours) return false;
+    parleEnCours = false; appliquerPiste();
+    const duree = Date.now() - debutParole;
+    if (duree < 300) { envoyer({ type: 'input_audio_buffer.clear' }); surEtat('Maintenez le bouton pendant que vous parlez'); journal('appui', 'trop court'); return false; }
+    envoyer({ type: 'input_audio_buffer.commit' }); surEtat('Je réfléchis…'); armerInactivite();
+    journal('appui', `fin (${Math.round(duree / 100) / 10} s)`);
+    return true;
+  }
+
+  return { demarrer, arreter, recupererFlux, interrompre, dire, commencerParole, finirParole, get parle() { return parleEnCours; }, get actif() { return actif; }, get conversationId() { return conversationId; }, get microCoupe() { return microCoupe; } };
 }

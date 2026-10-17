@@ -134,7 +134,7 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     if (!conversation) return c.json({ erreur: 'Conversation introuvable' }, 404);
     if (!corps.conversationId) { conversation.titre = 'Conversation vocale'; await store.sauverConversation(conversation); }
     const contexte = contexteValide(corps.contexte); // 'voiture' : instructions Realtime renforcées (phase 19)
-    try { return c.json({ ...(await creerJetonEphemere(fetch, { contexte })), conversationId: conversation.id }); }
+    try { return c.json({ ...(await creerJetonEphemere(fetch, { contexte, maintenir: corps.parole === 'maintenir' })), conversationId: conversation.id }); }
     catch (e) { return c.json({ erreur: e.message }, 502); }
   });
   // Délégation : la voix transmet la demande, Claude répond avec ses outils, l'historique est partagé avec le mode texte.

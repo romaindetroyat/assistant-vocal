@@ -23,7 +23,10 @@ export function modeleClaude(reglages, defaut) { return MODELES[reglages?.modele
 // domicile / bureau : adresses pour les trajets ; partagerPosition : le front joint la position GPS à chaque message.
 // iphoneVoiture : sur iPhone, l'application s'ouvre directement en mode voiture.
 // voitureAutoAppel : en mode voiture, le premier tap sur l'écran lance la conversation (sinon seul le bouton « Parler »).
-const DEFAUTS = { voix: 'marin', concision: 'court', modele: 'auto', mainsLibres: false, motActivation: 'assistant', domicile: '', bureau: '', partagerPosition: false, voitureAutoAppel: true, iphoneVoiture: true };
+// parole : « maintenir » (appui maintenu pour parler, micro ouvert seulement pendant l'appui) ou « mains_libres »
+// (détection automatique de la fin de phrase).
+export const MODES_PAROLE = ['maintenir', 'mains_libres'];
+const DEFAUTS = { parole: 'maintenir', voix: 'marin', concision: 'court', modele: 'auto', mainsLibres: false, motActivation: 'assistant', domicile: '', bureau: '', partagerPosition: false, voitureAutoAppel: true, iphoneVoiture: true };
 const MOT_ACTIVATION_MAX = 40;
 const ADRESSE_MAX = 200;
 
@@ -35,6 +38,7 @@ export async function lireReglages() {
 export async function modifierReglages(modifs) {
   const actuels = await lireReglages();
   if (modifs.voix !== undefined) { if (!VOIX.includes(modifs.voix)) throw new Error(`Voix inconnue : ${modifs.voix}`); actuels.voix = modifs.voix; }
+  if (modifs.parole !== undefined) { if (!MODES_PAROLE.includes(modifs.parole)) throw new Error(`Mode de parole inconnu : ${modifs.parole}`); actuels.parole = modifs.parole; }
   if (modifs.modele !== undefined) { if (!MODELES[modifs.modele]) throw new Error(`Modèle inconnu : ${modifs.modele}`); actuels.modele = modifs.modele; }
   if (modifs.concision !== undefined) { if (!CONCISIONS[modifs.concision]) throw new Error('Niveau de concision inconnu'); actuels.concision = modifs.concision; }
   if (modifs.mainsLibres !== undefined) { if (typeof modifs.mainsLibres !== 'boolean') throw new Error('mainsLibres doit être un booléen'); actuels.mainsLibres = modifs.mainsLibres; }
