@@ -81,3 +81,14 @@ test('consommation : coût par modèle (Haiku 40 fois moins cher qu\'Opus en ent
   const l = await lireUsage(1, jour);
   assert.ok(l.tarifsModeles.haiku);
 });
+
+test('tâches de fond : brief sur Sonnet, extraction sur Haiku, cache court (pas d\'écriture 1 h)', async () => {
+  await ecrireValeur('reglages', { modele: 'opus' });
+  const { tourEphemere } = await import('../server/brief.js');
+  const client = clientSimule([reponseTexte('Brief.'), reponseTexte('[]')]);
+  await tourEphemere({ client, message: 'Prépare le brief.', consigne: 'x' });
+  await tourEphemere({ client, message: 'Liste.', consigne: 'y', modele: 'haiku' });
+  assert.equal(client.requetes[0].model, 'claude-sonnet-5-5', 'le réglage Opus ne s\'applique pas aux tâches de fond');
+  assert.equal(client.requetes[1].model, 'claude-haiku-5-5');
+  assert.equal(client.requetes[0].system[0].cache_control.ttl, undefined, 'cache 5 min');
+});

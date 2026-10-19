@@ -108,7 +108,7 @@ export async function rappelsRendezVous({ client, serveurs = [], nonConnectes = 
   const etat = (await lireValeur(CLE_RDV)) || {};
   if (etat.jour === jour) return 0;
   await ecrireValeur(CLE_RDV, { jour, programmes: {} });
-  const { texte } = await tourEphemere({ client, serveurs, nonConnectes, id: 'rdv', titre: 'Rendez-vous du jour', message: 'Liste les rendez-vous horodatés du jour.', consigne: CONSIGNE_RDV(agenda.name) });
+  const { texte } = await tourEphemere({ client, serveurs, nonConnectes, id: 'rdv', titre: 'Rendez-vous du jour', message: 'Liste les rendez-vous horodatés du jour.', consigne: CONSIGNE_RDV(agenda.name), modele: 'haiku' });
   const routes = Boolean((await configTrajets().catch(() => ({}))).cle);
   const programmes = {};
   for (const e of extraireEvenements(texte)) {

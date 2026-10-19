@@ -44,7 +44,8 @@ function consigneBrief({ serveurs, comptesGmail, trajets = false }) {
 
 // Tour Claude éphémère (conversation non sauvegardée) avec une consigne : utilisé par le brief et les rappels de départ.
 // Retourne { texte, outils }.
-export async function tourEphemere({ client, serveurs = [], nonConnectes = [], message, consigne, id = 'ephemere', titre = 'Tour éphémère' }) {
+// `modele` : haiku (extraction JSON), sonnet (rédaction avec outils) — les tâches de fond n'ont pas besoin d'Opus.
+export async function tourEphemere({ client, serveurs = [], nonConnectes = [], message, consigne, id = 'ephemere', titre = 'Tour éphémère', modele = 'sonnet' }) {
   if (!client) throw new Error('Client Anthropic absent');
   // Import différé : chat.js → tools.js → brief.js, on évite le cycle à l'évaluation des modules.
   const { executerTour } = await import('./chat.js');
@@ -53,7 +54,7 @@ export async function tourEphemere({ client, serveurs = [], nonConnectes = [], m
   const conversation = { id, titre, messages: [] };
   const outils = [];
   let texte = '';
-  for await (const ev of executerTour({ source: 'brief',  client, conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs, nonConnectes, outilsLocaux, effort: config.effortVoix, consigne })) {
+  for await (const ev of executerTour({ source: 'brief',  client, conversation, contenuUtilisateur: [{ type: 'text', text: message }], serveurs, nonConnectes, outilsLocaux, effort: config.effortVoix, consigne, modeleForce: modele })) {
     if (ev.type === 'tool_use') outils.push(ev.name);
     else if (ev.type === 'done') texte = ev.text;
     else if (ev.type === 'error' && !texte) throw new Error(ev.message);

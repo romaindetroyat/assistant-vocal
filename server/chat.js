@@ -36,14 +36,15 @@ function nettoyerPourHistorique(contenu) {
  *   {type:'done', text} · {type:'error', message} · {type:'compaction', messages} (historique ancien résumé, n messages compactés)
  * `conversation.messages` est enrichi en place (message utilisateur, réponses, résultats d'outils).
  */
-export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null, source = 'chat' }) {
+// `modeleForce` (haiku | sonnet | opus) : modèle imposé par l'appelant (tâches de fond), prioritaire sur le réglage.
+export async function* executerTour({ client, conversation, contenuUtilisateur, serveurs, nonConnectes = [], outilsLocaux = null, effort = config.effort, consigne = null, source = 'chat', modeleForce = null }) {
   if (!outilsLocaux) outilsLocaux = await outilsLocauxDisponibles();
   // Modèle choisi dans l'application (Haiku, Sonnet ou Opus) et longueur des réponses en mode texte.
   const reglages = await lireReglages().catch(() => ({}));
   // Modèle automatique (phase 24) : Haiku ou Opus selon la demande ; Haiku peut escalader vers Opus (outil escalader).
-  const auto = reglages.modele === 'auto' && SOURCES_AUTO.has(source);
+  const auto = !modeleForce && reglages.modele === 'auto' && SOURCES_AUTO.has(source);
   const choix = auto ? choisirModeleAuto(contenuUtilisateur) : null;
-  let modele = auto ? MODELES[choix.cle].id : modeleClaude(reglages, config.model);
+  let modele = modeleForce && MODELES[modeleForce]?.id ? MODELES[modeleForce].id : auto ? MODELES[choix.cle].id : modeleClaude(reglages, config.model);
   const estHaiku = () => /haiku/.test(modele);
   const peutEscalader = () => auto && estHaiku();
   const cleModele = () => Object.keys(MODELES).find((k) => MODELES[k].id === modele) || 'opus';
@@ -70,7 +71,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
     input_schema: { type: 'object', properties: { serveur: { type: 'string', enum: secondaires.map((s) => s.name), description: 'Nom du serveur à activer' } }, required: ['serveur'] },
   }] : [];
   const rappelsActifs = (await listerRappels()).filter((r) => !r.livreLe).length;
-  const system = blocsPromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire, serveursActifs: serveursAttaches().map((s) => s.name) });
+  const system = blocsPromptSysteme(serveurs, { rappelsActifs, pushDisponible: pushDisponible(), nonConnectes, comptesGmail, consignes, memoire, serveursActifs: serveursAttaches().map((s) => s.name), cacheCourt: Boolean(modeleForce) });
   // Recherche d'outils en tête (jamais différée) : les outils différés sont chargés à la demande.
   const construireOutils = () => {
     const { mcp_servers, tools: toolsMcp } = parametresMcp(serveursAttaches());

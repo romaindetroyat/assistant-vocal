@@ -2,6 +2,7 @@
 // suppression de l'obsolète, profil court. Traitement de fond (hebdomadaire) ou à la demande, journalisé.
 import { enregistrerUsage } from './usage.js';
 import { config } from './config.js';
+import { MODELES } from './reglages.js';
 import { lireValeur, ecrireValeur } from './store.js';
 import { CATEGORIES, lireMemoire, remplacerMemoire } from './memoire.js';
 
@@ -55,14 +56,14 @@ export function validerProposition(proposition) {
 async function demanderAClaude(client, memoire) {
   const entree = memoire.map((m) => ({ categorie: m.categorie, cle: m.cle || '', texte: m.texte, majLe: m.majLe || m.creeLe || '', vu: m.vu || 1 }));
   const reponse = await client.beta.messages.create({
-    model: config.model,
+    model: MODELES.sonnet.id, // tâche de fond : Sonnet suffit (2 × moins cher qu'Opus)
     max_tokens: 4000,
     thinking: { type: 'adaptive' },
     output_config: { effort: 'low' },
     system: PROMPT_SYSTEME,
     messages: [{ role: 'user', content: `Mémoire actuelle (${entree.length} entrées) :\n${JSON.stringify(entree)}` }],
   });
-  await enregistrerUsage(reponse.usage, 'memoire').catch(() => {});
+  await enregistrerUsage(reponse.usage, 'memoire', new Date(), 'sonnet').catch(() => {});
   return (reponse.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
 }
 

@@ -2,6 +2,7 @@
 // fiche structurée validée par l'utilisateur, l'assistant répond depuis les fiches. Les champs sensibles (numéros
 // d'identité, IBAN, codes) sont chiffrés eux aussi et ne sont lus qu'avec une confirmation explicite.
 import { config } from './config.js';
+import { MODELES } from './reglages.js';
 import { lireValeur, ecrireValeur, supprimerValeur } from './store.js';
 import { ecrireBlob, lireBlob, supprimerBlob } from './blobs.js';
 import { chiffrerBlob, dechiffrerBlob, chiffrerTexte, dechiffrerTexte, versBase64 } from './chiffrement.js';
@@ -66,11 +67,12 @@ export async function extraireFiche({ client, base64, type, nom, espace }) {
     : { type: 'image', source: { type: 'base64', media_type: type, data: base64 } };
   try {
     const reponse = await client.beta.messages.create({
-      model: config.model, max_tokens: 4000, thinking: { type: 'adaptive' }, output_config: { effort: 'low' },
+      model: MODELES.sonnet.id, max_tokens: 4000, // extraction : Sonnet suffit (2 × moins cher qu'Opus)
+      thinking: { type: 'adaptive' }, output_config: { effort: 'low' },
       system: CONSIGNE_EXTRACTION,
       messages: [{ role: 'user', content: [bloc, { type: 'text', text: `Extrais la fiche de ce document (fichier « ${nom} »).` }] }],
     });
-    await enregistrerUsage(reponse.usage, 'documents').catch(() => {});
+    await enregistrerUsage(reponse.usage, 'documents', new Date(), 'sonnet').catch(() => {});
     if (reponse.stop_reason === 'refusal') throw new Error('Extraction refusée');
     const texte = (reponse.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     return { fiche: validerFiche(parserJson(texte), { nom, espace }), extraite: true };

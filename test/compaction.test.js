@@ -63,7 +63,7 @@ test('au-dessus du seuil : résumé injecté, derniers messages intacts, resumes
 
   // Requête de résumé : modèle, effort bas, sans outils, pas de budget ni de prefill.
   const req = client.requetes[0];
-  assert.equal(req.model, 'claude-opus-5-5');
+  assert.equal(req.model, 'claude-sonnet-5-5', 'tâche de fond sur Sonnet');
   assert.deepEqual(req.thinking, { type: 'adaptive' });
   assert.deepEqual(req.output_config, { effort: 'low' });
   assert.equal(req.max_tokens, 3000);

@@ -7,7 +7,9 @@ import { blocProfil } from './memoire.js';
 export function blocsPromptSysteme(serveurs, options = {}) {
   return [
     // Cache d'une heure : usage personnel espacé dans la journée (un cache de 5 min serait réécrit à presque chaque demande).
-    { type: 'text', text: promptStable(serveurs, options), cache_control: { type: 'ephemeral', ttl: '1h' } },
+    // Cache 1 h pour les conversations (relu d'un tour à l'autre) ; 5 min pour les tâches de fond ponctuelles (brief,
+    // rappels, résumé) : une écriture 1 h coûte 2 × l'entrée, 5 min 1,25 ×.
+    { type: 'text', text: promptStable(serveurs, options), cache_control: options.cacheCourt ? { type: 'ephemeral' } : { type: 'ephemeral', ttl: '1h' } },
     { type: 'text', text: promptVolatil(options) },
   ];
 }

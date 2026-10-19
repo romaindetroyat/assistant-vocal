@@ -38,7 +38,7 @@ export async function programmerDeparts({ client = null, serveurs = [], nonConne
   const programmes = etat.jour === jour && etat.programmes ? etat.programmes : {};
   await ecrireValeur(CLE_DEPARTS, { jour, fait: true, programmes });
 
-  const { texte } = await tourEphemere({ client, serveurs, nonConnectes, id: 'departs', titre: 'Départs du jour', message: "Liste les rendez-vous du jour avec adresse.", consigne: CONSIGNE_DEPARTS(agenda.name) });
+  const { texte } = await tourEphemere({ client, serveurs, nonConnectes, id: 'departs', titre: 'Départs du jour', message: "Liste les rendez-vous du jour avec adresse.", consigne: CONSIGNE_DEPARTS(agenda.name), modele: 'haiku' });
   let crees = 0;
   for (const rdv of extraireRendezVous(texte)) {
     if (programmes[rdv.id]) continue;
