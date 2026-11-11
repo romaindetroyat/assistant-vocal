@@ -32,6 +32,25 @@ export function choisirModeleAuto(contenu) {
   return { cle: 'haiku', raison: 'question simple' };
 }
 
+// Serveurs MCP à attacher d'emblée pour une demande (phase latence) : chaque serveur attaché coûte ~3 s à chaque appel
+// au modèle, même s'il ne sert pas. On n'attache que ceux que la demande évoque ; les autres restent activables par
+// l'outil activer_serveur (une étape de plus, seulement quand c'est utile).
+const INDICES_SERVEURS = [
+  [/agenda|calendar|calendrier/i, /\b(agenda|rendez-vous|rdv|r[ée]union|meeting|planning|dispo|disponibilit[ée]s?|cr[ée]neaux?|calendrier|invitations?|programme|ma journ[ée]e|ai-je|j'ai quoi|qu.est-ce que j.ai|suis-je libre|libre (demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|cette)|d[ée]cale|annule|reporte|organise une|fixe un)\b/i],
+  [/ovalie|rugby/i, /\b(rugby|top 14|pro d2|six nations|xv de france|rct|toulon|champions cup|challenge cup|essais?|m[êe]l[ée]e)\b/i],
+  [/granola/i, /\b(granola|compte[- ]rendu|notes de r[ée]union|r[ée]union d.hier|transcription)\b/i],
+  [/matrix|element/i, /\b(element|matrix|take ?off|kevin|arnaud|gwena[ëe]l|messagerie d.[ée]quipe)\b/i],
+  [/dictaphone/i, /\b(dictaphone|enregistrements?|m[ée]mos? vocaux|dict[ée])\b/i],
+];
+export function serveursPourDemande(serveurs, contenu) {
+  const texte = texteDe(contenu);
+  return serveurs.filter((s) => {
+    const identite = `${s.name} ${s.description || ''}`;
+    if (new RegExp(`\\b${s.name.replace(/[^a-z0-9]/gi, '')}\\b`, 'i').test(texte)) return true; // serveur nommé
+    return INDICES_SERVEURS.some(([cible, indice]) => cible.test(identite) && indice.test(texte));
+  }).map((s) => s.name);
+}
+
 export const OUTIL_ESCALADER = {
   name: 'escalader',
   description: "Passe la demande à un modèle plus puissant. Appelle-le immédiatement, sans rien écrire avant, si la demande dépasse une question simple : rédaction ou envoi d'un message, analyse, comparaison, conseil, décision délicate, plusieurs étapes, ou si tu n'es pas sûr de bien faire. Ne l'appelle pas pour l'heure, la météo, l'agenda, les rappels, les courses, les tâches, un trajet ou une adresse.",

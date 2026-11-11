@@ -1,6 +1,6 @@
 // Un tour de conversation : appel Claude en streaming, outils MCP (côté Anthropic) + outils locaux (ici).
 import { config } from './config.js';
-import { parametresMcp, SERVEURS_PRIORITAIRES } from './mcp.js';
+import { parametresMcp } from './mcp.js';
 import { blocsPromptSysteme } from './prompt.js';
 import { definitionsOutilsLocaux, nomsOutilsLocaux, executerOutilLocal, outilsLocauxDisponibles } from './tools.js';
 import { listerComptes } from './google.js';
@@ -11,7 +11,7 @@ import { listerRappels } from './store.js';
 import { enregistrerUsage } from './usage.js';
 import { compacterSiNecessaire } from './compaction.js';
 import { lireReglages, modeleClaude, consigneConcision, MODELES } from './reglages.js';
-import { choisirModeleAuto, SOURCES_AUTO, OUTIL_ESCALADER } from './routage.js';
+import { choisirModeleAuto, SOURCES_AUTO, OUTIL_ESCALADER, serveursPourDemande } from './routage.js';
 
 const BETAS = ['mcp-client-2025-11-20', 'server-side-fallback-2026-07-01'];
 const MAX_ITERATIONS = 12;
@@ -58,13 +58,14 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   if (compactee) yield { type: 'compaction', messages: conversation.resumes.at(-1).messagesCompactes };
   conversation.messages.push({ role: 'user', content: contenuUtilisateur });
 
-  // Latence : chaque serveur MCP attaché coûte une connexion côté API (plusieurs secondes pour sept serveurs).
-  // Seuls les serveurs prioritaires (agenda, courrier) sont attachés d'emblée ; les autres le sont à la demande via
-  // l'outil activer_serveur, et restent actifs pour toute la conversation (`conversation.serveursActifs`).
-  const estPrioritaire = (s) => SERVEURS_PRIORITAIRES.test(`${s.name} ${s.description || ''}`);
-  conversation.serveursActifs = Array.isArray(conversation.serveursActifs) ? conversation.serveursActifs : [];
-  const serveursAttaches = () => serveurs.filter((s) => estPrioritaire(s) || conversation.serveursActifs.includes(s.name));
-  const secondaires = serveurs.filter((s) => !estPrioritaire(s));
+  // Latence : chaque serveur MCP attaché coûte une connexion côté API (≈ 3 s à chaque appel au modèle, ≈ 11 s pour tous).
+  // Aucun serveur n'est attaché par défaut ; l'outil activer_serveur attache les autres au besoin, pour ce tour.
+  // Attachés pour CE tour seulement : ceux que la demande évoque (routage.js), plus ceux activés pendant le tour.
+  // Les tâches de fond (brief, rendez-vous…) attachent l'agenda d'office : leur consigne le demande toujours.
+  const actifs = new Set(modeleForce ? serveurs.filter((s) => /agenda|calendar|calendrier/i.test(`${s.name} ${s.description || ''}`)).map((s) => s.name) : serveursPourDemande(serveurs, contenuUtilisateur));
+  delete conversation.serveursActifs; // ancien comportement (activation conservée pour toute la conversation)
+  const serveursAttaches = () => serveurs.filter((s) => actifs.has(s.name));
+  const secondaires = serveurs;
   const outilActiver = secondaires.length ? [{
     name: 'activer_serveur',
     description: `Active un serveur MCP secondaire pour cette conversation (ses outils deviennent appelables au tour suivant). Serveurs disponibles : ${secondaires.map((s) => `${s.name} (${s.description || 'sans description'})`).join(' ; ')}.`,
@@ -146,7 +147,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
         if (appel.name === 'activer_serveur') {
           const nom = String(appel.input?.serveur || '');
           const existe = secondaires.some((s) => s.name === nom);
-          if (existe && !conversation.serveursActifs.includes(nom)) conversation.serveursActifs.push(nom);
+          if (existe) actifs.add(nom);
           ({ mcp_servers, tools } = construireOutils());
           const texte = existe ? `Serveur ${nom} activé : ses outils sont disponibles dès maintenant (cherche-les avec tool_search_tool_bm25 si besoin), appelle-les.` : `Serveur inconnu : ${nom}`;
           resultats.push({ type: 'tool_result', tool_use_id: appel.id, is_error: !existe, content: texte });

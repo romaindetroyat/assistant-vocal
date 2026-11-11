@@ -13,9 +13,11 @@ export function blocsPromptSysteme(serveurs, options = {}) {
     { type: 'text', text: promptVolatil(options) },
   ];
 }
-export function promptVolatil({ rappelsActifs = 0 } = {}) {
+export function promptVolatil({ rappelsActifs = 0, serveursActifs = null } = {}) {
   const maintenant = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'full', timeStyle: 'short' });
-  return `Nous sommes le ${maintenant} (heure de Paris). Toutes les heures sont en Europe/Paris.${rappelsActifs ? ` ${rappelsActifs} rappel(s) en attente.` : ''}`;
+  // Serveurs attachés : dans le bloc volatil, pour que le bloc stable (et son cache) ne change pas d'une demande à l'autre.
+  const attaches = serveursActifs === null ? '' : ` Serveurs MCP attachés pour cette demande : ${serveursActifs.length ? serveursActifs.join(', ') : 'aucun'}.`;
+  return `Nous sommes le ${maintenant} (heure de Paris). Toutes les heures sont en Europe/Paris.${rappelsActifs ? ` ${rappelsActifs} rappel(s) en attente.` : ''}${attaches}`;
 }
 export function construirePromptSysteme(serveurs, options = {}) {
   return `${promptStable(serveurs, options)}\n\n${promptVolatil(options)}`;
@@ -23,8 +25,7 @@ export function construirePromptSysteme(serveurs, options = {}) {
 function promptStable(serveurs, { pushDisponible = false, nonConnectes = [], comptesGmail = [], consignes = [], memoire = [], serveursActifs = null } = {}) {
   const prenom = config.userName ? ` Ton utilisateur s'appelle ${config.userName}.` : '';
 
-  const attache = (s) => serveursActifs === null || serveursActifs.includes(s.name);
-  const lignes = serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}${attache(s) ? '' : ' — À ACTIVER d\'abord avec activer_serveur'}`);
+  const lignes = serveurs.map((s) => `- ${s.name} : ${s.description || '(pas de description)'}`);
   for (const s of nonConnectes) lignes.push(`- ${s.name} : NON CONNECTÉ (${s.description || ''}) — si l'utilisateur en a besoin, dis-lui de le connecter dans le menu ☰ de l'application.`);
   const carte = lignes.length ? lignes.join('\n') : '- (aucun serveur MCP configuré : dis-le si on te demande une action qui en nécessiterait un)';
 
@@ -35,7 +36,7 @@ Tu es joint depuis un téléphone ou un ordinateur, le plus souvent à la voix.
 
 Serveurs MCP connectés (chaque outil porte le nom de son serveur) :
 ${carte}
-Les serveurs marqués « À ACTIVER » ne sont pas encore attachés : appelle activer_serveur (nom du serveur) dès que la demande les concerne, puis, au tour suivant, cherche l'outil avec tool_search_tool_bm25 (requête courte, ex. « meetings », « deployments ») et appelle-le. Activation et recherche se font sans en parler à l'utilisateur.
+Seuls les serveurs indiqués comme attachés à la fin de ce prompt sont utilisables directement (chaque serveur attaché ralentit la réponse). Si la demande concerne un autre serveur, appelle activer_serveur (nom du serveur), puis, au tour suivant, cherche l'outil avec tool_search_tool_bm25 (requête courte, ex. « meetings », « deployments ») et appelle-le. Activation et recherche se font sans en parler à l'utilisateur.
 
 Outils locaux :
 - notify_me : notification push immédiate sur les appareils de l'utilisateur
