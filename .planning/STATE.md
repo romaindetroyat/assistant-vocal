@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v5 « Plus malin » : phases 24 (modèle automatique) et 25 (assistant proactif) livrées — 2026-10-11
-- Last action: tâche rapide « latence : serveurs MCP attachés seulement si la demande les évoque », cache SW v46 — 2026-11-11
+- Last action: tâche rapide « retrait du compte Gmail romain@takeoff.do » (issue #4), purge automatique au déploiement — 2026-11-18
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 117 (`npm test`)
+- Tests : 118 (`npm test`)
 
 ## Decisions Log
 
@@ -30,6 +30,7 @@
 | 2026-10-11 | Coffre chiffré côté serveur (AES-GCM) avec fiches extraites par Claude, KV en attendant R2 | Sécurité sans tiers ; usage vocal conservé |
 | 2026-10-11 | Mode voiture sans veille forcée, tap = couper la parole | Le tap raccrochait ; la veille transcrivait le bruit de la route |
 | 2026-10-11 | Interface « Ardoise » ; modèle et longueur choisis par curseurs ; micro unique (toucher = dictée, maintenir = conversation) | Choix de Romain parmi trois maquettes ; moins de boutons |
+| 2026-11-18 | Compte Gmail romain@takeoff.do retiré par liste dans le code (purge + révocation à la première lecture) | Pas d'écriture manuelle sur la production ; le compte ne peut pas revenir par erreur |
 | 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
 ## Blockers
@@ -38,6 +39,7 @@
 
 ## Next
 
+- Romain : après déploiement, vérifier dans « Mes outils » que romain@takeoff.do a disparu (gmail.com, altapyx.com et meridia.tl conservés)
 - Romain : toucher « Auto » dans le dock (son réglage enregistré est « opus ») ; vérifier les premières notifications proactives et la section Assistant proactif
 - Lecture seule après usage : `/api/usage` (part Haiku/Opus) et `/api/proactif/etat`
 
