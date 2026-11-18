@@ -180,8 +180,11 @@ test('outil meteo : sans lieu → position courante, sinon domicile géocodé, s
   assert.equal(await executerOutilMeteo({ quand: 'la semaine prochaine' }, f, MAINTENANT), 'Météo indisponible : Période inconnue : « la semaine prochaine ». Utilise aujourdhui, demain, semaine ou une date AAAA-MM-JJ.');
   assert.equal(await executerOutilMeteo({ lieu: 'Nulle part' }, f, MAINTENANT), 'Météo indisponible : Lieu introuvable : Nulle part');
   assert.match(await executerOutilMeteo({ quand: '2026-10-01' }, f, MAINTENANT), /^Météo indisponible : La date 2026-10-01 est passée/);
-  // Branchement dans executerOutilLocal (fetch réel non appelé : cache des prévisions à la position courante).
-  assert.match(await executerOutilLocal('meteo', { lieu: '', quand: 'aujourdhui' }), /à votre position :/);
+  // Branchement dans executerOutilLocal : aucun appel réseau réel (fetch global remplacé), message d'erreur lisible.
+  const fetchReel = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('réseau coupé (test)'); };
+  try { assert.match(await executerOutilLocal('meteo', { lieu: 'Lyon', quand: 'aujourdhui' }), /^Météo indisponible : réseau coupé \(test\)/); }
+  finally { globalThis.fetch = fetchReel; }
   definirPositionCourante(null);
 });
 
