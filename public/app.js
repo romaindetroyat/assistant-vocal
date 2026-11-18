@@ -947,13 +947,54 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- Tiroir ----------
-function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; }
+function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; chargerComptesGmail().catch(() => {}); }
 function fermerTiroir() { ui.tiroir.hidden = true; ui.voile.hidden = true; }
 $('#btn-historique').addEventListener('click', ouvrirTiroir);
 $('#btn-nouvelle-panneau').addEventListener('click', async () => { await ouvrirConversation(null); ui.saisie.focus(); });
 $('#btn-fermer-tiroir').addEventListener('click', fermerTiroir);
 ui.voile.addEventListener('click', fermerTiroir);
 $('#btn-nouvelle').addEventListener('click', async () => { await ouvrirConversation(null); fermerTiroir(); ui.saisie.focus(); });
+
+// ---------- Comptes Gmail (tiroir) : liste, ajout par OAuth Google, retrait ----------
+const uiGmail = { liste: $('#gmail-comptes'), ajouter: $('#btn-gmail-ajouter'), etat: $('#gmail-etat') };
+const gmail = { configure: true };
+function etatGmail(texte, erreur = false) { uiGmail.etat.textContent = texte || ''; uiGmail.etat.hidden = !texte; uiGmail.etat.classList.toggle('erreur', erreur); }
+async function chargerComptesGmail() {
+  const g = await api('/api/google');
+  gmail.configure = g.configure;
+  uiGmail.liste.innerHTML = '';
+  if (!g.comptes.length) { const li = document.createElement('li'); li.className = 'discret'; li.textContent = 'Aucun compte connecté'; uiGmail.liste.append(li); }
+  for (const c of g.comptes) {
+    const li = document.createElement('li');
+    const nom = document.createElement('span'); nom.textContent = c.email; nom.title = c.email;
+    const alias = document.createElement('small'); alias.textContent = c.alias;
+    const x = document.createElement('button'); x.className = 'suppr'; x.type = 'button'; x.textContent = '✕'; x.title = `Retirer ${c.email}`; x.setAttribute('aria-label', `Retirer ${c.email}`);
+    x.onclick = async () => {
+      if (!confirm(`Retirer ${c.email} ? L'assistant n'aura plus accès à cette boîte (accès révoqué chez Google).`)) return;
+      try { await api(`/api/google/comptes/${encodeURIComponent(c.email)}`, { method: 'DELETE' }); etatGmail(`${c.email} retiré`); chargerComptesGmail(); }
+      catch (e) { etatGmail(`Erreur : ${e.message}`, true); }
+    };
+    li.append(nom, alias, x); uiGmail.liste.append(li);
+  }
+  uiGmail.ajouter.textContent = g.configure ? 'Ajouter un compte Gmail' : 'Configurer Gmail (Réglages)';
+}
+uiGmail.ajouter.addEventListener('click', async () => {
+  if (!gmail.configure) { location.href = '/outils'; return; }
+  try { etatGmail('Ouverture de Google…'); const { url } = await api('/api/google/connect', { method: 'POST', body: JSON.stringify({ retour: 'app' }) }); location.href = url; }
+  catch (e) { etatGmail(`Erreur : ${e.message}`, true); }
+});
+// Retour du consentement Google (/app?google=… ou /app?google_erreur=…) : tiroir ouvert avec le résultat.
+(function retourGoogle() {
+  const p = new URLSearchParams(location.search);
+  const email = p.get('google'); const erreur = p.get('google_erreur');
+  if (!email && !erreur) return;
+  const deja = p.get('deja') === '1';
+  ['google', 'google_erreur', 'deja'].forEach((k) => p.delete(k));
+  history.replaceState(null, '', location.pathname + (p.toString() ? `?${p}` : ''));
+  if (email) etatGmail(deja ? `${email} était déjà connecté : autorisation renouvelée ✓` : `${email} connecté ✓`);
+  else etatGmail(erreur, true);
+  ouvrirTiroir();
+})();
 
 // ---------- Raccourcis clavier ----------
 // Hors champ de saisie : Espace maintenue = parler (dictée à l'appui, envoi au relâchement ; vocal enregistré si la
