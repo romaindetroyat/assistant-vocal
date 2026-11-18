@@ -74,6 +74,9 @@ test en production. Bilan : 105 tests, cache SW v39, extension 1.1.0.
 | 24 — Modèle automatique | Complete | Haiku pour les questions simples, Opus pour les vraies tâches, escalade automatique, coût par modèle |
 | 25 — Assistant proactif | Complete | Mails urgents, rappel avant rendez-vous, résumé du soir, heures de silence |
 
+Tâches rapides de la v5 : latence (serveurs MCP attachés à la demande, 2026-11-11) ; ajout d'un compte Gmail depuis le
+menu avec alias et messages Google Workspace (issue #3, 2026-11-18).
+
 ## Progress
 
 25 phases livrées sur 25 (v1 à v4 livrés, v5 « Plus malin » livrée en attente de retours d'usage). Vérifications réelles sur iPhone à faire par Romain (raccourcis, partage, mode voiture). Backlog : INT-06 Element/Matrix.

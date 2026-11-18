@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v5 « Plus malin » : phases 24 (modèle automatique) et 25 (assistant proactif) livrées — 2026-10-11
-- Last action: tâche rapide « latence : serveurs MCP attachés seulement si la demande les évoque », cache SW v46 — 2026-11-11
+- Last action: tâche rapide « ajout d'un compte Gmail depuis le menu (romain@meridia.tl, alias meridia) », cache SW v47 — 2026-11-18 (issue #3)
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 117 (`npm test`)
+- Tests : 119 (`npm test`) ; test météo « position courante » intermittent, à stabiliser
 
 ## Decisions Log
 
@@ -30,6 +30,7 @@
 | 2026-10-11 | Coffre chiffré côté serveur (AES-GCM) avec fiches extraites par Claude, KV en attendant R2 | Sécurité sans tiers ; usage vocal conservé |
 | 2026-10-11 | Mode voiture sans veille forcée, tap = couper la parole | Le tap raccrochait ; la veille transcrivait le bruit de la route |
 | 2026-10-11 | Interface « Ardoise » ; modèle et longueur choisis par curseurs ; micro unique (toucher = dictée, maintenir = conversation) | Choix de Romain parmi trois maquettes ; moins de boutons |
+| 2026-11-18 | Comptes Gmail gérés depuis le tiroir de l'app ; mot-clé = premier libellé du domaine | Ajout de romain@meridia.tl sans passer par Réglages ; « meridia » naturel à la voix |
 | 2026-10-10 | Compaction par seuil de caractères (120 k), 6 derniers messages intacts | Simple, sans compteur de tokens |
 
 ## Blockers
@@ -37,6 +38,8 @@
 - Aucun. Point d'attention : Agenda Hub exige un retour par collage (adresse du Worker non autorisée).
 
 ## Next
+
+- Romain : menu « Historique » → « Ajouter un compte Gmail » → romain@meridia.tl ; si Google bloque, autoriser l'ID client dans admin.google.com (Sécurité → Contrôle des API) et, si l'app OAuth est en mode Test, ajouter l'adresse aux utilisateurs test
 
 - Romain : toucher « Auto » dans le dock (son réglage enregistré est « opus ») ; vérifier les premières notifications proactives et la section Assistant proactif
 - Lecture seule après usage : `/api/usage` (part Haiku/Opus) et `/api/proactif/etat`
