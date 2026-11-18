@@ -17,7 +17,7 @@ function clientFiche(fiche, requetes = []) {
     return { stop_reason: 'end_turn', usage: { input_tokens: 1500, output_tokens: 200 }, content: [{ type: 'text', text: typeof fiche === 'string' ? fiche : `\`\`\`json\n${JSON.stringify(fiche)}\n\`\`\`` }] };
   } } } };
 }
-const FICHE_PERMIS = { titre: 'Permis de conduire de Romain', type: 'identite', espace: 'perso', personne: 'Romain de Troyat', organisme: 'Préfecture du Var', dateDocument: '2015-03-02', dateExpiration: '2030-03-02', champs: [{ nom: 'Numéro de permis', valeur: '123456789', sensible: true }, { nom: 'Catégories', valeur: 'B', sensible: false }], resume: 'Permis B.', motsCles: ['permis', 'conduire'] };
+const FICHE_PERMIS = { titre: 'Permis de conduire de Romain', type: 'identite', espace: 'perso', personne: 'Romain Détroyat', organisme: 'Préfecture du Var', dateDocument: '2015-03-02', dateExpiration: '2030-03-02', champs: [{ nom: 'Numéro de permis', valeur: '123456789', sensible: true }, { nom: 'Catégories', valeur: 'B', sensible: false }], resume: 'Permis B.', motsCles: ['permis', 'conduire'] };
 
 test('coffre : ajout chiffré, fiche extraite, champs sensibles masqués puis révélés, recherche, outils', async () => {
   const requetes = [];
