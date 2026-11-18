@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { parametresMcp } from './mcp.js';
 import { blocsPromptSysteme } from './prompt.js';
 import { definitionsOutilsLocaux, nomsOutilsLocaux, executerOutilLocal, outilsLocauxDisponibles } from './tools.js';
-import { listerComptes } from './google.js';
+import { listerComptes, aliasCompte } from './google.js';
 import { lireConsignes } from './consignes.js';
 import { lireMemoire } from './memoire.js';
 import { pushDisponible } from './push.js';
@@ -50,7 +50,7 @@ export async function* executerTour({ client, conversation, contenuUtilisateur, 
   const cleModele = () => Object.keys(MODELES).find((k) => MODELES[k].id === modele) || 'opus';
   yield { type: 'modele', cle: cleModele(), nom: MODELES[cleModele()]?.nom || modele, auto, raison: choix?.raison || '' };
   if (source === 'chat') consigne = [consigne, `Longueur de la réponse : ${consigneConcision(reglages.concision)}`].filter(Boolean).join('\n');
-  const comptesGmail = (await listerComptes().catch(() => [])).map((c) => c.email);
+  const comptesGmail = (await listerComptes().catch(() => [])).map((c) => `${c.email} « ${aliasCompte(c.email)} »`);
   const consignes = await lireConsignes().catch(() => []);
   const memoire = await lireMemoire().catch(() => []);
   // Longue conversation : les messages anciens sont résumés avant d'ajouter le nouveau tour.

@@ -1,5 +1,5 @@
 // Outils Gmail (API Gmail directe) : chercher, lire, répondre, envoyer, brouillons.
-import { jetonAcces, resoudreCompte, listerComptes, signaturePour, definirSignature, lireSignatures } from './google.js';
+import { jetonAcces, resoudreCompte, listerComptes, signaturePour, definirSignature, lireSignatures, aliasCompte } from './google.js';
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const texte = (s, max) => (typeof s === 'string' ? s.trim().slice(0, max) : '');
@@ -7,7 +7,7 @@ const texte = (s, max) => (typeof s === 'string' ? s.trim().slice(0, max) : '');
 export const definitionsOutilsGmail = [
   { name: 'gmail_comptes', description: 'Liste les comptes Gmail connectés (adresses).', strict: true, input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
   { name: 'gmail_rechercher', description: "Recherche des e-mails (syntaxe de recherche Gmail : from:, to:, subject:, newer_than:2d, is:unread, has:attachment, label:…). Renvoie pour chaque message : id, date, expéditeur, objet, extrait.", strict: true,
-    input_schema: { type: 'object', properties: { compte: { type: 'string', description: "Adresse ou mot-clé du compte (ex. perso, altapyx). Vide si un seul compte." }, requete: { type: 'string', description: 'Requête Gmail, ex. "from:kevin newer_than:7d"' }, max: { type: 'integer', description: 'Nombre maximum de résultats (défaut 10, max 25)' } }, required: ['compte', 'requete', 'max'], additionalProperties: false } },
+    input_schema: { type: 'object', properties: { compte: { type: 'string', description: "Adresse ou mot-clé du compte (nom de domaine : gmail, altapyx, takeoff, meridia…). Vide si un seul compte." }, requete: { type: 'string', description: 'Requête Gmail, ex. "from:kevin newer_than:7d"' }, max: { type: 'integer', description: 'Nombre maximum de résultats (défaut 10, max 25)' } }, required: ['compte', 'requete', 'max'], additionalProperties: false } },
   { name: 'gmail_lire', description: "Lit un e-mail complet (en-têtes et texte) à partir de son id.", strict: true,
     input_schema: { type: 'object', properties: { compte: { type: 'string', description: 'Adresse ou mot-clé du compte' }, id: { type: 'string', description: 'Identifiant du message (de gmail_rechercher)' } }, required: ['compte', 'id'], additionalProperties: false } },
   { name: 'gmail_envoyer', description: "Envoie un nouvel e-mail. À utiliser seulement quand destinataire, objet et contenu sont clairs.", strict: true,
@@ -27,7 +27,12 @@ async function gmail(email, chemin, { method = 'GET', body, query } = {}, fetchI
   for (const [k, v] of Object.entries(query || {})) if (v !== undefined && v !== '') u.searchParams.set(k, v);
   const r = await fetchImpl(u, { method, headers: { Authorization: `Bearer ${jeton}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const json = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(json.error?.message || `Gmail : HTTP ${r.status}`);
+  if (!r.ok) {
+    const message = json.error?.message || `Gmail : HTTP ${r.status}`;
+    // 403 sur un compte Google Workspace : le plus souvent l'administrateur n'a pas autorisé l'application ou l'API Gmail.
+    if (r.status === 403) throw new Error(`${message} (accès refusé à ${email} : si c'est un compte Google Workspace, l'administrateur doit autoriser l'ID client de l'assistant et l'API Gmail dans admin.google.com → Sécurité → Contrôle des API)`);
+    throw new Error(message);
+  }
   return json;
 }
 
@@ -70,7 +75,7 @@ export async function executerOutilGmail(nom, e, fetchImpl = fetch) {
       const sig = await definirSignature(email, e.signature);
       return sig ? `Signature enregistrée pour ${email} :\n${sig}` : `Signature effacée pour ${email}.`;
     }
-    case 'gmail_comptes': { const c = await listerComptes(); return c.length ? c.map((x) => x.email).join(', ') : 'Aucun compte Google connecté.'; }
+    case 'gmail_comptes': { const c = await listerComptes(); return c.length ? c.map((x) => `${x.email} (mot-clé « ${aliasCompte(x.email)} »)`).join(', ') : 'Aucun compte Google connecté.'; }
     case 'gmail_rechercher': {
       const email = await resoudreCompte(e.compte);
       const max = Math.min(Math.max(Number(e.max) || 10, 1), 25);
