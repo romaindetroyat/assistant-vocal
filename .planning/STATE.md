@@ -3,9 +3,9 @@
 ## Current Position
 
 - Milestone: v5 « Plus malin » : phases 24 (modèle automatique) et 25 (assistant proactif) livrées — 2026-10-11
-- Last action: tâche rapide « retrait du compte Gmail romain@takeoff.do » (issue #4), purge automatique au déploiement — 2026-11-18
+- Last action: PR #5 fusionnée (retrait takeoff.do), issue #3 traitée (ajout d'un compte Gmail depuis le menu, compte Workspace meridia), test météo sans réseau, cache SW v47 — 2026-11-18
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 118 (`npm test`)
+- Tests : 120 (`npm test`)
 
 ## Decisions Log
 

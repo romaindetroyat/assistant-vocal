@@ -64,7 +64,7 @@
         <label>Secret client <input id="google-client-secret" autocomplete="off" type="password"></label>
         <button id="btn-google-config" class="btn btn-secondaire btn-petit">Enregistrer</button>
       </div>
-      <div class="actions"><button id="btn-google-connecter" class="btn btn-primaire btn-petit">Connecter un compte Google</button><span id="etat-google" class="discret"></span></div>
+      <div class="actions"><button id="btn-google-connecter" class="btn btn-primaire btn-petit">Ajouter un compte Gmail</button><span id="etat-google" class="discret"></span></div>
     </section>
 
     <section class="carte">
@@ -395,6 +395,8 @@
       }
       const nouveau = new URLSearchParams(location.search).get('google');
       if (nouveau) { history.replaceState(null, '', '/outils'); $('#etat-google').textContent = `${nouveau} connecté ✓`; }
+      const erreur = new URLSearchParams(location.search).get('google_erreur');
+      if (erreur) { history.replaceState(null, '', '/outils'); $('#etat-google').textContent = erreur; }
     }
     $('#btn-google-config').addEventListener('click', async () => {
       try { await api('/api/google/config', { method: 'PUT', body: JSON.stringify({ clientId: $('#google-client-id').value, clientSecret: $('#google-client-secret').value }) }); $('#etat-google').textContent = 'Identifiants enregistrés ✓'; chargerGoogle(); }

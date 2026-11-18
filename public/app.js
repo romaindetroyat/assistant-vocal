@@ -946,8 +946,37 @@ document.addEventListener('visibilitychange', () => {
   else if (veille.suspendue && etat.reglages.mainsLibres) { veille.suspendue = false; demarrerVeille(); }
 });
 
+// ---------- Comptes Gmail (menu Historique) ----------
+// Ajout par le flux OAuth Google existant, avec retour vers l'app ; retrait avec révocation du jeton.
+async function chargerComptesGmail() {
+  const liste = $('#liste-gmail'); if (!liste) return;
+  try {
+    const g = await api('/api/google');
+    liste.innerHTML = '';
+    $('#btn-ajouter-gmail').disabled = !g.configure;
+    if (!g.configure) $('#btn-ajouter-gmail').title = 'Identifiants Google à renseigner d\'abord dans Réglages';
+    if (!g.comptes.length) { const li = document.createElement('li'); li.className = 'discret'; li.textContent = 'Aucun compte connecté'; liste.append(li); }
+    for (const c of g.comptes) {
+      const li = document.createElement('li');
+      const nom = document.createElement('span'); nom.textContent = c.email;
+      const retirer = document.createElement('button'); retirer.type = 'button'; retirer.textContent = 'Retirer';
+      retirer.onclick = async () => { if (!confirm(`Retirer ${c.email} de l'assistant ?`)) return; await api(`/api/google/comptes/${encodeURIComponent(c.email)}`, { method: 'DELETE' }); setEtat(`${c.email} retiré`); chargerComptesGmail(); };
+      li.append(nom, retirer); liste.append(li);
+    }
+  } catch { /* ignoré */ }
+}
+$('#btn-ajouter-gmail')?.addEventListener('click', async () => {
+  try { const { url } = await api('/api/google/connect', { method: 'POST', body: JSON.stringify({ retour: 'app' }) }); location.href = url; }
+  catch (e) { setEtat(`Gmail : ${e.message}`); }
+});
+{
+  const p = new URLSearchParams(location.search);
+  if (p.get('google')) { setTimeout(() => setEtat(`${p.get('google')} connecté ✓ : utilisable par l'assistant`), 600); history.replaceState(null, '', '/app'); }
+  else if (p.get('google_erreur')) { setTimeout(() => setEtat(p.get('google_erreur')), 600); history.replaceState(null, '', '/app'); }
+}
+
 // ---------- Tiroir ----------
-function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; }
+function ouvrirTiroir() { ui.tiroir.hidden = false; ui.voile.hidden = false; chargerComptesGmail(); }
 function fermerTiroir() { ui.tiroir.hidden = true; ui.voile.hidden = true; }
 $('#btn-historique').addEventListener('click', ouvrirTiroir);
 $('#btn-nouvelle-panneau').addEventListener('click', async () => { await ouvrirConversation(null); ui.saisie.focus(); });

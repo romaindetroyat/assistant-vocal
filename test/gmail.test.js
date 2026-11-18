@@ -70,8 +70,9 @@ test('routes Google : état, connexion, callback', async () => {
   assert.equal(g.configure, true); assert.match(g.redirectUri, /\/oauth\/google\/callback$/);
   const { url } = await (await app.request('/api/google/connect', { method: 'POST', headers: { cookie } })).json();
   assert.match(url, /^https:\/\/accounts\.google\.com\//);
+  // Refus Google : retour vers Mes outils avec un message clair (test détaillé dans google-comptes.test.js).
   const r = await app.request('/oauth/google/callback?error=access_denied', { headers: { cookie } });
-  assert.equal(r.status, 400);
+  assert.match(decodeURIComponent(r.headers.get('location')), /^\/outils\?google_erreur=Autorisation refusée/);
 });
 
 test('signatures : définies par compte, ajoutées aux envois, réponses et brouillons, pas en double', async () => {

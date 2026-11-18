@@ -215,7 +215,8 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
   app.post('/api/google/connect', async (c) => {
-    try { return c.json({ url: await google.demarrerConnexionGoogle(new URL('/oauth/google/callback', c.req.url).toString()) }); }
+    const corps = await c.req.json().catch(() => ({}));
+    try { return c.json({ url: await google.demarrerConnexionGoogle(new URL('/oauth/google/callback', c.req.url).toString(), { retour: corps.retour }) }); }
     catch (e) { return c.json({ erreur: e.message }, 400); }
   });
   app.get('/api/google/signatures', async (c) => c.json(await google.lireSignatures()));
@@ -555,9 +556,14 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   app.get('/oauth/google/callback', async (c) => {
     if (!estConnecte(c)) return c.redirect('/login');
     const code = c.req.query('code'); const state = c.req.query('state');
-    if (!code || !state) return c.text(`Connexion Google refusée : ${c.req.query('error') || 'code manquant'}`, 400);
-    try { const email = await google.terminerConnexionGoogle({ code, state }); return c.redirect(`/outils?google=${encodeURIComponent(email)}`); }
-    catch (e) { return c.text(`Connexion Google impossible : ${e.message}`, 400); }
+    const retour = state ? await google.retourConnexion(state) : 'outils';
+    const page = retour === 'app' ? '/app' : '/outils';
+    if (!code || !state) {
+      const { clientId } = await google.configGoogle();
+      return c.redirect(`${page}?google_erreur=${encodeURIComponent(google.messageErreurGoogle(c.req.query('error') || 'code manquant', clientId))}`);
+    }
+    try { const email = await google.terminerConnexionGoogle({ code, state }); return c.redirect(`${page}?google=${encodeURIComponent(email)}`); }
+    catch (e) { return c.redirect(`${page}?google_erreur=${encodeURIComponent(`Connexion Google impossible : ${e.message}`)}`); }
   });
 
   // Fichiers statiques (PWA)

@@ -53,11 +53,12 @@ export async function listerComptes(fetchImpl = fetch) {
   return tous.filter((c) => !COMPTES_RETIRES.includes(c.email));
 }
 
-export async function demarrerConnexionGoogle(redirectUri) {
+// `retour` : page où revenir après l'autorisation (« app » : le menu de l'application, sinon Mes outils).
+export async function demarrerConnexionGoogle(redirectUri, { retour = 'outils' } = {}) {
   const { clientId } = await configGoogle();
   if (!clientId) throw new Error('Identifiant client Google non configuré');
   const state = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
-  await ecrireValeur(`google-attente:${state}`, { redirectUri, creeLe: Date.now() });
+  await ecrireValeur(`google-attente:${state}`, { redirectUri, creeLe: Date.now(), retour: retour === 'app' ? 'app' : 'outils' });
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.searchParams.set('client_id', clientId);
   u.searchParams.set('redirect_uri', redirectUri);
@@ -85,11 +86,24 @@ export async function terminerConnexionGoogle({ code, state }, fetchImpl = fetch
   const email = (infos.email || '').toLowerCase();
   if (!email) throw new Error("Impossible d'identifier le compte Google");
   if (COMPTES_RETIRES.includes(email)) throw new Error(`Le compte ${email} a été retiré de l'assistant et ne peut plus être connecté`);
-  const comptes = (await listerComptes()).filter((c) => c.email !== email);
-  const existant = (await listerComptes()).find((c) => c.email === email);
-  comptes.push({ email, refresh_token: jetons.refresh_token || existant?.refresh_token || null, access_token: jetons.access_token, expires_at: Date.now() + (jetons.expires_in || 3600) * 1000, ajouteLe: new Date().toISOString() });
-  await sauverComptes(comptes);
+  // Compte déjà connecté : jeton rafraîchi à la même place (pas de doublon, ordre conservé) ; sinon ajouté à la fin.
+  const comptes = await listerComptes();
+  const existant = comptes.find((c) => c.email === email);
+  const compte = { email, refresh_token: jetons.refresh_token || existant?.refresh_token || null, access_token: jetons.access_token, expires_at: Date.now() + (jetons.expires_in || 3600) * 1000, ajouteLe: existant?.ajouteLe || new Date().toISOString() };
+  await sauverComptes(existant ? comptes.map((c) => (c.email === email ? compte : c)) : [...comptes, compte]);
   return email;
+}
+
+// Lit la page de retour enregistrée pour une connexion en cours (avant de la terminer).
+export async function retourConnexion(state) { return (await lireValeur(`google-attente:${state}`))?.retour || 'outils'; }
+
+// Refus de Google renvoyé à l'adresse de retour (?error=…) : message clair, notamment pour un domaine Google Workspace
+// (meridia.tl…) dont l'administrateur doit d'abord autoriser l'application.
+export function messageErreurGoogle(erreur, clientId = '') {
+  const id = clientId ? ` (ID client ${clientId})` : '';
+  if (/admin_policy_enforced|org_internal|disallowed_useragent|unauthorized_client/.test(erreur)) return `Le domaine Google Workspace bloque l'application${id}. Dans la console d'administration (admin.google.com → Sécurité → Accès et contrôle des données → Commandes des API → Gérer l'accès des applications tierces), ajoutez l'application par son ID client et passez-la en « Fiable », puis recommencez.`;
+  if (/access_denied/.test(erreur)) return "Autorisation refusée sur l'écran Google. Si vous n'avez pas refusé vous-même : l'écran de consentement OAuth du projet Google Cloud est peut-être en mode « Test » : ajoutez l'adresse à connecter dans « Utilisateurs test », ou autorisez l'application dans la console d'administration Workspace du domaine.";
+  return `Connexion Google refusée : ${erreur || 'raison inconnue'}`;
 }
 
 export async function retirerCompte(email, fetchImpl = fetch) {
