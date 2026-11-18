@@ -93,3 +93,41 @@ test('signatures : définies par compte, ajoutées aux envois, réponses et brou
   assert.match(await executerOutilGmail('gmail_signature', { compte: 'perso', signature: '' }, f), /effacée/);
   await retirerCompte('romain@perso.fr', f);
 });
+
+test('Gmail : compte romain@takeoff.do retiré (purge, révocation, alias « takeoff » → compte non connecté)', async () => {
+  const { ecrireValeur, lireValeur } = await import('../server/store.js');
+  const { purgerComptesRetires, estCompteRetire } = await import('../server/google.js');
+  const journal = []; const f = googleSimule(journal);
+  const loin = Date.now() + 3_600_000;
+  await ecrireValeur('google-comptes', [
+    { email: 'romaindetroyat@gmail.com', access_token: 'ATg', expires_at: loin },
+    { email: 'romain@takeoff.do', refresh_token: 'RTtakeoff', access_token: 'ATt', expires_at: loin },
+    { email: 'rdetroyat@altapyx.com', access_token: 'ATa', expires_at: loin },
+  ]);
+  await ecrireValeur('gmail-signatures', { 'romain@takeoff.do': 'Romain\nTakeOff', 'rdetroyat@altapyx.com': 'Romain\nAltapyx' });
+  assert.deepEqual(await purgerComptesRetires(f), ['romain@takeoff.do']);
+  assert.ok(journal.some((j) => j.u.includes('/revoke?token=RTtakeoff')), 'jeton révoqué chez Google');
+  assert.deepEqual((await lireValeur('google-comptes')).map((c) => c.email), ['romaindetroyat@gmail.com', 'rdetroyat@altapyx.com'], 'les autres comptes sont intacts');
+  assert.deepEqual(await lireValeur('gmail-signatures'), { 'rdetroyat@altapyx.com': 'Romain\nAltapyx' });
+
+  // Même s'il réapparaît dans le stockage, il n'est jamais listé ni utilisable.
+  await ecrireValeur('google-comptes', [...await lireValeur('google-comptes'), { email: 'romain@takeoff.do', access_token: 'ATt', expires_at: loin }]);
+  assert.deepEqual((await listerComptes(f)).map((c) => c.email), ['romaindetroyat@gmail.com', 'rdetroyat@altapyx.com']);
+  assert.ok(!(await executerOutilGmail('gmail_comptes', {}, f)).includes('takeoff'));
+  await assert.rejects(() => jetonAcces('romain@takeoff.do', f), /inconnu/);
+  for (const compte of ['takeoff', 'TakeOff', 'romain@takeoff.do', 'takeoff.do']) assert.ok(estCompteRetire(compte), compte);
+  for (const compte of ['perso', 'altapyx', 'romain', 'meridia', '']) assert.ok(!estCompteRetire(compte), compte);
+  const appels = journal.length;
+  for (const [nom, e] of [
+    ['gmail_rechercher', { compte: 'takeoff', requete: 'x', max: 5 }],
+    ['gmail_lire', { compte: 'takeoff', id: 'm1' }],
+    ['gmail_brouillon', { compte: 'takeoff', a: 'a@b.fr', objet: 'T', corps: 'c' }],
+    ['gmail_envoyer', { compte: 'romain@takeoff.do', a: 'a@b.fr', cc: '', objet: 'T', corps: 'c' }],
+    ['gmail_repondre', { compte: 'takeoff', id: 'm1', corps: 'c', repondre_a_tous: false }],
+    ['gmail_signature', { compte: 'takeoff', signature: 'x' }],
+  ]) assert.match(await executerOutilGmail(nom, e, f), /Compte non connecté.*rdetroyat@altapyx\.com/, nom);
+  assert.ok(!journal.slice(appels).some((j) => j.u.includes('gmail.googleapis.com')), 'aucun appel Gmail pour un compte retiré');
+  assert.equal(await resoudreCompte('altapyx'), 'rdetroyat@altapyx.com');
+  assert.equal(await resoudreCompte('gmail'), 'romaindetroyat@gmail.com');
+  await ecrireValeur('google-comptes', []); await ecrireValeur('gmail-signatures', {});
+});

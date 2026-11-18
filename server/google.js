@@ -14,8 +14,44 @@ export async function enregistrerConfigGoogle({ clientId, clientSecret }) {
   await ecrireValeur('google-config', { clientId: clientId.trim(), clientSecret: clientSecret.trim() });
 }
 
-export const listerComptes = async () => (await lireValeur('google-comptes')) || [];
+// Comptes retirés définitivement (adresse qui ne sert plus) et mots-clés qui y renvoyaient : jamais listés ni utilisables,
+// purgés du stockage (jeton révoqué chez Google, signature effacée) à la première lecture.
+export const COMPTES_RETIRES = ['romain@takeoff.do'];
+export const ALIAS_RETIRES = ['takeoff', 'takeoff.do', 'take off'];
+export const estCompteRetire = (indice) => {
+  const q = String(indice || '').trim().toLowerCase();
+  if (!q) return false;
+  return COMPTES_RETIRES.includes(q) || ALIAS_RETIRES.includes(q) || q.includes('takeoff');
+};
+
+export class CompteNonConnecte extends Error {}
+
 const sauverComptes = (c) => ecrireValeur('google-comptes', c);
+
+// Retire du stockage les comptes de COMPTES_RETIRES : révocation du jeton (au mieux), signature effacée.
+export async function purgerComptesRetires(fetchImpl = fetch) {
+  const tous = (await lireValeur('google-comptes')) || [];
+  const retires = tous.filter((c) => COMPTES_RETIRES.includes(c.email));
+  if (retires.length) {
+    for (const c of retires) {
+      const jeton = c.refresh_token || c.access_token;
+      if (jeton) { try { await fetchImpl(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(jeton)}`, { method: 'POST' }); } catch { /* ignoré */ } }
+    }
+    await sauverComptes(tous.filter((c) => !COMPTES_RETIRES.includes(c.email)));
+  }
+  const signatures = (await lireValeur('gmail-signatures')) || {};
+  if (COMPTES_RETIRES.some((e) => e in signatures)) {
+    for (const e of COMPTES_RETIRES) delete signatures[e];
+    await ecrireValeur('gmail-signatures', signatures);
+  }
+  return retires.map((c) => c.email);
+}
+
+export async function listerComptes(fetchImpl = fetch) {
+  const tous = (await lireValeur('google-comptes')) || [];
+  if (tous.some((c) => COMPTES_RETIRES.includes(c.email))) { await purgerComptesRetires(fetchImpl).catch(() => {}); }
+  return tous.filter((c) => !COMPTES_RETIRES.includes(c.email));
+}
 
 export async function demarrerConnexionGoogle(redirectUri) {
   const { clientId } = await configGoogle();
@@ -48,6 +84,7 @@ export async function terminerConnexionGoogle({ code, state }, fetchImpl = fetch
   const infos = await (await fetchImpl('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${jetons.access_token}` } })).json().catch(() => ({}));
   const email = (infos.email || '').toLowerCase();
   if (!email) throw new Error("Impossible d'identifier le compte Google");
+  if (COMPTES_RETIRES.includes(email)) throw new Error(`Le compte ${email} a été retiré de l'assistant et ne peut plus être connecté`);
   const comptes = (await listerComptes()).filter((c) => c.email !== email);
   const existant = (await listerComptes()).find((c) => c.email === email);
   comptes.push({ email, refresh_token: jetons.refresh_token || existant?.refresh_token || null, access_token: jetons.access_token, expires_at: Date.now() + (jetons.expires_in || 3600) * 1000, ajouteLe: new Date().toISOString() });
@@ -78,9 +115,10 @@ export async function jetonAcces(email, fetchImpl = fetch) {
 // Résout « compte » (adresse complète, début d'adresse ou mot comme « perso ») vers une adresse connue.
 export async function resoudreCompte(indice) {
   const comptes = await listerComptes();
+  if (estCompteRetire(indice)) throw new CompteNonConnecte(`Compte non connecté : « ${indice} » (romain@takeoff.do) a été retiré de l'assistant.${comptes.length ? ` Comptes disponibles : ${comptes.map((c) => c.email).join(', ')}` : ''}`);
   if (!comptes.length) throw new Error('Aucun compte Google connecté : connectez-en un dans « Mes outils »');
   if (!indice) { if (comptes.length === 1) return comptes[0].email; throw new Error(`Précise le compte parmi : ${comptes.map((c) => c.email).join(', ')}`); }
-  const q = String(indice).toLowerCase();
+  const q = String(indice).trim().toLowerCase();
   const trouve = comptes.find((c) => c.email === q) || comptes.find((c) => c.email.startsWith(q)) || comptes.find((c) => c.email.includes(q));
   if (!trouve) throw new Error(`Compte « ${indice} » introuvable parmi : ${comptes.map((c) => c.email).join(', ')}`);
   return trouve.email;
