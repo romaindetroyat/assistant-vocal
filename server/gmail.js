@@ -1,5 +1,5 @@
 // Outils Gmail (API Gmail directe) : chercher, lire, répondre, envoyer, brouillons.
-import { jetonAcces, resoudreCompte, listerComptes, signaturePour, definirSignature, lireSignatures } from './google.js';
+import { jetonAcces, resoudreCompte, listerComptes, signaturePour, definirSignature, lireSignatures, CompteNonConnecte } from './google.js';
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const texte = (s, max) => (typeof s === 'string' ? s.trim().slice(0, max) : '');
@@ -62,7 +62,12 @@ async function corpsSigne(email, corps) {
   return `${texte}\n\n--\n${sig}`;
 }
 
+// Un compte retiré (ex. « takeoff ») renvoie un message clair à l'assistant plutôt qu'une erreur.
 export async function executerOutilGmail(nom, e, fetchImpl = fetch) {
+  try { return await executer(nom, e, fetchImpl); } catch (err) { if (err instanceof CompteNonConnecte) return err.message; throw err; }
+}
+
+async function executer(nom, e, fetchImpl) {
   switch (nom) {
     case 'gmail_signature': {
       if (!texte(e.signature, 1500) && !e.compte) { const t = await lireSignatures(); const l = Object.entries(t); return l.length ? l.map(([c, s]) => `${c} :\n${s}`).join('\n\n') : 'Aucune signature définie.'; }
