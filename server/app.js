@@ -103,6 +103,13 @@ export function creerApplication({ client, serveurs = [], fichier, version = {} 
   });
   app.delete('/api/conversations/:id', async (c) => { await store.supprimerConversation(c.req.param('id')); return c.json({ ok: true }); });
 
+  // Passerelle mails (MODE=mails) : les routes qui appellent Claude ou OpenAI sont coupées.
+  const ROUTES_COUTEUSES = new Set(['/api/chat', '/api/voice/session', '/api/voice/ask', '/api/raccourci', '/api/partage', '/api/documents', '/api/diag/latence', '/api/transcribe']);
+  app.use('/api/*', async (c, suite) => {
+    if (config.passerelleMails && c.req.method === 'POST' && ROUTES_COUTEUSES.has(c.req.path)) return c.json({ erreur: "Assistant désactivé : il ne sert plus que de passerelle vers les comptes Gmail pour Claude (claude.ai). Utilisez l'app Claude." }, 410);
+    return suite();
+  });
+
   app.post('/api/chat', async (c) => {
     const corps = await c.req.json().catch(() => null);
     if (!corps || !Array.isArray(corps.content) || !corps.content.length) return c.json({ erreur: 'content requis' }, 400);

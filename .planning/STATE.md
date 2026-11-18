@@ -2,10 +2,10 @@
 
 ## Current Position
 
-- Milestone: v5 « Plus malin » : phases 24 (modèle automatique) et 25 (assistant proactif) livrées — 2026-10-11
-- Last action: tâche rapide « sans signatures, nom Détroyat » (PR à valider), cache SW v48 — 2026-11-18
+- Milestone: application réduite à une passerelle Gmail multi-comptes pour Claude (MODE=mails) — 2026-11-18 ; v5 livrée, plus de nouvelle phase prévue
+- Last action: tâche rapide « passerelle mails » (MCP limité à gmail_*, routes coûteuses coupées, cron supprimé) — 2026-11-18
 - Production : https://assistant-vocal.romaindetroyat.workers.dev (déploiement auto sur `main`)
-- Tests : 120 (`npm test`)
+- Tests : 122 (`npm test`)
 
 ## Decisions Log
 

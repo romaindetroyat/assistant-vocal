@@ -6,6 +6,9 @@ export const config = {
   get dataDir() { return env().DATA_DIR || './data'; },
   get password() { return env().ASSISTANT_PASSWORD || ''; },
   get sessionSecret() { return env().SESSION_SECRET || ''; },
+  // MODE=mails : l'application ne sert plus que de passerelle Gmail multi-comptes pour Claude (serveur MCP) ; tout ce qui
+  // consomme des tokens ou des euros (chat, voix, Siri, partage, coffre, tâches automatiques) est coupé.
+  get passerelleMails() { return env().MODE === 'mails'; },
   get model() { return env().CLAUDE_MODEL || 'claude-opus-5-5'; },
   get effort() { return env().CLAUDE_EFFORT || 'medium'; },
   get effortVoix() { return env().CLAUDE_EFFORT_VOICE || 'low'; },

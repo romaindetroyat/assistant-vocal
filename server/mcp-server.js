@@ -4,6 +4,7 @@ import { executerTour } from './chat.js';
 import { resoudreServeurs } from './mcp.js';
 import * as oauth from './oauth-mcp.js';
 import * as store from './store.js';
+import { config } from './config.js';
 
 export const VERSION_PROTOCOLE = '2025-06-18';
 
@@ -13,12 +14,16 @@ const OUTIL_DEMANDER = {
   inputSchema: { type: 'object', properties: { message: { type: 'string', description: 'La demande, en langage naturel' }, conversation_id: { type: 'string', description: "Identifiant d'une conversation existante pour poursuivre (optionnel)" } }, required: ['message'] },
 };
 
+// Passerelle mails : seuls les outils Gmail sont exposés (aucun ne consomme de tokens).
+const estOutilMail = (nom) => /^gmail_/.test(nom);
 export async function listerOutils() {
   const locaux = await outilsLocauxDisponibles();
-  return [...locaux.map((t) => ({ name: t.name, description: t.description, inputSchema: t.input_schema })), OUTIL_DEMANDER];
+  const exposes = config.passerelleMails ? locaux.filter((t) => estOutilMail(t.name)) : locaux;
+  return [...exposes.map((t) => ({ name: t.name, description: t.description, inputSchema: t.input_schema })), ...(config.passerelleMails ? [] : [OUTIL_DEMANDER])];
 }
 
 async function appelerOutil(nom, args, contexte) {
+  if (config.passerelleMails && !estOutilMail(nom)) throw new Error(`Outil indisponible : ${nom} (l'assistant ne sert plus que de passerelle Gmail)`);
   if (nom === 'demander_assistant') {
     const message = String(args?.message || '').trim();
     if (!message) throw new Error('message requis');
@@ -49,7 +54,7 @@ export async function traiterRequeteJsonRpc(msg, contexte) {
   try {
     switch (method) {
       case 'initialize':
-        return reponse(id, { protocolVersion: VERSION_PROTOCOLE, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'assistant-vocal', version: '1.0.0' }, instructions: "Outils de l'assistant personnel de Romain : e-mails (Gmail), notifications et rappels sur ses appareils, et demander_assistant pour déléguer une demande complète." });
+        return reponse(id, { protocolVersion: VERSION_PROTOCOLE, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'assistant-vocal', version: '1.0.0' }, instructions: config.passerelleMails ? "Accès Gmail aux boîtes de Romain (plusieurs comptes) : gmail_comptes liste les adresses ; gmail_rechercher, gmail_lire, gmail_brouillon, gmail_envoyer et gmail_repondre prennent le compte (adresse ou mot-clé comme perso, altapyx, meridia)." : "Outils de l'assistant personnel de Romain : e-mails (Gmail), notifications et rappels sur ses appareils, et demander_assistant pour déléguer une demande complète." });
       case 'notifications/initialized': case 'notifications/cancelled': return null;
       case 'ping': return reponse(id, {});
       case 'tools/list': return reponse(id, { tools: await listerOutils() });
