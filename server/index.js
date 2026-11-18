@@ -48,6 +48,6 @@ if (estPrincipal) {
   console.log(`[push] ${pushDisponible() ? 'activé' : 'désactivé (npm run vapid)'} · [transcription] ${transcriptionDisponible() ? 'activée' : 'désactivée'}`);
   const client = clientAnthropic();
   const app = creerApplicationNode({ client, serveurs });
-  demarrerPlanificateur({ client, serveurs }); // après creerApplicationNode : le backend de stockage doit être prêt
+  if (process.env.MODE !== 'mails') demarrerPlanificateur({ client, serveurs }); // après creerApplicationNode : le backend de stockage doit être prêt
   serve({ fetch: app.fetch, port: config.port }, (info) => console.log(`Assistant prêt sur http://localhost:${info.port}`));
 }

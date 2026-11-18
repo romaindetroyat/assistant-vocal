@@ -7,8 +7,10 @@
   "kv_namespaces": [{ "binding": "DATA", "id": "86626561bfdf4aae803f9d00762e69fe" }],
   // Coffre de documents : décommenter quand R2 est activé et le bucket créé (sinon les fichiers vont dans KV).
   // "r2_buckets": [{ "binding": "DOCS", "bucket_name": "assistant-vocal-documents" }],
-  "triggers": { "crons": ["* * * * *"] },
+  // Passerelle mails : plus de tâches automatiques, donc plus de cron.
+  "triggers": { "crons": [] },
   "vars": {
+    "MODE": "mails",
     "ASSISTANT_NAME": "Assistant",
     "USER_NAME": "Romain",
     "CLAUDE_MODEL": "claude-opus-5-5",

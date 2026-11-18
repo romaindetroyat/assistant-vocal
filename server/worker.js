@@ -56,6 +56,7 @@ export default {
   },
   async scheduled(_event, env, ctx) {
     preparer(env);
+    if (env.MODE === 'mails') return; // passerelle mails : aucune tâche automatique (brief, mails urgents, rappels, mémoire)
     // Brief du matin : le cron passe le client Anthropic et les serveurs MCP (env + ajoutés, jetons OAuth résolus).
     ctx.waitUntil(Promise.all([
       livrerRappelsDus().catch((e) => console.warn('[rappels]', e.message)),
