@@ -15,7 +15,7 @@ export async function enregistrerConfigGoogle({ clientId, clientSecret }) {
 }
 
 // Comptes retirés définitivement (adresse qui ne sert plus) et mots-clés qui y renvoyaient : jamais listés ni utilisables,
-// purgés du stockage (jeton révoqué chez Google, signature effacée) à la première lecture.
+// purgés du stockage (jeton révoqué chez Google) à la première lecture.
 export const COMPTES_RETIRES = ['romain@takeoff.do'];
 export const ALIAS_RETIRES = ['takeoff', 'takeoff.do', 'take off'];
 export const estCompteRetire = (indice) => {
@@ -28,7 +28,7 @@ export class CompteNonConnecte extends Error {}
 
 const sauverComptes = (c) => ecrireValeur('google-comptes', c);
 
-// Retire du stockage les comptes de COMPTES_RETIRES : révocation du jeton (au mieux), signature effacée.
+// Retire du stockage les comptes de COMPTES_RETIRES : révocation du jeton (au mieux).
 export async function purgerComptesRetires(fetchImpl = fetch) {
   const tous = (await lireValeur('google-comptes')) || [];
   const retires = tous.filter((c) => COMPTES_RETIRES.includes(c.email));
@@ -38,11 +38,6 @@ export async function purgerComptesRetires(fetchImpl = fetch) {
       if (jeton) { try { await fetchImpl(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(jeton)}`, { method: 'POST' }); } catch { /* ignoré */ } }
     }
     await sauverComptes(tous.filter((c) => !COMPTES_RETIRES.includes(c.email)));
-  }
-  const signatures = (await lireValeur('gmail-signatures')) || {};
-  if (COMPTES_RETIRES.some((e) => e in signatures)) {
-    for (const e of COMPTES_RETIRES) delete signatures[e];
-    await ecrireValeur('gmail-signatures', signatures);
   }
   return retires.map((c) => c.email);
 }
@@ -138,15 +133,3 @@ export async function resoudreCompte(indice) {
   return trouve.email;
 }
 
-// Signatures d'e-mail par compte (ajoutées automatiquement aux envois, réponses et brouillons).
-export async function lireSignatures() { return (await lireValeur('gmail-signatures')) || {}; }
-export async function definirSignature(email, signature) {
-  const comptes = await listerComptes();
-  if (!comptes.some((c) => c.email === email)) throw new Error(`Compte inconnu : ${email}`);
-  const toutes = await lireSignatures();
-  const texte = String(signature || '').trim().slice(0, 1500);
-  if (texte) toutes[email] = texte; else delete toutes[email];
-  await ecrireValeur('gmail-signatures', toutes);
-  return texte;
-}
-export async function signaturePour(email) { return (await lireSignatures())[email] || ''; }
